@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,21 +26,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { VeerScreen() }
+        setContent { VeerApp() }
     }
 }
 
 @Composable
-fun VeerScreen() {
+fun VeerApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var status by remember { mutableStateOf("SYSTEM ONLINE") }
+    val cyan = Color(0xFF00E5FF)
+    val background = Color(0xFF050B16)
+
+    var status by remember { mutableStateOf("VEER ONLINE") }
     var heard by remember { mutableStateOf("Boss, main sun raha hoon.") }
-    var reply by remember { mutableStateOf("Namaste boss! Main VEER hoon.") }
+    var reply by remember { mutableStateOf("Namaste Boss! Main VEER hoon.") }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
 
     DisposableEffect(context) {
@@ -52,161 +58,178 @@ fun VeerScreen() {
         onDispose {
             engine.stop()
             engine.shutdown()
+            tts = null
         }
     }
 
     fun speak(message: String) {
         reply = message
-        status = "VEER SPEAKING"
-        tts?.let {
-            it.language = Locale("hi", "IN")
-            it.setPitch(0.82f)
-            it.setSpeechRate(0.88f)
-            it.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER")
-        }
+        tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER")
     }
 
     fun processCommand(command: String) {
-        val q = command.lowercase(Locale.ROOT)
-        val answer = when {
-            "hello" in q || "नमस्ते" in q || "namaste" in q ->
-                "Namaste boss! Bataiye, main aapki kya madad karun?"
-            "time" in q || "समय" in q || "kitne baje" in q ->
-                "Abhi samay hai " +
-                java.text.SimpleDateFormat("hh:mm a", Locale.getDefault()).format(java.util.Date())
-            "date" in q || "तारीख" in q || "tarikh" in q ->
-                "Aaj ki tareekh hai " +
-                java.text.SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(java.util.Date())
-            "who are you" in q || "tum kaun" in q ->
-                "Main VEER hoon, aapka personal AI assistant."
-            "youtube" in q ->
-                "Boss, YouTube kholne ki koshish karta hoon."
-            else ->
-                "Boss, maine aapki baat sun li. Abhi mera AI brain connect hona baaki hai."
-        }
+        heard = command
+        val text = command.lowercase(Locale.getDefault())
 
-        if ("youtube" in q) {
-            val launch = context.packageManager
-                .getLaunchIntentForPackage("com.google.android.youtube")
-            if (launch != null) context.startActivity(launch)
+        when {
+            text.contains("namaste") || text.contains("hello") ||
+            text.contains("hey veer") -> speak("Namaste Boss! Bataiye, main aapki kya madad kar sakta hoon?")
+
+            text.contains("time") || text.contains("kitne baje") ->
+                speak("Abhi time hai " + SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date()))
+
+            text.contains("date") || text.contains("tarikh") || text.contains("aaj kya") ->
+                speak("Aaj ki tarikh hai " + SimpleDateFormat("dd MMMM yyyy", Locale("hi", "IN")).format(Date()))
+
+            text.contains("who are you") || text.contains("kaun ho") ->
+                speak("Main VEER hoon, aapka personal assistant.")
+
+            text.contains("youtube") -> {
+                speak("YouTube khol raha hoon Boss.")
+                val intent = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                if (intent != null) context.startActivity(intent)
+                else speak("Boss, YouTube app nahi mil raha.")
+            }
+
+            else -> speak("Boss, maine aapki baat sun li hai. Mera advanced AI brain abhi connect hona baaki hai.")
         }
-        speak(answer)
-        status = "SYSTEM ONLINE"
     }
 
+    var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+
     fun listen() {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            status = "SPEECH SERVICE NOT AVAILABLE"
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            status = "MICROPHONE PERMISSION REQUIRED"
             return
         }
-        status = "LISTENING..."
-        val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            status = "SPEECH SERVICE NOT AVAILABLE"
+            speak("Boss, speech service available nahi hai.")
+            return
+        }
+
+        recognizer?.destroy()
+        val speech = SpeechRecognizer.createSpeechRecognizer(context)
+        recognizer = speech
+
+        speech.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                status = "LISTENING..."
+            }
+            override fun onBeginningOfSpeech() {
+                status = "HEARING YOUR VOICE"
+            }
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                status = "PROCESSING..."
+            }
+            override fun onError(error: Int) {
+                status = "TAP TO TRY AGAIN"
+            }
+            override fun onResults(results: Bundle?) {
+                val words = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!words.isNullOrEmpty()) processCommand(words[0])
+                status = "VEER ONLINE"
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
 
-        recognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { status = "LISTENING..." }
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() { status = "PROCESSING..." }
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-
-            override fun onResults(results: Bundle?) {
-                val words = results?.getStringArrayList(
-                    SpeechRecognizer.RESULTS_RECOGNITION
-                )?.firstOrNull()
-                recognizer.destroy()
-                if (words != null) {
-                    heard = words
-                    processCommand(words)
-                } else {
-                    status = "NOT HEARD. TRY AGAIN"
-                }
-            }
-
-            override fun onError(error: Int) {
-                recognizer.destroy()
-                status = "VOICE ERROR: TRY AGAIN"
-            }
-        })
-        recognizer.startListening(intent)
+        try {
+            speech.startListening(intent)
+        } catch (e: Exception) {
+            status = "VOICE ERROR"
+        }
     }
 
-    val permission = rememberLauncherForActivityResult(
+    val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) listen() else status = "MICROPHONE PERMISSION REQUIRED"
+        if (granted) listen()
+        else status = "MICROPHONE PERMISSION DENIED"
     }
 
-    val cyan = Color(0xFF35E8FF)
+    DisposableEffect(Unit) {
+        onDispose {
+            recognizer?.destroy()
+            recognizer = null
+        }
+    }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF061B2B), Color(0xFF020812), Color.Black)
-                )
-            )
-            .padding(22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(Brush.verticalGradient(listOf(background, Color(0xFF101F35)))),
+        contentAlignment = Alignment.Center
     ) {
-        Text("V E E R", color = cyan, fontSize = 36.sp,
-            fontWeight = FontWeight.Bold)
-        Text("PERSONAL AI ASSISTANT", color = Color.LightGray,
-            fontSize = 12.sp)
-
-        Spacer(Modifier.height(35.dp))
-
-        Box(
-            modifier = Modifier.size(190.dp).background(
-                Brush.radialGradient(
-                    listOf(Color(0xFF126C91), Color(0xFF07304A), Color.Transparent)
-                ), CircleShape
-            ),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("◉", color = cyan, fontSize = 110.sp)
-        }
+            Text("VEER", color = cyan, fontSize = 38.sp, fontWeight = FontWeight.Bold)
+            Text("PERSONAL AI ASSISTANT", color = Color.LightGray, fontSize = 12.sp)
 
-        Spacer(Modifier.height(25.dp))
-        Text(status, color = cyan, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(35.dp))
 
-        Text("YOU SAID:", color = Color.Gray, fontSize = 11.sp)
-        Text(heard, color = Color.White, fontSize = 16.sp)
-        Spacer(Modifier.height(12.dp))
-        Text("VEER:", color = cyan, fontSize = 11.sp)
-        Text(reply, color = Color.White, fontSize = 16.sp)
+            Box(
+                modifier = Modifier
+                    .size(170.dp)
+                    .background(Color(0xFF102D43), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("◉", color = cyan, fontSize = 100.sp)
+            }
 
-        Spacer(Modifier.height(25.dp))
-        Button(
-            onClick = {
-                if (ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.RECORD_AUDIO
-                ) == PackageManager.PERMISSION_GRANTED) {
-                    listen()
-                } else {
-                    permission.launch(Manifest.permission.RECORD_AUDIO)
-                }
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF087E9B)
-            )
-        ) {
-            Text("🎙  TALK TO VEER")
-        }
+            Spacer(Modifier.height(28.dp))
+            Text(status, color = cyan, fontSize = 14.sp, fontWeight = FontWeight.Bold)
 
-        TextButton(onClick = { speak("Namaste boss! VEER taiyar hai.") }) {
-            Text("TEST VEER VOICE", color = cyan)
+            Spacer(Modifier.height(25.dp))
+            Text("YOU SAID", color = Color.Gray, fontSize = 12.sp)
+            Text(heard, color = Color.White, fontSize = 17.sp)
+
+            Spacer(Modifier.height(18.dp))
+            Text("VEER", color = cyan, fontSize = 12.sp)
+            Text(reply, color = Color.White, fontSize = 17.sp)
+
+            Spacer(Modifier.height(35.dp))
+
+            Button(
+                onClick = {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                        == PackageManager.PERMISSION_GRANTED) {
+                        listen()
+                    } else {
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007C91)),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Text("🎙  TALK TO VEER", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = { speak("Namaste Boss! VEER aapke liye taiyaar hai.") },
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) {
+                Text("TEST VOICE", color = cyan)
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text("Your assistant. Your command.", color = Color.Gray, fontSize = 12.sp)
         }
     }
 }
