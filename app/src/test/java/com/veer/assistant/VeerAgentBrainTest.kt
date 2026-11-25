@@ -176,4 +176,29 @@ class VeerAgentBrainTest {
         assertTrue(result.message.contains("AI engine"))
     }
 
+    @Test fun approvalCheckFailureStopsActionWithoutExecutingIt() {
+        val tools = FakeTools()
+        val throwingApproval = object : AgentApprovalGate {
+            override fun approved(call: AgentToolCall): Boolean =
+                error("approval service unavailable")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                AgentDecision(
+                    "Need permission",
+                    call("write", AgentRisk.EXTERNAL_SIDE_EFFECT),
+                    finished = false
+                )
+            },
+            tools,
+            throwingApproval
+        )
+
+        val result = brain.run(turn())
+
+        assertTrue(result.stoppedForApproval)
+        assertTrue(tools.executed.isEmpty())
+        assertEquals(0, result.steps)
+    }
+
 }
