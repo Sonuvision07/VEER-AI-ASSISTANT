@@ -879,6 +879,7 @@ fun VeerApp() {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("AI provider keys phone par Android Keystore encryption ke saath save hoti hain; GitHub par upload nahi hoti.", fontSize = 13.sp)
+                    Text("Privacy: chat history aur saved memories app ke private phone storage mein save hoti hain, lekin API keys ki tarah separately encrypted nahi hain. Passwords ya highly sensitive details memory mein save na karein.", fontSize = 11.sp, color = Color.Gray)
                     Divider()
                     Text("Optional Accessibility Bridge", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text("VEER screen ka text nahi padhta, taps ya typing automate nahi karta. Android Settings mein ise manually enable karne ke baad bhi Back action sirf aapke alag APPROVE confirmation par chalega.", fontSize = 11.sp, color = Color.Gray)
