@@ -32,7 +32,11 @@ object VeerModelInstaller {
             return@withContext destination
         }
 
-        val temporary = File(destination.parentFile, destination.name + ".download")
+        val modelDirectory = destination.parentFile ?: error("Model storage directory unavailable.")
+        check(modelDirectory.usableSpace >= 500L * 1024L * 1024L) {
+            "Offline model download ke liye kam se kam 500 MB free storage chahiye."
+        }
+        val temporary = File(modelDirectory, destination.name + ".download")
         temporary.delete()
         val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
@@ -53,6 +57,7 @@ object VeerModelInstaller {
             }
 
             var downloaded = 0L
+            var lastProgressReport = 0L
             connection.inputStream.buffered().use { input ->
                 temporary.outputStream().buffered().use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -62,7 +67,10 @@ object VeerModelInstaller {
                         if (count < 0) break
                         output.write(buffer, 0, count)
                         downloaded += count
-                        onProgress(downloaded, contentLength)
+                        if (downloaded - lastProgressReport >= 1024L * 1024L || downloaded == contentLength) {
+                            onProgress(downloaded, contentLength)
+                            lastProgressReport = downloaded
+                        }
                     }
                 }
             }
