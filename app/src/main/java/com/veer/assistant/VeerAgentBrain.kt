@@ -92,6 +92,15 @@ class VeerAgentBrain(
                     lastProvider, steps
                 )
             }
+            val invalidArgumentKey = action.arguments.keys.any { key ->
+                key.isBlank() || key != key.trim() || key.any { it.isISOControl() } || key.length > 128
+            }
+            if (invalidArgumentKey) {
+                return AgentRunResult(
+                    "VEER ne action block kar diya kyunki tool argument key invalid hai.",
+                    lastProvider, steps
+                )
+            }
             val argumentChars = try {
                 action.arguments.entries.fold(0L) { total, entry ->
                     total + entry.key.length.toLong() + entry.value.length.toLong()
