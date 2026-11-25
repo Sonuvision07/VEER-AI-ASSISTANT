@@ -208,7 +208,7 @@ fun VeerApp() {
     fun speak(message: String) {
         val engine = tts
         if (engine == null) {
-            context.sendBroadcast(Intent(VeerVoiceService.ACTION_RESUME).setPackage(context.packageName))
+            context.startService(Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
             return
         }
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
