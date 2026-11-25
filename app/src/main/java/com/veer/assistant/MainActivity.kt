@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.ByteArrayOutputStream
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -121,6 +124,7 @@ fun VeerApp() {
     var pendingAction by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
+    var attachedImageBase64 by remember { mutableStateOf<String?>(null) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
     val memories = remember {
@@ -220,7 +224,7 @@ fun VeerApp() {
         showApproval = false
     }
 
-    fun askGemini(question: String) {
+    fun askGemini(question: String, imageBase64: String? = null) {
         val key = apiKey.trim()
         if (key.isEmpty()) {
             addReply("Boss, AI brain connect karne ke liye Settings mein apni Gemini API key save karein.")
@@ -248,9 +252,12 @@ fun VeerApp() {
                     if (model == "gemini-3.8-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "LOW"))
                     if (model == "gemini-3.6-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "MINIMAL"))
                     val systemText = "You are VEER, a fast, accurate personal AI assistant. Reply in natural Hindi/Hinglish matching the user. Be concise by default and answer simple questions directly. For complex tasks, give a clear short plan and practical steps. Use relevant saved preferences and recent context. Never invent facts or claim actions you did not perform. The Android app can only open Settings, YouTube, browser, Calculator, Camera, Maps and phone dialer after user approval. Protect privacy. Address the user as Boss naturally, not in every sentence."
+                    val requestParts = org.json.JSONArray()
+                    if (!imageBase64.isNullOrBlank()) requestParts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", imageBase64)))
+                    requestParts.put(JSONObject().put("text", prompt))
                     val body = JSONObject()
                         .put("systemInstruction", JSONObject().put("parts", org.json.JSONArray().put(JSONObject().put("text", systemText))))
-                        .put("contents", org.json.JSONArray().put(JSONObject().put("role", "user").put("parts", org.json.JSONArray().put(JSONObject().put("text", prompt)))))
+                        .put("contents", org.json.JSONArray().put(JSONObject().put("role", "user").put("parts", requestParts)))
                         .put("generationConfig", generation)
                     val connection = (endpoint.openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
@@ -379,7 +386,7 @@ fun VeerApp() {
                 showApproval = true
                 addReply("Boss, Phone dialer kholne ki permission chahiye. VEER khud call nahi karega. Neeche Approve dabayein.")
             }
-            else -> askGemini(clean)
+            else -> { askGemini(clean, attachedImageBase64); attachedImageBase64 = null }
         }
     }
 
@@ -418,6 +425,34 @@ fun VeerApp() {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
         try { speech.startListening(intent) } catch (_: Exception) { status = "VOICE ERROR" }
+    }
+
+    fun bitmapToBase64(bitmap: Bitmap): String {
+        val scaled = if (bitmap.width > 1280 || bitmap.height > 1280) {
+            val ratio = minOf(1280f / bitmap.width, 1280f / bitmap.height)
+            Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+        } else bitmap
+        val bytes = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 82, bytes)
+        return Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP)
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            status = "LOADING IMAGE..."
+            Thread {
+                val encoded = try { context.contentResolver.openInputStream(uri)?.use { input -> BitmapFactory.decodeStream(input)?.let { bitmapToBase64(it) } } } catch (_: Exception) { null }
+                Handler(Looper.getMainLooper()).post {
+                    attachedImageBase64 = encoded
+                    status = if (encoded != null) "IMAGE ATTACHED" else "IMAGE LOAD FAILED"
+                    if (encoded == null) addReply("Image open nahi ho paayi. Doosri image select karein.")
+                }
+            }.start()
+        }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        attachedImageBase64 = bitmap?.let { bitmapToBase64(it) }
+        status = if (bitmap != null) "CAMERA IMAGE ATTACHED" else "CAMERA CANCELLED"
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -499,10 +534,11 @@ fun VeerApp() {
                         }
                     }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Color(0xFF242629), RoundedCornerShape(30.dp)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("+", color = Color.White, fontSize = 26.sp) }
+                        TextButton(onClick = { galleryLauncher.launch("image/*") }) { Text("+", color = Color.White, fontSize = 26.sp) }
                         OutlinedTextField(value = typedCommand, onValueChange = { typedCommand = it }, modifier = Modifier.weight(1f),
                             placeholder = { Text("Message VEER", color = Color(0xFFB7B7B7)) }, singleLine = false, maxLines = 4,
                             colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color.White))
+                        TextButton(onClick = { cameraLauncher.launch(null) }) { Text("📷", fontSize = 19.sp) }
                         TextButton(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("🎙", fontSize = 21.sp) }
                         Button(onClick = { val q = typedCommand.trim(); if (q.isNotEmpty() && !loading) { typedCommand = ""; processCommand(q) } },
                             enabled = !loading && typedCommand.isNotBlank(), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
