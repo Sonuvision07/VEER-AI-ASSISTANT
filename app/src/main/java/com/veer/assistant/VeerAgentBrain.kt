@@ -60,8 +60,13 @@ class VeerAgentBrain(
     private val providerOrder: List<AiProvider> = listOf(
         AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC
     ),
-    private val maxToolSteps: Int = 5
+    private val maxToolSteps: Int = 5,
+    private val maxToolResultChars: Int = 4_000
 ) {
+    init {
+        require(maxToolSteps > 0) { "maxToolSteps must be positive" }
+        require(maxToolResultChars > 0) { "maxToolResultChars must be positive" }
+    }
     fun run(initialTurn: AgentTurn): AgentRunResult {
         var turn = initialTurn
         var lastProvider: AiProvider? = null
@@ -102,11 +107,17 @@ class VeerAgentBrain(
                     )
                 }
             }
-            val result = try {
+            val rawResult = try {
                 tools.execute(action)
             } catch (_: Exception) {
                 // Tool exceptions may contain credentials or private arguments; never pass them to the model.
                 "Tool execution failed. VEER ne action ko safely stop kar diya."
+            }
+            // Bound tool output before adding it to the next model request.
+            val result = if (rawResult.length > maxToolResultChars) {
+                rawResult.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
+            } else {
+                rawResult
             }
             steps += 1
             turn = turn.copy(previousToolResult = result)
