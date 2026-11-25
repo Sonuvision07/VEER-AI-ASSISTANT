@@ -84,8 +84,14 @@ class VeerAgentBrain(
             if (action == null || decision.second.finished) {
                 return AgentRunResult(decision.second.message, lastProvider, steps)
             }
-            val argumentChars = action.arguments.entries.sumOf { it.key.length + it.value.length }
-            if (argumentChars > maxToolArgumentChars) {
+            val argumentChars = try {
+                action.arguments.entries.fold(0L) { total, entry ->
+                    total + entry.key.length.toLong() + entry.value.length.toLong()
+                }
+            } catch (_: Exception) {
+                Long.MAX_VALUE
+            }
+            if (argumentChars > maxToolArgumentChars.toLong()) {
                 return AgentRunResult(
                     "VEER ne action block kar diya kyunki tool arguments allowed size se bade hain.",
                     lastProvider, steps
