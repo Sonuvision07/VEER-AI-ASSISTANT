@@ -130,6 +130,7 @@ fun VeerApp() {
     val fallbackAttempted = remember { mutableStateListOf<String>() }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
+    var showBackConfirm by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -810,6 +811,24 @@ fun VeerApp() {
         }
     }
 
+    if (showBackConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBackConfirm = false },
+            title = { Text("Confirm Back Action") },
+            text = { Text("VEER abhi current screen par Android ka Back action karega. Kya aap approve karte hain?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBackConfirm = false
+                    val performed = VeerAccessibilityService.performApprovedBack()
+                    messages.add("VEER" to if (performed) "Back action perform ho gaya." else "Accessibility Service enabled nahi hai. Pehle Android Settings mein VEER ko manually enable karein.")
+                }) { Text("APPROVE") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBackConfirm = false }) { Text("CANCEL") }
+            }
+        )
+    }
+
     if (showApproval) {
         val actionLabel = when (pendingAction) {
             "settings" -> "Phone Settings kholna"
@@ -863,6 +882,7 @@ fun VeerApp() {
                             messages.add("VEER" to "Accessibility Settings open nahi ho paayi.")
                         }
                     }) { Text("OPEN ACCESSIBILITY SETTINGS") }
+                    TextButton(onClick = { showBackConfirm = true }) { Text("TEST APPROVED BACK ACTION") }
                     Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Box {
                         TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; else -> "AUTO (fallback order)" }) }
