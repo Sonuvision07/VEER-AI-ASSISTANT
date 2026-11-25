@@ -2,6 +2,7 @@ package com.veer.assistant
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VeerLocalBrainTest {
@@ -39,11 +40,23 @@ class VeerLocalBrainTest {
         assertEquals("Zero se divide nahi kar sakte, Boss.", VeerLocalBrain.reply("10 / 0"))
     }
 
+    @Test fun timeQuestionIsAnsweredOffline() {
+        val reply = VeerLocalBrain.reply("time kya hua") ?: ""
+        assertTrue(reply.startsWith("Boss, abhi "))
+        assertTrue(reply.endsWith(" baj rahe hain."))
+    }
+
+    @Test fun dateQuestionIsAnsweredOffline() {
+        val reply = VeerLocalBrain.reply("aaj ki date") ?: ""
+        assertTrue(reply.startsWith("Boss, aaj "))
+        assertTrue(reply.endsWith(" hai."))
+    }
+
     @Test fun unknownQuestionFallsThroughToConfiguredProvider() {
         assertNull(VeerLocalBrain.reply("Explain quantum mechanics in detail"))
     }
 
     @Test fun memoryQuestionUsesLocalNotes() {
-        assertEquals("Meri local memory mein ye notes hain:\\n1. Mera naam Vishal hai", VeerLocalBrain.reply("what do you remember", listOf("Mera naam Vishal hai")))
+        assertEquals("Meri local memory mein ye notes hain:\n1. Mera naam Vishal hai", VeerLocalBrain.reply("what do you remember", listOf("Mera naam Vishal hai")))
     }
 }
