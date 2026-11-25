@@ -30,14 +30,6 @@ class VeerVoiceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_RESUME) {
-            if (!stopping) {
-                awaitingReply = false
-                consecutiveErrors = 0
-                startRecognition()
-            }
-            return START_NOT_STICKY
-        }
         if (intent?.action == ACTION_STOP) {
             stopping = true
             stopRecognition()
@@ -49,21 +41,42 @@ class VeerVoiceService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (!startVoiceForeground()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_RESUME) {
+            if (!stopping) {
+                awaitingReply = false
+                consecutiveErrors = 0
+                startRecognition()
+            }
+            return START_NOT_STICKY
+        }
         stopping = false
         awaitingReply = false
+        startRecognition()
+        return START_NOT_STICKY
+    }
+
+    private fun startVoiceForeground(): Boolean {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("VEER voice mode active")
             .setContentText("VEER is listening. Tap Stop in the app to turn it off.")
             .setOngoing(true)
             .build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        return try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("VEER", "Unable to enter foreground voice mode", e)
+            false
         }
-        startRecognition()
-        return START_NOT_STICKY
     }
 
     private fun createChannel() {
