@@ -237,6 +237,17 @@ fun VeerApp() {
     }
 
     fun runApprovedAction(action: String) {
+        val allowedActions = setOf(
+            "settings", "youtube", "music", "browser", "calculator", "camera", "maps",
+            "dialer", "instagram", "facebook", "whatsapp", "x", "telegram",
+            "youtube_studio", "gmail"
+        )
+        if (action !in allowedActions) {
+            pendingAction = ""
+            showApproval = false
+            addReply("Boss, ye action supported ya approved list mein nahi hai. Maine ise run nahi kiya.")
+            return
+        }
         try {
             when (action) {
                 "settings" -> context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
@@ -780,6 +791,18 @@ fun VeerApp() {
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFECECEC), contentColor = Color.Black)) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
+            }
+        }
+    }
+
+    LaunchedEffect(showApproval, pendingAction) {
+        if (showApproval && pendingAction.isNotBlank()) {
+            val requestedAction = pendingAction
+            kotlinx.coroutines.delay(60_000)
+            if (showApproval && pendingAction == requestedAction) {
+                showApproval = false
+                pendingAction = ""
+                addReply("Boss, permission request 60 seconds mein expire ho gayi. Zarurat ho to command dobara dein.")
             }
         }
     }
