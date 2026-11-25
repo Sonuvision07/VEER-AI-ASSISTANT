@@ -40,6 +40,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -115,6 +120,8 @@ class MainActivity : ComponentActivity() {
 fun VeerApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
+    val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
+    val localAiScope = rememberCoroutineScope()
     val cyan = Color(0xFF00E5FF)
     val dark = Color(0xFF050B16)
 
@@ -130,6 +137,11 @@ fun VeerApp() {
     val fallbackAttempted = remember { mutableStateListOf<String>() }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
+    var localModelInstalled by remember { mutableStateOf(localAiEngine.isModelInstalled) }
+    var localAiReady by remember { mutableStateOf(false) }
+    var modelDownloading by remember { mutableStateOf(false) }
+    var modelDownloadPercent by remember { mutableStateOf(0) }
+    var modelStatus by remember { mutableStateOf("Offline AI model not installed") }
     var showBackConfirm by remember { mutableStateOf(false) }
     var showClearChatConfirm by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
@@ -190,6 +202,10 @@ fun VeerApp() {
             history.put(JSONObject().put("role", item.first).put("message", item.second))
         }
         prefs.edit().putString("chat_history", history.toString()).apply()
+    }
+
+    DisposableEffect(localAiEngine) {
+        onDispose { localAiEngine.close() }
     }
 
     DisposableEffect(context) {
@@ -548,6 +564,36 @@ fun VeerApp() {
             text.contains("youtube studio kholo") || text.contains("open youtube studio") -> { pendingAction = "youtube_studio"; showApproval = true }
             else -> {
                 val image = attachedImageBase64
+                if (localAiReady && image == null && attachedText.isNullOrBlank()) {
+                    val localPrompt = buildString {
+                        if (memories.isNotEmpty()) {
+                            append("Relevant saved notes:\n")
+                            memories.takeLast(12).forEach { append("- ").append(it).append("\n") }
+                        }
+                        messages.dropLast(1).takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
+                        append("\nCurrent request: ").append(clean)
+                    }
+                    loading = true
+                    status = "LOCAL AI THINKING..."
+                    localAiScope.launch {
+                        try {
+                            val answer = withContext(Dispatchers.Default) { localAiEngine.generateReply(localPrompt) }
+                            loading = false
+                            addReply(answer.ifBlank { "Boss, local model se khaali jawab mila. Dobara try karein." })
+                        } catch (error: Exception) {
+                            loading = false
+                            status = "LOCAL AI ERROR"
+                            addReply("Boss, offline AI run nahi ho paaya: " + (error.message ?: "unknown error"))
+                        }
+                    }
+                    attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg"
+                    return
+                }
+                if (!localAiReady && apiKey.isBlank() && openAiApiKey.isBlank() && claudeApiKey.isBlank()) {
+                    addReply(if (localModelInstalled) "Offline AI model phone mein hai, lekin activate nahi hua. Settings kholkar ACTIVATE OFFLINE AI dabayein." else "VEER ka apna offline AI model abhi install nahi hai. Settings mein 347 MB model download karein; iske liye API key nahi chahiye.")
+                    showSettings = true
+                    return
+                }
                 fallbackAttempted.clear()
                 when (selectedProvider) {
                     "CLAUDE" -> {
@@ -907,7 +953,39 @@ fun VeerApp() {
             onDismissRequest = { showSettings = false },
             title = { Text("VEER AI Settings") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("VEER OFFLINE AI", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                    Text("Model status: " + when { modelDownloading -> "Downloading... " + modelDownloadPercent + "%"; localAiReady -> "Ready — answers run on this phone"; localModelInstalled -> "Downloaded — activate to start"; else -> "Not installed — approx. 347 MB download" }, fontSize = 12.sp)
+                    if (modelDownloading) LinearProgressIndicator(progress = { modelDownloadPercent / 100f }, modifier = Modifier.fillMaxWidth())
+                    Button(
+                        onClick = {
+                            if (!modelDownloading && !localAiReady) {
+                                localAiScope.launch {
+                                    modelDownloading = true
+                                    try {
+                                        withContext(Dispatchers.IO) {
+                                            VeerModelInstaller.install(context) { downloaded, total ->
+                                                val percent = if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else 0
+                                                Handler(Looper.getMainLooper()).post { modelDownloadPercent = percent }
+                                            }
+                                        }
+                                        localModelInstalled = true
+                                        withContext(Dispatchers.Default) { localAiEngine.initialize() }
+                                        localAiReady = true
+                                        messages.add("VEER" to "Boss, VEER ka offline AI model activate ho gaya. Ab text chat bina API key ke chalegi.")
+                                    } catch (error: Exception) {
+                                        messages.add("VEER" to "Offline AI setup fail hua: " + (error.message ?: "unknown error"))
+                                    } finally {
+                                        modelDownloading = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !modelDownloading && !localAiReady,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (localAiReady) "OFFLINE AI READY" else if (localModelInstalled) "ACTIVATE OFFLINE AI" else "DOWNLOAD & ACTIVATE (347 MB)") }
+                    Text("Ek baar download ke baad text AI isi phone par chalega. Model download ke liye internet aur lagbhag 500 MB free storage chahiye. Model chhota hai, isliye jawab cloud AI jitne advanced nahi honge. Image/document AI abhi local model mein enabled nahi hai.", fontSize = 11.sp, color = Color.Gray)
+                    Divider()
                     Text("AI provider keys phone par Android Keystore encryption ke saath save hoti hain; GitHub par upload nahi hoti.", fontSize = 13.sp)
                     Text("Privacy: chat history aur saved memories app ke private phone storage mein save hoti hain, lekin API keys ki tarah separately encrypted nahi hain. Passwords ya highly sensitive details memory mein save na karein.", fontSize = 11.sp, color = Color.Gray)
                     Divider()
