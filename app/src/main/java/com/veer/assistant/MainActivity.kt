@@ -206,6 +206,12 @@ fun VeerApp() {
         status = if (voiceMode) "VEER READY" else "ONLINE"
     }
 
+    fun launchSocialApp(packageName: String, fallbackUrl: String) {
+        val launch = context.packageManager.getLaunchIntentForPackage(packageName)
+        if (launch != null) context.startActivity(launch)
+        else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)))
+    }
+
     fun runApprovedAction(action: String) {
         try {
             when (action) {
@@ -220,6 +226,13 @@ fun VeerApp() {
                 "camera" -> context.startActivity(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE))
                 "maps" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=nearby places")))
                 "dialer" -> context.startActivity(Intent(Intent.ACTION_DIAL))
+                "instagram" -> launchSocialApp("com.instagram.android", "https://www.instagram.com")
+                "facebook" -> launchSocialApp("com.facebook.katana", "https://www.facebook.com")
+                "whatsapp" -> launchSocialApp("com.whatsapp", "https://www.whatsapp.com")
+                "x" -> launchSocialApp("com.twitter.android", "https://x.com")
+                "telegram" -> launchSocialApp("org.telegram.messenger", "https://t.me")
+                "youtube_studio" -> launchSocialApp("com.google.android.apps.youtube.creator", "https://studio.youtube.com")
+                "gmail" -> launchSocialApp("com.google.android.gm", "https://mail.google.com")
             }
             addReply("Boss, aapki permission se action complete kar diya.")
         } catch (_: Exception) {
@@ -446,6 +459,34 @@ fun VeerApp() {
                 showApproval = true
                 addReply("Boss, Maps kholne ki permission chahiye. Neeche Approve dabayein.")
             }
+            text.contains("instagram kholo") || text == "instagram" || text.contains("open instagram") -> {
+                pendingAction = "instagram"; showApproval = true
+                addReply("Instagram open karne ke liye neeche Approve dabayein.")
+            }
+            text.contains("facebook kholo") || text == "facebook" || text.contains("open facebook") -> {
+                pendingAction = "facebook"; showApproval = true
+                addReply("Facebook open karne ke liye neeche Approve dabayein.")
+            }
+            text.contains("whatsapp kholo") || text == "whatsapp" || text.contains("open whatsapp") -> {
+                pendingAction = "whatsapp"; showApproval = true
+                addReply("WhatsApp open karne ke liye neeche Approve dabayein.")
+            }
+            text.contains("twitter kholo") || text.contains("x kholo") || text == "twitter" -> {
+                pendingAction = "x"; showApproval = true
+                addReply("X open karne ke liye neeche Approve dabayein.")
+            }
+            text.contains("telegram kholo") || text == "telegram" -> {
+                pendingAction = "telegram"; showApproval = true
+                addReply("Telegram open karne ke liye neeche Approve dabayein.")
+            }
+            text.contains("youtube studio kholo") || text.contains("studio kholo") -> {
+                pendingAction = "youtube_studio"; showApproval = true
+                addReply("YouTube Studio open karne ke liye neeche Approve dabayein.")
+            }
+            text.contains("gmail kholo") || text == "gmail" -> {
+                pendingAction = "gmail"; showApproval = true
+                addReply("Gmail open karne ke liye neeche Approve dabayein.")
+            }
             text.contains("dialer kholo") || text.contains("phone kholo") || text.contains("number dial") -> {
                 pendingAction = "dialer"
                 showApproval = true
@@ -667,6 +708,13 @@ fun VeerApp() {
             "calculator" -> "Calculator kholna"
             "camera" -> "Camera kholna"
             "maps" -> "Maps kholna"
+            "instagram" -> "Instagram kholna"
+            "facebook" -> "Facebook kholna"
+            "whatsapp" -> "WhatsApp kholna"
+            "x" -> "X kholna"
+            "telegram" -> "Telegram kholna"
+            "youtube_studio" -> "YouTube Studio kholna"
+            "gmail" -> "Gmail kholna"
             "dialer" -> "Phone dialer kholna (call nahi lagegi)"
             else -> "Action chalana"
         }
