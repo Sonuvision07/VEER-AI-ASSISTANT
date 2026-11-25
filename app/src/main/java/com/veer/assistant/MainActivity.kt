@@ -967,13 +967,15 @@ fun VeerApp() {
                                 localAiScope.launch {
                                     modelDownloading = true
                                     try {
-                                        withContext(Dispatchers.IO) {
-                                            VeerModelInstaller.install(context) { downloaded, total ->
-                                                val percent = if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else 0
-                                                Handler(Looper.getMainLooper()).post { modelDownloadPercent = percent }
+                                        if (!localModelInstalled) {
+                                            withContext(Dispatchers.IO) {
+                                                VeerModelInstaller.install(context) { downloaded, total ->
+                                                    val percent = if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else 0
+                                                    Handler(Looper.getMainLooper()).post { modelDownloadPercent = percent }
+                                                }
                                             }
+                                            localModelInstalled = true
                                         }
-                                        localModelInstalled = true
                                         withContext(Dispatchers.Default) { localAiEngine.initialize() }
                                         localAiReady = true
                                         messages.add("VEER" to "Boss, VEER ka offline AI model activate ho gaya. Ab text chat bina API key ke chalegi.")
