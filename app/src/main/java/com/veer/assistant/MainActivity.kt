@@ -137,7 +137,8 @@ fun VeerApp() {
     val fallbackAttempted = remember { mutableStateListOf<String>() }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
-    var localModelInstalled by remember { mutableStateOf(localAiEngine.isModelInstalled) }
+    val modelInstalledAtLaunch = remember(localAiEngine) { localAiEngine.isModelInstalled }
+    var localModelInstalled by remember { mutableStateOf(modelInstalledAtLaunch) }
     var localAiReady by remember { mutableStateOf(false) }
     var modelDownloading by remember { mutableStateOf(false) }
     var modelDownloadPercent by remember { mutableStateOf(0) }
@@ -203,8 +204,8 @@ fun VeerApp() {
         prefs.edit().putString("chat_history", history.toString()).apply()
     }
 
-    LaunchedEffect(localAiEngine, localModelInstalled) {
-        if (localModelInstalled && !localAiReady) {
+    LaunchedEffect(localAiEngine) {
+        if (modelInstalledAtLaunch) {
             try {
                 withContext(Dispatchers.Default) { localAiEngine.initialize() }
                 localAiReady = true
