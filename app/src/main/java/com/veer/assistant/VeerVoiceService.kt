@@ -108,7 +108,16 @@ class VeerVoiceService : Service() {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
-        try { speech.startListening(intent) } catch (e: Exception) { Log.w("VEER", "Speech start failed", e) }
+        try {
+            speech.startListening(intent)
+        } catch (e: Exception) {
+            Log.w("VEER", "Speech start failed", e)
+            if (!stopping && !awaitingReply) {
+                consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
+                val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
+                handler.postDelayed({ startRecognition() }, delayMs)
+            }
+        }
     }
 
     private fun stopRecognition() {
