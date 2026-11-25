@@ -203,6 +203,17 @@ fun VeerApp() {
         prefs.edit().putString("chat_history", history.toString()).apply()
     }
 
+    LaunchedEffect(localAiEngine, localModelInstalled) {
+        if (localModelInstalled && !localAiReady) {
+            try {
+                withContext(Dispatchers.Default) { localAiEngine.initialize() }
+                localAiReady = true
+            } catch (error: Exception) {
+                messages.add("VEER" to "Offline AI auto-start nahi ho paaya. Settings mein dobara activate karein: " + (error.message ?: "unknown error"))
+            }
+        }
+    }
+
     DisposableEffect(localAiEngine) {
         onDispose { localAiEngine.close() }
     }
