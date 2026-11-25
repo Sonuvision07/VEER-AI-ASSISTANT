@@ -19,6 +19,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -195,9 +204,9 @@ fun VeerApp() {
         val prompt = buildString {
             val contextMessages = messages.takeLast(12)
             if (contextMessages.isNotEmpty()) {
-                append("Recent conversation for context:\\n")
-                contextMessages.forEach { append(it.first).append(": ").append(it.second).append("\\n") }
-                append("\\nCurrent user message: ")
+                append("Recent conversation for context:\n")
+                contextMessages.forEach { append(it.first).append(": ").append(it.second).append("\n") }
+                append("\nCurrent user message: ")
             }
             append(question)
         }
@@ -218,8 +227,8 @@ fun VeerApp() {
                 val body = JSONObject()
                     .put("model", "gemini-3.8-flash")
                     .put("input", prompt)
-                    .put("system_instruction", "You are VEER, a helpful personal AI assistant. Reply naturally in the same language as the user, especially Hindi or Hinglish. Address the user respectfully as Boss. Use recent conversation context when relevant. Be accurate, concise, and never claim to have performed phone actions unless the app actually did them. If a task requires phone control, explain that VEER will ask for approval before supported actions.")
-                    .put("generation_config", JSONObject().put("temperature", 0.7).put("max_output_tokens", 1200))
+                    .put("system_instruction", "You are VEER, a capable, warm, highly practical personal AI assistant. Reply in the same language as the user, especially natural Hindi/Hinglish. Address the user as Boss without overusing it. First understand the actual request and answer it directly. Give accurate, useful, step-by-step guidance when needed; explain unfamiliar concepts simply. Use recent conversation context to avoid asking repeated questions. If information may be outdated or uncertain, say so clearly instead of inventing facts. Never claim you searched the web, opened an app, changed a setting, sent a message, or completed an action unless a connected tool actually did it. This app currently supports only Settings, YouTube, and browser launch with explicit user approval; for unsupported actions explain the limitation honestly. Keep replies concise but complete.")
+                    .put("generation_config", JSONObject().put("temperature", 0.45).put("max_output_tokens", 1800))
                 connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
@@ -368,11 +377,10 @@ fun VeerApp() {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier.size(92.dp).border(2.dp, cyan.copy(alpha = 0.8f), CircleShape)
-                        .background(Color(0xFF102D43), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) { Text("◉", color = cyan, fontSize = 54.sp) }
+                HologramFace(
+                    modifier = Modifier.size(190.dp),
+                    active = loading || status.contains("LISTENING") || status.contains("HEARING")
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(if (loading) "AI THINKING..." else status, color = cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
@@ -501,5 +509,44 @@ fun VeerApp() {
                 TextButton(onClick = { keyDraft = ""; apiKey = ""; prefs.edit().remove("gemini_api_key").apply(); showSettings = false }) { Text("REMOVE KEY") }
             }
         )
+    }
+}
+
+
+@Composable
+private fun HologramFace(modifier: Modifier = Modifier, active: Boolean) {
+    val transition = rememberInfiniteTransition(label = "veer_hologram")
+    val pulse by transition.animateFloat(
+        initialValue = 0.94f, targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulse"
+    )
+    val orbit by transition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(9000, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "orbit"
+    )
+    val glow = if (active) Color(0xFF66F7FF) else Color(0xFF00D9F5)
+    Canvas(modifier = modifier) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val unit = size.minDimension / 190f
+        drawCircle(glow.copy(alpha = 0.07f), radius = 82f * unit * pulse, center = Offset(cx, cy))
+        drawCircle(glow.copy(alpha = 0.18f), radius = 72f * unit, center = Offset(cx, cy), style = Stroke(1.4f * unit))
+        drawCircle(glow.copy(alpha = 0.55f), radius = 62f * unit, center = Offset(cx, cy), style = Stroke(1.1f * unit))
+        drawCircle(glow.copy(alpha = 0.35f), radius = 78f * unit, center = Offset(cx, cy), style = Stroke(0.8f * unit))
+        val orbitRad = Math.toRadians(orbit.toDouble())
+        val ox = cx + kotlin.math.cos(orbitRad).toFloat() * 78f * unit
+        val oy = cy + kotlin.math.sin(orbitRad).toFloat() * 78f * unit
+        drawCircle(Color.White.copy(alpha = 0.9f), radius = 3f * unit, center = Offset(ox, oy))
+        // Minimal holographic face silhouette, eyes and animated mouth.
+        drawCircle(glow.copy(alpha = 0.8f), radius = 43f * unit, center = Offset(cx, cy), style = Stroke(1.5f * unit))
+        drawCircle(glow.copy(alpha = 0.28f), radius = 38f * unit, center = Offset(cx, cy))
+        drawLine(glow, Offset(cx - 20f * unit, cy - 7f * unit), Offset(cx - 8f * unit, cy - 7f * unit), 3f * unit)
+        drawLine(glow, Offset(cx + 8f * unit, cy - 7f * unit), Offset(cx + 20f * unit, cy - 7f * unit), 3f * unit)
+        val mouthWidth = if (active) 13f else 8f
+        drawLine(glow.copy(alpha = 0.9f), Offset(cx - mouthWidth * unit, cy + 15f * unit), Offset(cx + mouthWidth * unit, cy + 15f * unit), 2f * unit)
+        drawLine(glow.copy(alpha = 0.4f), Offset(cx - 27f * unit, cy + 30f * unit), Offset(cx + 27f * unit, cy + 30f * unit), 0.8f * unit)
+        drawCircle(Color.White.copy(alpha = 0.8f), radius = 2f * unit, center = Offset(cx, cy - 57f * unit))
     }
 }
