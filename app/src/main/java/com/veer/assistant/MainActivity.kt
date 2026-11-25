@@ -124,6 +124,7 @@ fun VeerApp() {
     var claudeKeyDraft by remember { mutableStateOf(claudeApiKey) }
     var selectedProvider by remember { mutableStateOf(prefs.getString("ai_provider", "AUTO") ?: "AUTO") }
     var showProviderMenu by remember { mutableStateOf(false) }
+    val fallbackAttempted = remember { mutableStateListOf<String>() }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
@@ -436,8 +437,9 @@ fun VeerApp() {
             "OPENAI" -> listOf("OPENAI", "GEMINI", "CLAUDE")
             else -> listOf("OPENAI", "GEMINI", "CLAUDE")
         }
+        if (failedProvider !in fallbackAttempted) fallbackAttempted.add(failedProvider)
         val next = preferred.firstOrNull { provider ->
-            provider != failedProvider && when (provider) {
+            provider !in fallbackAttempted && when (provider) {
                 "OPENAI" -> openAiApiKey.isNotBlank()
                 "GEMINI" -> apiKey.isNotBlank()
                 "CLAUDE" -> claudeApiKey.isNotBlank() && image == null
@@ -445,6 +447,7 @@ fun VeerApp() {
             }
         }
         if (next == null) false else {
+            fallbackAttempted.add(next)
             status = "FALLING BACK TO $next..."
             when (next) {
                 "OPENAI" -> askOpenAI(question, image)
@@ -492,6 +495,7 @@ fun VeerApp() {
             text.contains("gmail kholo") || text=="gmail" -> { pendingAction = "gmail"; showApproval = true }
             else -> {
                 val image = attachedImageBase64
+                fallbackAttempted.clear()
                 when (selectedProvider) {
                     "CLAUDE" -> {
                         if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
