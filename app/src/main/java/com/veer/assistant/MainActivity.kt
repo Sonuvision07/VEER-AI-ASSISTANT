@@ -131,6 +131,7 @@ fun VeerApp() {
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
     var showBackConfirm by remember { mutableStateOf(false) }
+    var showClearChatConfirm by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -183,7 +184,7 @@ fun VeerApp() {
         }
     }
 
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(messages.toList()) {
         val history = org.json.JSONArray()
         messages.takeLast(100).forEach { item ->
             history.put(JSONObject().put("role", item.first).put("message", item.second))
@@ -757,7 +758,7 @@ fun VeerApp() {
                         Spacer(Modifier.weight(1f))
                         Text("VEER", color = Color(0xFFE9E9E9), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { messages.clear(); messages.add("VEER" to "Namaste. Main VEER hoon. Aaj kis cheez mein madad karun?") }) { Text("＋", color = Color.White, fontSize = 25.sp) }
+                        TextButton(onClick = { showClearChatConfirm = true }) { Text("＋", color = Color.White, fontSize = 25.sp) }
                     }
                     if (messages.size <= 1) {
                         Spacer(Modifier.weight(1f))
@@ -816,6 +817,24 @@ fun VeerApp() {
                 addReply("Boss, permission request 60 seconds mein expire ho gayi. Zarurat ho to command dobara dein.")
             }
         }
+    }
+
+    if (showClearChatConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearChatConfirm = false },
+            title = { Text("Start a new chat?") },
+            text = { Text("Current chat history will be cleared from this phone. Saved memories will remain unchanged. Continue?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearChatConfirm = false
+                    messages.clear()
+                    messages.add("VEER" to "Namaste. Main VEER hoon. Aaj kis cheez mein madad karun?")
+                }) { Text("CLEAR CHAT") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearChatConfirm = false }) { Text("CANCEL") }
+            }
+        )
     }
 
     if (showBackConfirm) {
