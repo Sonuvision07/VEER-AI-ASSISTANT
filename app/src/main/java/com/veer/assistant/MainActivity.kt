@@ -108,13 +108,37 @@ fun VeerApp() {
     var apiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("gemini_api_key", "") ?: "")) }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
+    var showApproval by remember { mutableStateOf(false) }
+    var pendingAction by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
     val messages = remember {
-        mutableStateListOf(
-            "VEER" to "Namaste Boss! Main VEER hoon. Aap text ya voice se baat kar sakte hain."
-        )
+        val saved = prefs.getString("chat_history", null)
+        val restored = mutableListOf<Pair<String, String>>()
+        try {
+            if (!saved.isNullOrBlank()) {
+                val array = org.json.JSONArray(saved)
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val role = item.optString("role")
+                    val message = item.optString("message")
+                    if ((role == "BOSS" || role == "VEER") && message.isNotBlank()) restored.add(role to message)
+                }
+            }
+        } catch (_: Exception) {}
+        mutableStateListOf<Pair<String, String>>().apply {
+            if (restored.isEmpty()) add("VEER" to "Namaste Boss! Main VEER hoon. Aap text ya voice se baat kar sakte hain.")
+            else addAll(restored.takeLast(100))
+        }
+    }
+
+    LaunchedEffect(messages.size) {
+        val history = org.json.JSONArray()
+        messages.takeLast(100).forEach { item ->
+            history.put(JSONObject().put("role", item.first).put("message", item.second))
+        }
+        prefs.edit().putString("chat_history", history.toString()).apply()
     }
 
     DisposableEffect(context) {
@@ -134,6 +158,25 @@ fun VeerApp() {
 
     fun speak(message: String) {
         tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER_REPLY")
+    }
+
+    fun runApprovedAction(action: String) {
+        try {
+            when (action) {
+                "settings" -> context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+                "youtube" -> {
+                    val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                    if (launch != null) context.startActivity(launch)
+                    else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
+                }
+                "browser" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")))
+            }
+            addReply("Boss, aapki permission se action complete kar diya.")
+        } catch (_: Exception) {
+            addReply("Boss, ye action phone par complete nahi ho paaya.")
+        }
+        pendingAction = ""
+        showApproval = false
     }
 
     fun addReply(message: String) {
@@ -165,8 +208,16 @@ fun VeerApp() {
                 }
                 val body = JSONObject()
                     .put("model", "gemini-3.8-flash")
-                    .put("input", question)
-                    .put("system_instruction", "You are VEER, a helpful personal AI assistant. Reply naturally in the same language as the user, especially Hindi or Hinglish. Address the user respectfully as Boss. Be accurate, concise, and never claim to have performed phone actions unless the app actually did them.")
+                    .put("input", buildString {
+                        val contextMessages = messages.takeLast(12)
+                        if (contextMessages.isNotEmpty()) {
+                            append("Recent conversation for context:\\n")
+                            contextMessages.forEach { append(it.first).append(": ").append(it.second).append("\\n") }
+                            append("\\nCurrent user message: ")
+                        }
+                        append(question)
+                    })
+                    .put("system_instruction", "You are VEER, a helpful personal AI assistant. Reply naturally in the same language as the user, especially Hindi or Hinglish. Address the user respectfully as Boss. Use recent conversation context when relevant. Be accurate, concise, and never claim to have performed phone actions unless the app actually did them. If a task requires phone control, explain that VEER will ask for approval before supported actions.")
                     .put("generation_config", JSONObject().put("temperature", 0.7).put("max_output_tokens", 1200))
                 connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                 val code = connection.responseCode
@@ -222,24 +273,19 @@ fun VeerApp() {
                 addReply("Boss, aaj ki tarikh hai $date")
             }
             text.contains("settings kholo") || text.contains("setting kholo") || text.contains("open settings") -> {
-                try {
-                    context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
-                    addReply("Settings khol di hain Boss.")
-                } catch (_: Exception) { addReply("Boss, Settings nahi khul paayi.") }
+                pendingAction = "settings"
+                showApproval = true
+                addReply("Boss, Settings kholne ki permission chahiye. Neeche Approve dabayein.")
             }
             text.contains("youtube kholo") || text == "youtube" || text.contains("open youtube") -> {
-                val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
-                if (launch != null) {
-                    context.startActivity(launch)
-                    addReply("YouTube khol diya hai Boss.")
-                } else {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
-                    addReply("YouTube browser mein khol raha hoon Boss.")
-                }
+                pendingAction = "youtube"
+                showApproval = true
+                addReply("Boss, YouTube kholne ki permission chahiye. Neeche Approve dabayein.")
             }
             text.contains("chrome kholo") || text.contains("browser kholo") -> {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")))
-                addReply("Browser khol diya hai Boss.")
+                pendingAction = "browser"
+                showApproval = true
+                addReply("Boss, browser kholne ki permission chahiye. Neeche Approve dabayein.")
             }
             else -> askGemini(clean)
         }
@@ -310,8 +356,14 @@ fun VeerApp() {
                         Text("VEER", color = cyan, fontSize = 34.sp, fontWeight = FontWeight.Bold)
                         Text("PERSONAL AI ASSISTANT", color = Color.LightGray, fontSize = 11.sp)
                     }
-                    TextButton(onClick = { keyDraft = apiKey; showSettings = true }) {
-                        Text("AI SETTINGS", color = cyan)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = {
+                            messages.clear()
+                            messages.add("VEER" to "Boss, nayi chat shuru kar di.")
+                        }) { Text("NEW CHAT", color = Color.LightGray, fontSize = 10.sp) }
+                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) {
+                            Text("AI SETTINGS", color = cyan)
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -379,6 +431,30 @@ fun VeerApp() {
                 Text("Voice recognition ke liye phone ki speech service aur internet zaroori ho sakta hai.", color = Color.Gray, fontSize = 10.sp)
             }
         }
+    }
+
+    if (showApproval) {
+        val actionLabel = when (pendingAction) {
+            "settings" -> "Phone Settings kholna"
+            "youtube" -> "YouTube kholna"
+            "browser" -> "Browser kholna"
+            else -> "Action chalana"
+        }
+        AlertDialog(
+            onDismissRequest = { showApproval = false; pendingAction = "" },
+            title = { Text("VEER Permission") },
+            text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\\n\\n$actionLabel") },
+            confirmButton = {
+                TextButton(onClick = { runApprovedAction(pendingAction) }) { Text("APPROVE") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pendingAction = ""
+                    showApproval = false
+                    addReply("Theek hai Boss, action cancel kar diya.")
+                }) { Text("CANCEL") }
+            }
+        )
     }
 
     if (showSettings) {
