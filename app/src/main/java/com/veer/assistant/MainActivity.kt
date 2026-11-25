@@ -120,6 +120,10 @@ fun VeerApp() {
     var apiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("gemini_api_key", "") ?: "")) }
     var openAiApiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("openai_api_key", "") ?: "")) }
     var openAiKeyDraft by remember { mutableStateOf(openAiApiKey) }
+    var claudeApiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("claude_api_key", "") ?: "")) }
+    var claudeKeyDraft by remember { mutableStateOf(claudeApiKey) }
+    var selectedProvider by remember { mutableStateOf(prefs.getString("ai_provider", "AUTO") ?: "AUTO") }
+    var showProviderMenu by remember { mutableStateOf(false) }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
@@ -306,6 +310,25 @@ fun VeerApp() {
         }.start()
     }
 
+    fun askClaude(question: String) {
+        val key = claudeApiKey.trim()
+        if (key.isEmpty()) { addReply("Boss, Claude API key Settings mein add karein."); showSettings = true; return }
+        val prompt = buildString {
+            append("You are VEER, a mature personal AI assistant. Reply naturally in Hindi/Hinglish matching the user. Be accurate, direct and concise by default. Never claim actions you did not perform.\\n\\n")
+            if (memories.isNotEmpty()) { append("Saved context:\\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\\n") } }
+            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\\n") }
+            if (!attachedText.isNullOrBlank()) append("\\nAttached document text:\\n").append(attachedText)
+            append("\\nCurrent request: ").append(question)
+        }
+        loading = true
+        status = "CONNECTING TO CLAUDE..."
+        Thread {
+            val answer = try { ClaudeApiClient.generateReply(key, prompt) }
+            catch (e: Exception) { "Claude connection failed. " + (e.message ?: "Check API key, model access and billing.") }
+            Handler(Looper.getMainLooper()).post { loading = false; addReply(answer) }
+        }.start()
+    }
+
     fun askGemini(question: String, imageBase64: String? = null) {
         val key = apiKey.trim()
         if (key.isEmpty()) {
@@ -427,7 +450,36 @@ fun VeerApp() {
             text.contains("whatsapp kholo") || text=="whatsapp" -> { pendingAction = "whatsapp"; showApproval = true }
             text.contains("telegram kholo") || text=="telegram" -> { pendingAction = "telegram"; showApproval = true }
             text.contains("gmail kholo") || text=="gmail" -> { pendingAction = "gmail"; showApproval = true }
-            else -> { if (openAiApiKey.isNotBlank()) askOpenAI(clean, attachedImageBase64) else askGemini(clean, attachedImageBase64); attachedImageBase64=null;attachedText=null;attachedFileName=null;attachedMimeType="image/jpeg" }
+            else -> {
+                val image = attachedImageBase64
+                when (selectedProvider) {
+                    "CLAUDE" -> {
+                        if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
+                        else if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
+                        else if (apiKey.isNotBlank()) askGemini(clean, image)
+                        else addReply("Boss, Claude ke liye API key chahiye. Image request ke liye Gemini ya OpenAI key add karein.")
+                    }
+                    "OPENAI" -> {
+                        if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
+                        else if (apiKey.isNotBlank()) askGemini(clean, image)
+                        else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
+                        else addReply("Boss, selected provider ki API key Settings mein add karein.")
+                    }
+                    "GEMINI" -> {
+                        if (apiKey.isNotBlank()) askGemini(clean, image)
+                        else if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
+                        else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
+                        else addReply("Boss, selected provider ki API key Settings mein add karein.")
+                    }
+                    else -> {
+                        if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
+                        else if (apiKey.isNotBlank()) askGemini(clean, image)
+                        else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
+                        else { addReply("Boss, pehle Settings mein kam se kam ek AI provider ki API key add karein."); showSettings = true }
+                    }
+                }
+                attachedImageBase64=null; attachedText=null; attachedFileName=null; attachedMimeType="image/jpeg"
+            }
         }
     }
 
@@ -678,8 +730,19 @@ fun VeerApp() {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("AI provider keys phone par Android Keystore encryption ke saath save hoti hain; GitHub par upload nahi hoti.", fontSize = 13.sp)
+                    Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Box {
+                        TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; else -> "AUTO (fallback order)" }) }
+                        DropdownMenu(expanded = showProviderMenu, onDismissRequest = { showProviderMenu = false }) {
+                            listOf("AUTO", "GEMINI", "OPENAI", "CLAUDE").forEach { provider ->
+                                DropdownMenuItem(text = { Text(when (provider) { "AUTO" -> "AUTO (available keys)"; else -> provider }) }, onClick = { selectedProvider = provider; showProviderMenu = false })
+                            }
+                        }
+                    }
                     OutlinedTextField(value = openAiKeyDraft, onValueChange = { openAiKeyDraft = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("OpenAI API key (optional)") }, visualTransformation = PasswordVisualTransformation())
                     Text("OpenAI API billing ChatGPT subscription se alag hoti hai. API usage paid ho sakti hai.", color = Color.Gray, fontSize = 11.sp)
+                    OutlinedTextField(value = claudeKeyDraft, onValueChange = { claudeKeyDraft = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Claude API key (optional)") }, visualTransformation = PasswordVisualTransformation())
+                    Text("Claude API billing alag hoti hai. API usage paid ho sakti hai; key encrypted local storage mein rahegi.", color = Color.Gray, fontSize = 11.sp)
                     OutlinedTextField(
                         value = keyDraft,
                         onValueChange = { keyDraft = it },
@@ -699,6 +762,13 @@ fun VeerApp() {
                         if (encryptedOpenAi != null) { openAiApiKey = openAiCandidate; prefs.edit().putString("openai_api_key", encryptedOpenAi).apply() }
                         else { messages.add("VEER" to "OpenAI key encrypt nahi ho paayi."); return@TextButton }
                     } else { openAiApiKey = ""; prefs.edit().remove("openai_api_key").apply() }
+                    val claudeCandidate = claudeKeyDraft.trim()
+                    if (claudeCandidate.isNotEmpty()) {
+                        val encryptedClaude = encryptApiKey(claudeCandidate)
+                        if (encryptedClaude != null) { claudeApiKey = claudeCandidate; prefs.edit().putString("claude_api_key", encryptedClaude).apply() }
+                        else { messages.add("VEER" to "Claude key encrypt nahi ho paayi."); return@TextButton }
+                    } else { claudeApiKey = ""; prefs.edit().remove("claude_api_key").apply() }
+                    prefs.edit().putString("ai_provider", selectedProvider).apply()
                     val candidate = keyDraft.trim()
                     if (candidate.isEmpty()) {
                         apiKey = ""
@@ -719,7 +789,7 @@ fun VeerApp() {
                 }) { Text("SAVE") }
             },
             dismissButton = {
-                TextButton(onClick = { keyDraft = ""; apiKey = ""; openAiKeyDraft = ""; openAiApiKey = ""; prefs.edit().remove("gemini_api_key").remove("openai_api_key").apply(); showSettings = false }) { Text("REMOVE KEYS") }
+                TextButton(onClick = { keyDraft = ""; apiKey = ""; openAiKeyDraft = ""; openAiApiKey = ""; claudeKeyDraft = ""; claudeApiKey = ""; prefs.edit().remove("gemini_api_key").remove("openai_api_key").remove("claude_api_key").apply(); showSettings = false }) { Text("REMOVE KEYS") }
             }
         )
     }
