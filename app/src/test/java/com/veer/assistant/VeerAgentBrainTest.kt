@@ -350,4 +350,56 @@ class VeerAgentBrainTest {
         assertEquals(1, result.steps)
         assertEquals(1, tools.executed.size)
     }
+    @Test fun blocksBlankToolNameBeforeSupportCheck() {
+        var supportChecked = false
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String): Boolean {
+                supportChecked = true
+                return true
+            }
+            override fun execute(call: AgentToolCall): String = "should not run"
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                AgentDecision("Trying action", AgentToolCall("  ", emptyMap(), AgentRisk.READ_ONLY), finished = false)
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertTrue(result.message.contains("tool name"))
+        assertFalse(supportChecked)
+        assertEquals(0, result.steps)
+    }
+
+    @Test fun blocksToolNameOverConfiguredLimit() {
+        val tools = FakeTools()
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                AgentDecision("Trying action", call("tool-name-too-long", AgentRisk.READ_ONLY), finished = false)
+            },
+            tools,
+            FakeApproval(false),
+            maxToolNameChars = 8
+        )
+
+        val result = brain.run(turn())
+
+        assertTrue(result.message.contains("tool name"))
+        assertTrue(tools.executed.isEmpty())
+        assertEquals(0, result.steps)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveToolNameLimit() {
+        VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("No action") },
+            FakeTools(),
+            FakeApproval(false),
+            maxToolNameChars = 0
+        )
+    }
+
 }
