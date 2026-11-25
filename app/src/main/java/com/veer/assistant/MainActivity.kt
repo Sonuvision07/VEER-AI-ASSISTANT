@@ -290,7 +290,7 @@ fun VeerApp() {
         if (key.isEmpty()) { addReply("Boss, OpenAI API key Settings mein add karein."); showSettings = true; return }
         val prompt = buildString {
             if (memories.isNotEmpty()) { append("Saved context:\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\n") } }
-            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
+            messages.dropLast(1).takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
             if (!attachedText.isNullOrBlank()) append("\nAttached document text:\n").append(attachedText)
             append("\nCurrent request: ").append(question)
         }
@@ -354,7 +354,7 @@ fun VeerApp() {
         val prompt = buildString {
             append("You are VEER, a mature personal AI assistant. Reply naturally in Hindi/Hinglish matching the user. Be accurate, direct and concise by default. Never claim actions you did not perform.\n\n")
             if (memories.isNotEmpty()) { append("Saved context:\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\n") } }
-            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
+            messages.dropLast(1).takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
             if (!attachedText.isNullOrBlank()) append("\nAttached document text:\n").append(attachedText)
             append("\nCurrent request: ").append(question)
         }
@@ -384,9 +384,9 @@ fun VeerApp() {
                 memories.takeLast(12).forEach { append("- ").append(it).append("\n") }
                 append("\n")
             }
-            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
+            messages.dropLast(1).takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
             if (!attachedText.isNullOrBlank()) append("\n\nAttached document text:\n").append(attachedText)
-            append("Current request: ").append(question)
+            append("\nCurrent request: ").append(question)
         }
         loading = true
         status = "CONNECTING TO AI..."
