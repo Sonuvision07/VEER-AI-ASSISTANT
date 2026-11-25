@@ -104,8 +104,9 @@ class VeerAgentBrain(
             }
             val result = try {
                 tools.execute(action)
-            } catch (error: Exception) {
-                "Tool execution failed: ${error.message ?: "unknown error"}"
+            } catch (_: Exception) {
+                // Tool exceptions may contain credentials or private arguments; never pass them to the model.
+                "Tool execution failed. VEER ne action ko safely stop kar diya."
             }
             steps += 1
             turn = turn.copy(previousToolResult = result)
