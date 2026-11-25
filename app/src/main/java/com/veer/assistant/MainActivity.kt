@@ -117,6 +117,23 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+private fun VeerActionGlyph(kind: String, modifier: Modifier = Modifier, tint: Color = Color.White) {
+    Canvas(modifier) {
+        val sw = size.minDimension * 0.085f
+        if (kind == "mic") {
+            drawRoundRect(tint, topLeft = Offset(size.width * 0.38f, size.height * 0.08f), size = androidx.compose.ui.geometry.Size(size.width * 0.24f, size.height * 0.55f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width * 0.12f), style = Stroke(sw))
+            drawArc(tint, 0f, 180f, false, topLeft = Offset(size.width * 0.20f, size.height * 0.25f), size = androidx.compose.ui.geometry.Size(size.width * 0.60f, size.height * 0.52f), style = Stroke(sw))
+            drawLine(tint, Offset(size.width * 0.50f, size.height * 0.76f), Offset(size.width * 0.50f, size.height * 0.91f), sw)
+            drawLine(tint, Offset(size.width * 0.34f, size.height * 0.92f), Offset(size.width * 0.66f, size.height * 0.92f), sw)
+        } else {
+            drawRoundRect(tint, topLeft = Offset(size.width * 0.08f, size.height * 0.25f), size = androidx.compose.ui.geometry.Size(size.width * 0.84f, size.height * 0.60f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width * 0.10f), style = Stroke(sw))
+            drawRoundRect(tint, topLeft = Offset(size.width * 0.28f, size.height * 0.13f), size = androidx.compose.ui.geometry.Size(size.width * 0.24f, size.height * 0.13f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width * 0.04f))
+            drawCircle(tint, radius = size.minDimension * 0.16f, center = Offset(size.width * 0.52f, size.height * 0.55f), style = Stroke(sw))
+        }
+    }
+}
+
+@Composable
 private fun VeerBrandMark(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val w = size.width
@@ -917,16 +934,17 @@ fun VeerApp() {
                             TextButton(onClick = { attachedImageBase64 = null; attachedText = null; attachedFileName = null }) { Text("REMOVE", color = Color.LightGray, fontSize = 11.sp) }
                         }
                     }
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Color(0xFF242629), RoundedCornerShape(30.dp)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { documentLauncher.launch("*/*") }) { Text("📎", color = Color.White, fontSize = 21.sp) }
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Brush.horizontalGradient(listOf(Color(0xFF111B2D), Color(0xFF101827))), RoundedCornerShape(28.dp)).border(1.dp, Color(0xFF263B5D), RoundedCornerShape(28.dp)).padding(horizontal = 7.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { documentLauncher.launch("*/*") }, contentPadding = PaddingValues(5.dp)) { Text("＋", color = Color(0xFF9CB5D8), fontSize = 25.sp) }
                         OutlinedTextField(value = typedCommand, onValueChange = { typedCommand = it }, modifier = Modifier.weight(1f),
-                            placeholder = { Text("Message VEER", color = Color(0xFFB7B7B7)) }, singleLine = false, maxLines = 4,
-                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color.White))
-                        TextButton(onClick = { cameraLauncher.launch(null) }) { Text("📷", fontSize = 19.sp) }
-                        TextButton(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("🎙", fontSize = 21.sp) }
+                            placeholder = { Text("Message VEER...", color = Color(0xFF8292AA)) }, singleLine = false, maxLines = 4,
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color(0xFF62CFFF)))
+                        TextButton(onClick = { cameraLauncher.launch(null) }, contentPadding = PaddingValues(5.dp)) { VeerActionGlyph("camera", Modifier.size(22.dp), Color(0xFFB9C9E5)) }
+                        Button(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                            shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF126CBA))) { VeerActionGlyph("mic", Modifier.size(21.dp), Color.White) }
                         Button(onClick = { val q = typedCommand.trim().ifBlank { "Please analyse the attached file and explain its important details." }; if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) { typedCommand = ""; processCommand(q) } },
                             enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFECECEC), contentColor = Color.Black)) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDAE9FF), contentColor = Color(0xFF071326))) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
             }
