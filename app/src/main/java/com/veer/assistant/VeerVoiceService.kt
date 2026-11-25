@@ -88,6 +88,7 @@ class VeerVoiceService : Service() {
                 if (!stopping && !awaitingReply) {
                     consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
                     val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
+                    sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Voice reconnecting..."))
                     handler.postDelayed({ startRecognition() }, delayMs)
                 }
             }
