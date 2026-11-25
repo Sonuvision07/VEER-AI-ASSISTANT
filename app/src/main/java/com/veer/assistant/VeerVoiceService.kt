@@ -79,7 +79,7 @@ class VeerVoiceService : Service() {
         val speech = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer = speech
         speech.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening in background")) }
+            override fun onReadyForSpeech(params: Bundle?) { consecutiveErrors = 0; sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening in background")) }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
