@@ -533,6 +533,12 @@ fun VeerApp() {
                             if (loading) item { Text("VEER is thinking…", color = Color.Gray, fontSize = 14.sp) }
                         }
                     }
+                    if (attachedImageBase64 != null) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("IMAGE READY — VEER will analyse it with your message", color = Color(0xFF70DFFF), fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { attachedImageBase64 = null }) { Text("REMOVE", color = Color.LightGray, fontSize = 11.sp) }
+                        }
+                    }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Color(0xFF242629), RoundedCornerShape(30.dp)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { galleryLauncher.launch("image/*") }) { Text("+", color = Color.White, fontSize = 26.sp) }
                         OutlinedTextField(value = typedCommand, onValueChange = { typedCommand = it }, modifier = Modifier.weight(1f),
