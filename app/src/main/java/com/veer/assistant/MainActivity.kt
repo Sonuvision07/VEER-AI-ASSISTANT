@@ -251,6 +251,8 @@ fun VeerApp() {
         showApproval = false
     }
 
+    var providerFallback: ((String, String, String?) -> Boolean)? = null
+
     fun askOpenAI(question: String, imageBase64: String? = null) {
         val key = openAiApiKey.trim()
         if (key.isEmpty()) { addReply("Boss, OpenAI API key Settings mein add karein."); showSettings = true; return }
@@ -306,7 +308,11 @@ fun VeerApp() {
                     answer = "OpenAI API error ($code). " + (detail ?: "API key, model access aur billing check karein.")
                 }
             } catch (_: Exception) { answer = "Boss, OpenAI connection fail hua. Internet aur API access check karke dobara try karein." }
-            Handler(Looper.getMainLooper()).post { loading = false; addReply(answer) }
+            Handler(Looper.getMainLooper()).post {
+                val failed = answer.startsWith("OpenAI API error") || answer.startsWith("Boss, OpenAI connection fail")
+                val moved = failed && providerFallback?.invoke("OPENAI", question, imageBase64) == true
+                if (!moved) { loading = false; addReply(answer) }
+            }
         }.start()
     }
 
@@ -323,9 +329,13 @@ fun VeerApp() {
         loading = true
         status = "CONNECTING TO CLAUDE..."
         Thread {
+            var failure: String? = null
             val answer = try { ClaudeApiClient.generateReply(key, prompt) }
-            catch (e: Exception) { "Claude connection failed. " + (e.message ?: "Check API key, model access and billing.") }
-            Handler(Looper.getMainLooper()).post { loading = false; addReply(answer) }
+            catch (e: Exception) { failure = e.message ?: "Claude connection failed."; "Claude connection failed. " + failure }
+            Handler(Looper.getMainLooper()).post {
+                val moved = failure != null && providerFallback?.invoke("CLAUDE", question, null) == true
+                if (!moved) { loading = false; addReply(answer) }
+            }
         }.start()
     }
 
@@ -409,10 +419,40 @@ fun VeerApp() {
             }
             if (answer.isBlank()) answer = "Boss, AI response nahi mila. Please try again."
             Handler(Looper.getMainLooper()).post {
-                loading = false
-                addReply(answer)
+                val failed = answer.startsWith("AI service error") ||
+                    answer.startsWith("Boss, Google AI servers") ||
+                    answer.startsWith("Boss, AI connection timeout") ||
+                    answer.startsWith("Boss, AI response nahi mila")
+                val moved = failed && providerFallback?.invoke("GEMINI", question, imageBase64) == true
+                if (!moved) { loading = false; addReply(answer) }
             }
         }.start()
+    }
+
+    providerFallback = { failedProvider, question, image ->
+        val preferred = when (selectedProvider) {
+            "GEMINI" -> listOf("GEMINI", "OPENAI", "CLAUDE")
+            "CLAUDE" -> listOf("CLAUDE", "OPENAI", "GEMINI")
+            "OPENAI" -> listOf("OPENAI", "GEMINI", "CLAUDE")
+            else -> listOf("OPENAI", "GEMINI", "CLAUDE")
+        }
+        val next = preferred.firstOrNull { provider ->
+            provider != failedProvider && when (provider) {
+                "OPENAI" -> openAiApiKey.isNotBlank()
+                "GEMINI" -> apiKey.isNotBlank()
+                "CLAUDE" -> claudeApiKey.isNotBlank() && image == null
+                else -> false
+            }
+        }
+        if (next == null) false else {
+            status = "FALLING BACK TO $next..."
+            when (next) {
+                "OPENAI" -> askOpenAI(question, image)
+                "GEMINI" -> askGemini(question, image)
+                "CLAUDE" -> askClaude(question)
+            }
+            true
+        }
     }
 
     fun processCommand(command: String) {
