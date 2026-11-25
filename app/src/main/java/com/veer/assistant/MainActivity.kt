@@ -508,7 +508,12 @@ fun VeerApp() {
                 } else addReply("Kya yaad rakhna hai?")
             }
             text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("show memories") -> addReply(if (memories.isEmpty()) "Abhi koi note save nahi hai." else "Saved notes:\n" + memories.mapIndexed { i, note -> "${i+1}. $note" }.joinToString("\n"))
-            text.startsWith("forget ") || text.startsWith("yaad hatao ") -> { val target = if (text.startsWith("forget ")) clean.substringAfter("forget ") else clean.substringAfter("yaad hatao "); val removed=memories.removeAll{it.equals(target.trim(),true)}; addReply(if(removed) "Note delete kiya." else "Note nahi mila.") }
+            text.startsWith("forget ") || text.startsWith("yaad hatao ") -> {
+                val prefixLength = if (text.startsWith("forget ")) "forget ".length else "yaad hatao ".length
+                val target = clean.drop(prefixLength).trim()
+                val removed = target.isNotBlank() && memories.removeAll { it.equals(target, ignoreCase = true) }
+                addReply(if (removed) "Note delete kiya." else "Note nahi mila.")
+            }
             text=="clear all memories" || text=="saari yaadein hatao" -> {memories.clear();addReply("Saved memories clear kar di.")}
             text.contains("time") || text.contains("samay") || text.contains("kitne baje") -> addReply("Abhi time hai "+SimpleDateFormat("hh:mm a",Locale.getDefault()).format(Date()))
             text.contains("tarikh") || text.contains("date") || text.contains("aaj kya") -> addReply("Aaj "+SimpleDateFormat("dd MMMM yyyy",Locale("hi","IN")).format(Date()))
