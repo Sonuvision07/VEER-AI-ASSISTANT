@@ -84,7 +84,7 @@ class VeerAgentBrain(
             }
             if (!toolSupported) {
                 return AgentRunResult(
-                    "VEER ne tool action block kar diya kyunki tool availability verify nahi ho saki: ${action.name}.",
+                    "VEER ne unsupported tool action block kar diya kyunki tool availability verify nahi ho saki: ${action.name}.",
                     lastProvider, steps
                 )
             }
