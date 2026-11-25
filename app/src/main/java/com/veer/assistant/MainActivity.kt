@@ -125,6 +125,9 @@ fun VeerApp() {
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
     var attachedImageBase64 by remember { mutableStateOf<String?>(null) }
+    var attachedMimeType by remember { mutableStateOf("image/jpeg") }
+    var attachedText by remember { mutableStateOf<String?>(null) }
+    var attachedFileName by remember { mutableStateOf<String?>(null) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
     val memories = remember {
@@ -238,6 +241,7 @@ fun VeerApp() {
                 append("\\n")
             }
             messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\\n") }
+            if (!attachedText.isNullOrBlank()) append("\\n\\nAttached document text:\\n").append(attachedText)
             append("Current request: ").append(question)
         }
         loading = true
@@ -253,7 +257,7 @@ fun VeerApp() {
                     if (model == "gemini-3.6-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "MINIMAL"))
                     val systemText = "You are VEER, a fast, accurate personal AI assistant. Reply in natural Hindi/Hinglish matching the user. Be concise by default and answer simple questions directly. For complex tasks, give a clear short plan and practical steps. Use relevant saved preferences and recent context. Never invent facts or claim actions you did not perform. The Android app can only open Settings, YouTube, browser, Calculator, Camera, Maps and phone dialer after user approval. Protect privacy. Address the user as Boss naturally, not in every sentence."
                     val requestParts = org.json.JSONArray()
-                    if (!imageBase64.isNullOrBlank()) requestParts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", imageBase64)))
+                    if (!imageBase64.isNullOrBlank()) requestParts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", attachedMimeType).put("data", imageBase64)))
                     requestParts.put(JSONObject().put("text", prompt))
                     val body = JSONObject()
                         .put("systemInstruction", JSONObject().put("parts", org.json.JSONArray().put(JSONObject().put("text", systemText))))
@@ -386,7 +390,7 @@ fun VeerApp() {
                 showApproval = true
                 addReply("Boss, Phone dialer kholne ki permission chahiye. VEER khud call nahi karega. Neeche Approve dabayein.")
             }
-            else -> { askGemini(clean, attachedImageBase64); attachedImageBase64 = null }
+            else -> { askGemini(clean, attachedImageBase64); attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg" }
         }
     }
 
@@ -452,7 +456,46 @@ fun VeerApp() {
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
         attachedImageBase64 = bitmap?.let { bitmapToBase64(it) }
+        attachedMimeType = "image/jpeg"
+        attachedText = null
+        attachedFileName = if (bitmap != null) "Camera photo" else null
         status = if (bitmap != null) "CAMERA IMAGE ATTACHED" else "CAMERA CANCELLED"
+    }
+
+    val documentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            status = "READING FILE..."
+            Thread {
+                var encoded: String? = null
+                var extractedText: String? = null
+                var mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                var name = "Selected file"
+                try {
+                    context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) name = cursor.getString(0) ?: name
+                    }
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        val bytes = input.readBytes()
+                        if (bytes.size > 18 * 1024 * 1024) throw IllegalArgumentException("File is larger than 18 MB")
+                        if (mime == "text/plain" || name.endsWith(".txt", true) || name.endsWith(".md", true) || name.endsWith(".csv", true)) {
+                            extractedText = String(bytes, Charsets.UTF_8).take(120000)
+                        } else if (mime == "application/pdf" || mime.startsWith("image/")) {
+                            if (mime == "application/octet-stream" && name.endsWith(".pdf", true)) mime = "application/pdf"
+                            encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        } else throw IllegalArgumentException("Supported files: PDF, images, TXT, MD and CSV")
+                    }
+                } catch (e: Exception) { status = "FILE READ FAILED" }
+                Handler(Looper.getMainLooper()).post {
+                    if (encoded != null || !extractedText.isNullOrBlank()) {
+                        attachedImageBase64 = encoded
+                        attachedMimeType = mime
+                        attachedText = extractedText
+                        attachedFileName = name
+                        status = "FILE READY"
+                    } else addReply("Boss, file read nahi ho paayi. PDF, image, TXT, MD ya CSV select karein. " + (if (name.isNotBlank()) name else ""))
+                }
+            }.start()
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -535,12 +578,12 @@ fun VeerApp() {
                     }
                     if (attachedImageBase64 != null) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("IMAGE READY — VEER will analyse it with your message", color = Color(0xFF70DFFF), fontSize = 12.sp, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { attachedImageBase64 = null }) { Text("REMOVE", color = Color.LightGray, fontSize = 11.sp) }
+                            Text("${attachedFileName ?: "ATTACHMENT READY"} — send a message to analyse", color = Color(0xFF70DFFF), fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { attachedImageBase64 = null; attachedText = null; attachedFileName = null }) { Text("REMOVE", color = Color.LightGray, fontSize = 11.sp) }
                         }
                     }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Color(0xFF242629), RoundedCornerShape(30.dp)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { galleryLauncher.launch("image/*") }) { Text("+", color = Color.White, fontSize = 26.sp) }
+                        TextButton(onClick = { documentLauncher.launch("*/*") }) { Text("📎", color = Color.White, fontSize = 21.sp) }
                         OutlinedTextField(value = typedCommand, onValueChange = { typedCommand = it }, modifier = Modifier.weight(1f),
                             placeholder = { Text("Message VEER", color = Color(0xFFB7B7B7)) }, singleLine = false, maxLines = 4,
                             colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color.White))
