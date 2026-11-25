@@ -522,7 +522,10 @@ fun VeerApp() {
             text.contains("facebook kholo") || text=="facebook" -> { pendingAction = "facebook"; showApproval = true }
             text.contains("whatsapp kholo") || text=="whatsapp" -> { pendingAction = "whatsapp"; showApproval = true }
             text.contains("telegram kholo") || text=="telegram" -> { pendingAction = "telegram"; showApproval = true }
-            text.contains("gmail kholo") || text=="gmail" -> { pendingAction = "gmail"; showApproval = true }
+            text.contains("gmail kholo") || text=="gmail" || text.contains("open gmail") -> { pendingAction = "gmail"; showApproval = true }
+            text.contains("phone kholo") || text.contains("dialer kholo") || text.contains("open dialer") || text.contains("number dial karo") -> { pendingAction = "dialer"; showApproval = true }
+            text.contains("x kholo") || text=="open x" -> { pendingAction = "x"; showApproval = true }
+            text.contains("youtube studio kholo") || text.contains("open youtube studio") -> { pendingAction = "youtube_studio"; showApproval = true }
             else -> {
                 val image = attachedImageBase64
                 fallbackAttempted.clear()
