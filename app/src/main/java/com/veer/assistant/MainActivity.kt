@@ -222,88 +222,78 @@ fun VeerApp() {
     fun askGemini(question: String) {
         val key = apiKey.trim()
         if (key.isEmpty()) {
-            addReply("Boss, AI brain connect karne ke liye Settings mein apni Gemini API key save karein. API key ke bina main sirf basic phone commands chala sakta hoon.")
+            addReply("Boss, AI brain connect karne ke liye Settings mein apni Gemini API key save karein.")
             showSettings = true
             return
         }
         val prompt = buildString {
             if (memories.isNotEmpty()) {
-                append("Saved personal notes (use only when relevant):\\n")
-                memories.takeLast(30).forEach { append("- ").append(it).append("\\n") }
+                append("Relevant saved notes:\\n")
+                memories.takeLast(12).forEach { append("- ").append(it).append("\\n") }
                 append("\\n")
             }
-            val contextMessages = messages.takeLast(12)
-            if (contextMessages.isNotEmpty()) {
-                append("Recent conversation for context:\n")
-                contextMessages.forEach { append(it.first).append(": ").append(it.second).append("\n") }
-                append("\nCurrent user message: ")
-            }
-            append(question)
+            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\\n") }
+            append("Current request: ").append(question)
         }
         loading = true
-        status = "AI THINKING..."
+        status = "CONNECTING TO AI..."
         Thread {
-            var answer: String
-            try {
-                val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/interactions")
-                val body = JSONObject()
-                    .put("model", "gemini-3.8-flash")
-                    .put("input", prompt)
-                    .put("system_instruction", "You are VEER, a capable, warm, highly practical personal AI assistant. Reply in the same language as the user, especially natural Hindi/Hinglish. Address the user as Boss without overusing it. First understand the actual request and answer it directly. Give accurate, useful, step-by-step guidance when needed; explain unfamiliar concepts simply. Use recent conversation context to avoid asking repeated questions. If information may be outdated or uncertain, say so clearly instead of inventing facts. Never claim you searched the web, opened an app, changed a setting, sent a message, or completed an action unless a connected tool actually did it. You are the planning brain of VEER. For complex requests, first understand the goal, split it into clear ordered steps, identify what information is missing, and present a practical plan before claiming execution. Distinguish clearly between advice, a proposed action, and a completed action. Never invent tool access or claim background work. The Android app currently supports only these local actions with explicit approval: open Settings, YouTube, browser, calculator, camera, Maps, and phone dialer (dialer only; never place a call). For any other device action, explain that it is not yet connected. When a task requires multiple steps, give a short checklist and ask for confirmation before any consequential action. Protect privacy: never ask for passwords or expose API keys. Keep replies concise but complete.")
-                    .put("generation_config", JSONObject().put("temperature", 0.45).put("max_output_tokens", 1800))
-                var code = 0
-                var raw = ""
-                for (attempt in 0..2) {
+            var answer = ""
+            val models = listOf("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite")
+            for ((index, model) in models.withIndex()) {
+                try {
+                    val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                    val generation = JSONObject().put("maxOutputTokens", 900)
+                    if (model == "gemini-3.8-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "LOW"))
+                    if (model == "gemini-3.6-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "MINIMAL"))
+                    val systemText = "You are VEER, a fast, accurate personal AI assistant. Reply in natural Hindi/Hinglish matching the user. Be concise by default and answer simple questions directly. For complex tasks, give a clear short plan and practical steps. Use relevant saved preferences and recent context. Never invent facts or claim actions you did not perform. The Android app can only open Settings, YouTube, browser, Calculator, Camera, Maps and phone dialer after user approval. Protect privacy. Address the user as Boss naturally, not in every sentence."
+                    val body = JSONObject()
+                        .put("systemInstruction", JSONObject().put("parts", org.json.JSONArray().put(JSONObject().put("text", systemText))))
+                        .put("contents", org.json.JSONArray().put(JSONObject().put("role", "user").put("parts", org.json.JSONArray().put(JSONObject().put("text", prompt)))))
+                        .put("generationConfig", generation)
                     val connection = (endpoint.openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
-                        connectTimeout = 20000
-                        readTimeout = 45000
+                        connectTimeout = 10000
+                        readTimeout = 25000
                         doOutput = true
                         setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                         setRequestProperty("x-goog-api-key", key)
                     }
+                    val code: Int
+                    val raw: String
                     try {
                         connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                         code = connection.responseCode
                         val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                         raw = stream?.bufferedReader()?.use { it.readText() } ?: ""
-                    } finally {
-                        connection.disconnect()
+                    } finally { connection.disconnect() }
+                    if (code in 200..299) {
+                        val json = JSONObject(raw)
+                        val parts = json.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
+                        val result = StringBuilder()
+                        if (parts != null) for (i in 0 until parts.length()) result.append(parts.optJSONObject(i)?.optString("text", "") ?: "")
+                        answer = if (result.isNotBlank()) result.toString().trim() else "Boss, AI se khaali response mila. Dobara try karein."
+                        break
                     }
-                    if (code !in listOf(429, 500, 502, 503, 504) || attempt == 2) break
-                    Thread.sleep(1500L * (attempt + 1))
-                }
-                if (code !in 200..299) {
                     val detail = try { JSONObject(raw).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
-                    answer = if (code in listOf(429, 500, 502, 503, 504)) {
-                        "Boss, Gemini server abhi busy hai (error $code). VEER ne 3 baar retry kiya, lekin service abhi available nahi hai. Thodi der baad dobara SEND karein."
-                    } else {
-                        "AI service error ($code). " + (detail ?: "API key ya model settings check karein.")
+                    if (code == 400 || code == 401 || code == 403 || code == 404) {
+                        answer = "AI service error ($code). " + (detail ?: "API key ya model access check karein.")
+                        break
                     }
-                } else {
-                    val json = JSONObject(raw)
-                    val directText = json.optString("output_text", "")
-                    val steps = json.optJSONArray("steps")
-                    val collected = StringBuilder()
-                    if (steps != null) {
-                        for (i in 0 until steps.length()) {
-                            val step = steps.optJSONObject(i) ?: continue
-                            if (step.optString("type") == "model_output") {
-                                val parts = step.optJSONArray("content") ?: continue
-                                for (j in 0 until parts.length()) {
-                                    val part = parts.optJSONObject(j) ?: continue
-                                    if (part.optString("type") == "text") collected.append(part.optString("text"))
-                                }
-                            }
-                        }
+                    if (index < models.lastIndex && code in listOf(429, 500, 502, 503, 504)) {
+                        status = "SWITCHING AI ENGINE..."
+                        continue
                     }
-                    answer = directText.takeIf { it.isNotBlank() }
-                        ?: collected.toString().takeIf { it.isNotBlank() }
-                        ?: "Boss, AI se khaali response mila. Dobara try karein."
+                    answer = if (code in listOf(429, 500, 502, 503, 504))
+                        "Boss, Google AI servers abhi busy hain. VEER ne backup engines bhi try kiye, lekin abhi response nahi mila. Thodi der baad try karein."
+                    else "AI service error ($code). " + (detail ?: "Please try again.")
+                    break
+                } catch (_: Exception) {
+                    status = if (index < models.lastIndex) "TRYING BACKUP AI..." else "AI CONNECTION ISSUE"
+                    if (index == models.lastIndex) answer = "Boss, AI connection timeout ya internet issue hai. Network check karke dobara try karein."
                 }
-            } catch (e: Exception) {
-                answer = "Boss, internet ya AI connection mein problem aa gayi. " + (e.message ?: "Please try again.")
             }
+            if (answer.isBlank()) answer = "Boss, AI response nahi mila. Please try again."
             Handler(Looper.getMainLooper()).post {
                 loading = false
                 addReply(answer)
@@ -468,7 +458,7 @@ fun VeerApp() {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                HologramFace(
+                HologramCore(
                     modifier = Modifier.size(190.dp),
                     active = loading || status.contains("LISTENING") || status.contains("HEARING")
                 )
@@ -609,39 +599,38 @@ fun VeerApp() {
 
 
 @Composable
-private fun HologramFace(modifier: Modifier = Modifier, active: Boolean) {
-    val transition = rememberInfiniteTransition(label = "veer_hologram")
-    val pulse by transition.animateFloat(
-        initialValue = 0.94f, targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse"
-    )
-    val orbit by transition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(9000, easing = androidx.compose.animation.core.LinearEasing)),
-        label = "orbit"
-    )
-    val glow = if (active) Color(0xFF66F7FF) else Color(0xFF00D9F5)
+private fun HologramCore(modifier: Modifier = Modifier, active: Boolean) {
+    val transition = rememberInfiniteTransition(label = "veer_core")
+    val pulse by transition.animateFloat(0.96f, 1.035f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
+    val rotation by transition.animateFloat(0f, 360f,
+        animationSpec = infiniteRepeatable(tween(12000, easing = androidx.compose.animation.core.LinearEasing)), label = "rotation")
+    val glow = if (active) Color(0xFF8AF8FF) else Color(0xFF39BFEA)
     Canvas(modifier = modifier) {
         val cx = size.width / 2f
         val cy = size.height / 2f
-        val unit = size.minDimension / 190f
-        drawCircle(glow.copy(alpha = 0.07f), radius = 82f * unit * pulse, center = Offset(cx, cy))
-        drawCircle(glow.copy(alpha = 0.18f), radius = 72f * unit, center = Offset(cx, cy), style = Stroke(1.4f * unit))
-        drawCircle(glow.copy(alpha = 0.55f), radius = 62f * unit, center = Offset(cx, cy), style = Stroke(1.1f * unit))
-        drawCircle(glow.copy(alpha = 0.35f), radius = 78f * unit, center = Offset(cx, cy), style = Stroke(0.8f * unit))
-        val orbitRad = Math.toRadians(orbit.toDouble())
-        val ox = cx + kotlin.math.cos(orbitRad).toFloat() * 78f * unit
-        val oy = cy + kotlin.math.sin(orbitRad).toFloat() * 78f * unit
-        drawCircle(Color.White.copy(alpha = 0.9f), radius = 3f * unit, center = Offset(ox, oy))
-        // Minimal holographic face silhouette, eyes and animated mouth.
-        drawCircle(glow.copy(alpha = 0.8f), radius = 43f * unit, center = Offset(cx, cy), style = Stroke(1.5f * unit))
-        drawCircle(glow.copy(alpha = 0.28f), radius = 38f * unit, center = Offset(cx, cy))
-        drawLine(glow, Offset(cx - 20f * unit, cy - 7f * unit), Offset(cx - 8f * unit, cy - 7f * unit), 3f * unit)
-        drawLine(glow, Offset(cx + 8f * unit, cy - 7f * unit), Offset(cx + 20f * unit, cy - 7f * unit), 3f * unit)
-        val mouthWidth = if (active) 13f else 8f
-        drawLine(glow.copy(alpha = 0.9f), Offset(cx - mouthWidth * unit, cy + 15f * unit), Offset(cx + mouthWidth * unit, cy + 15f * unit), 2f * unit)
-        drawLine(glow.copy(alpha = 0.4f), Offset(cx - 27f * unit, cy + 30f * unit), Offset(cx + 27f * unit, cy + 30f * unit), 0.8f * unit)
-        drawCircle(Color.White.copy(alpha = 0.8f), radius = 2f * unit, center = Offset(cx, cy - 57f * unit))
+        val u = size.minDimension / 190f
+        val outer = 77f * u
+        drawCircle(glow.copy(alpha = 0.045f), radius = outer * pulse, center = Offset(cx, cy))
+        drawCircle(glow.copy(alpha = 0.16f), radius = 66f * u, center = Offset(cx, cy), style = Stroke(1f * u))
+        drawCircle(glow.copy(alpha = 0.48f), radius = 53f * u, center = Offset(cx, cy), style = Stroke(1.3f * u))
+        drawCircle(glow.copy(alpha = 0.18f), radius = 39f * u, center = Offset(cx, cy), style = Stroke(0.8f * u))
+        drawArc(glow.copy(alpha = 0.85f), rotation, 108f, false,
+            Offset(cx - 73f * u, cy - 73f * u), androidx.compose.ui.geometry.Size(146f * u, 146f * u),
+            style = Stroke(2f * u, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        drawArc(Color.White.copy(alpha = 0.5f), rotation + 180f, 48f, false,
+            Offset(cx - 59f * u, cy - 59f * u), androidx.compose.ui.geometry.Size(118f * u, 118f * u),
+            style = Stroke(1.2f * u, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        val a1 = Math.toRadians(rotation.toDouble())
+        val a2 = Math.toRadians((-rotation * 0.62f).toDouble())
+        drawCircle(Color.White, 2.7f * u, Offset(cx + kotlin.math.cos(a1).toFloat() * outer, cy + kotlin.math.sin(a1).toFloat() * outer))
+        drawCircle(glow, 2f * u, Offset(cx + kotlin.math.cos(a2).toFloat() * 56f * u, cy + kotlin.math.sin(a2).toFloat() * 56f * u))
+        drawCircle(glow.copy(alpha = 0.12f), 29f * u * pulse, Offset(cx, cy))
+        drawCircle(glow.copy(alpha = 0.72f), 19f * u, Offset(cx, cy), style = Stroke(1.4f * u))
+        drawCircle(Color.White.copy(alpha = 0.92f), 4f * u, Offset(cx, cy))
+        drawLine(glow.copy(alpha = 0.35f), Offset(cx - 92f * u, cy), Offset(cx - 82f * u, cy), 1f * u)
+        drawLine(glow.copy(alpha = 0.35f), Offset(cx + 82f * u, cy), Offset(cx + 92f * u, cy), 1f * u)
+        drawLine(glow.copy(alpha = 0.35f), Offset(cx, cy - 92f * u), Offset(cx, cy - 82f * u), 1f * u)
+        drawLine(glow.copy(alpha = 0.35f), Offset(cx, cy + 82f * u), Offset(cx, cy + 92f * u), 1f * u)
     }
 }
