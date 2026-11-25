@@ -415,18 +415,18 @@ fun VeerApp() {
                     addReply(if (query.isBlank()) "YouTube Music open kiya." else "YouTube Music par $query search khola. Playback app ke controls par depend karega.")
                 } catch (_: Exception) { addReply("Music link launch nahi hua.") }
             }
-            text.contains("settings kholo") || text.contains("open settings") -> {runApprovedAction("settings");addReply("Settings khol di.")}
-            text.contains("youtube kholo") || text=="youtube" || text.contains("open youtube") -> {runApprovedAction("youtube");addReply("YouTube khol diya.")}
-            text.contains("youtube music") -> {runApprovedAction("music");addReply("YouTube Music khol diya.")}
-            text.contains("chrome kholo") || text.contains("browser kholo") || text.contains("open browser") -> {runApprovedAction("browser");addReply("Browser khol diya.")}
-            text.contains("calculator kholo") || text.contains("calculator open") -> {runApprovedAction("calculator");addReply("Calculator khol diya.")}
-            text.contains("camera kholo") || text.contains("camera open") -> {runApprovedAction("camera");addReply("Camera khol diya.")}
-            text.contains("maps kholo") || text.contains("map kholo") -> {runApprovedAction("maps");addReply("Maps khol diya.")}
-            text.contains("instagram kholo") || text=="instagram" -> {runApprovedAction("instagram");addReply("Instagram khol diya.")}
-            text.contains("facebook kholo") || text=="facebook" -> {runApprovedAction("facebook");addReply("Facebook khol diya.")}
-            text.contains("whatsapp kholo") || text=="whatsapp" -> {runApprovedAction("whatsapp");addReply("WhatsApp khol diya.")}
-            text.contains("telegram kholo") || text=="telegram" -> {runApprovedAction("telegram");addReply("Telegram khol diya.")}
-            text.contains("gmail kholo") || text=="gmail" -> {runApprovedAction("gmail");addReply("Gmail khol diya.")}
+            text.contains("settings kholo") || text.contains("open settings") -> { pendingAction = "settings"; showApproval = true }
+            text.contains("youtube kholo") || text=="youtube" || text.contains("open youtube") -> { pendingAction = "youtube"; showApproval = true }
+            text.contains("youtube music") -> { pendingAction = "music"; showApproval = true }
+            text.contains("chrome kholo") || text.contains("browser kholo") || text.contains("open browser") -> { pendingAction = "browser"; showApproval = true }
+            text.contains("calculator kholo") || text.contains("calculator open") -> { pendingAction = "calculator"; showApproval = true }
+            text.contains("camera kholo") || text.contains("camera open") -> { pendingAction = "camera"; showApproval = true }
+            text.contains("maps kholo") || text.contains("map kholo") -> { pendingAction = "maps"; showApproval = true }
+            text.contains("instagram kholo") || text=="instagram" -> { pendingAction = "instagram"; showApproval = true }
+            text.contains("facebook kholo") || text=="facebook" -> { pendingAction = "facebook"; showApproval = true }
+            text.contains("whatsapp kholo") || text=="whatsapp" -> { pendingAction = "whatsapp"; showApproval = true }
+            text.contains("telegram kholo") || text=="telegram" -> { pendingAction = "telegram"; showApproval = true }
+            text.contains("gmail kholo") || text=="gmail" -> { pendingAction = "gmail"; showApproval = true }
             else -> { if (openAiApiKey.isNotBlank()) askOpenAI(clean, attachedImageBase64) else askGemini(clean, attachedImageBase64); attachedImageBase64=null;attachedText=null;attachedFileName=null;attachedMimeType="image/jpeg" }
         }
     }
