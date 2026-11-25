@@ -252,4 +252,43 @@ class VeerAgentBrainTest {
         assertTrue(result.message.contains("safely stop"))
         assertFalse(result.message.contains("SECRET_TOKEN"))
     }
+
+    @Test fun truncatesOversizedToolResultBeforeNextModelRequest() {
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun execute(call: AgentToolCall): String = "x".repeat(100)
+        }
+        var receivedToolResult: String? = null
+        val brain = VeerAgentBrain(
+            FakeGateway { _, turn ->
+                val previous = turn.previousToolResult
+                if (previous == null) {
+                    AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false)
+                } else {
+                    receivedToolResult = previous
+                    AgentDecision("Finished")
+                }
+            },
+            tools,
+            FakeApproval(false),
+            maxToolResultChars = 20
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(1, result.steps)
+        assertTrue(receivedToolResult!!.startsWith("x".repeat(20)))
+        assertTrue(receivedToolResult!!.contains("[Tool result truncated by VEER]"))
+        assertTrue(receivedToolResult!!.length < 100)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveToolResultLimit() {
+        VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("No action") },
+            FakeTools(),
+            FakeApproval(false),
+            maxToolResultChars = 0
+        )
+    }
 }
