@@ -511,7 +511,9 @@ fun VeerApp() {
             text.startsWith("forget ") || text.startsWith("yaad hatao ") -> {
                 val prefixLength = if (text.startsWith("forget ")) "forget ".length else "yaad hatao ".length
                 val target = clean.drop(prefixLength).trim()
-                val removed = target.isNotBlank() && memories.removeAll { it.equals(target, ignoreCase = true) }
+                val memoryIndex = findMemoryIndex(memories, target)
+                val removed = memoryIndex >= 0
+                if (removed) memories.removeAt(memoryIndex)
                 addReply(if (removed) "Note delete kiya." else "Note nahi mila.")
             }
             text=="clear all memories" || text=="saari yaadein hatao" -> {memories.clear();addReply("Saved memories clear kar di.")}
