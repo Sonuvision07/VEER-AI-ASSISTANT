@@ -67,7 +67,7 @@ class VeerAgentBrain(
         var lastProvider: AiProvider? = null
         var steps = 0
 
-        while (steps <= maxToolSteps) {
+        while (steps < maxToolSteps) {
             val decision = requestDecision(turn) ?: return AgentRunResult(
                 "VEER ka AI engine abhi available nahi hai. Provider connection check karein.",
                 lastProvider, steps
