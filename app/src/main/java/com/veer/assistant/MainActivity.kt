@@ -221,6 +221,11 @@ fun VeerApp() {
                     if (launch != null) context.startActivity(launch)
                     else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
                 }
+                "music" -> {
+                    val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.youtube.music")
+                    if (launch != null) context.startActivity(launch)
+                    else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com")))
+                }
                 "browser" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")))
                 "calculator" -> context.startActivity(Intent(Intent.ACTION_MAIN).addCategory("android.intent.category.APP_CALCULATOR"))
                 "camera" -> context.startActivity(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE))
@@ -393,106 +398,32 @@ fun VeerApp() {
         messages.add("BOSS" to clean)
         val text = clean.lowercase(Locale.getDefault())
         when {
-            text.startsWith("yaad rakho ") || text.startsWith("remember ") || text.startsWith("save memory ") -> {
-                val note = when {
-                    text.startsWith("yaad rakho ") -> clean.substringAfter("yaad rakho ").trim()
-                    text.startsWith("remember ") -> clean.substringAfter("remember ").trim()
-                    else -> clean.substringAfter("save memory ").trim()
-                }
-                if (note.isNotBlank()) {
-                    if (memories.none { it.equals(note, ignoreCase = true) }) memories.add(note)
-                    addReply("Boss, note VEER ki private local memory mein save kar diya.")
-                } else addReply("Boss, bataiye kya yaad rakhna hai.")
+            text.startsWith("yaad rakho ") || text.startsWith("remember ") -> {
+                val note = if (text.startsWith("yaad rakho ")) clean.substringAfter("yaad rakho ").trim() else clean.substringAfter("remember ").trim()
+                if (note.isNotBlank()) { if (memories.none { it.equals(note, ignoreCase = true) }) memories.add(note); addReply("Note local memory mein save kiya.") } else addReply("Kya yaad rakhna hai?")
             }
-            text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("what do you remember") || text.contains("show memories") -> {
-                if (memories.isEmpty()) addReply("Boss, abhi koi personal note save nahi hai. Yaad rakho bolkar note save kar sakte hain.")
-                else addReply("Boss, meri local memory mein ye notes hain:\\n" + memories.mapIndexed { index, note -> (index + 1).toString() + ". " + note }.joinToString("\\n"))
+            text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("show memories") -> addReply(if (memories.isEmpty()) "Abhi koi note save nahi hai." else "Saved notes:\\n" + memories.mapIndexed { i, note -> "${i+1}. $note" }.joinToString("\\n"))
+            text.startsWith("forget ") || text.startsWith("yaad hatao ") -> { val target = if (text.startsWith("forget ")) clean.substringAfter("forget ") else clean.substringAfter("yaad hatao "); val removed=memories.removeAll{it.equals(target.trim(),true)}; addReply(if(removed) "Note delete kiya." else "Note nahi mila.") }
+            text=="clear all memories" || text=="saari yaadein hatao" -> {memories.clear();addReply("Saved memories clear kar di.")}
+            text.contains("time") || text.contains("samay") || text.contains("kitne baje") -> addReply("Abhi time hai "+SimpleDateFormat("hh:mm a",Locale.getDefault()).format(Date()))
+            text.contains("tarikh") || text.contains("date") || text.contains("aaj kya") -> addReply("Aaj "+SimpleDateFormat("dd MMMM yyyy",Locale("hi","IN")).format(Date()))
+            text.contains("gaana chalao") || text.contains("song play") || text.contains("music chalao") || text.contains("play song") -> {
+                val query=clean.replace(Regex("(?i)^(gaana|song|music)\\s*(chalao|play)?\\s*"),"").trim()
+                try { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(if(query.isBlank()) "https://music.youtube.com" else "https://music.youtube.com/search?q="+Uri.encode(query)));addReply(if(query.isBlank()) "YouTube Music open kiya." else "YouTube Music par $query search khola. Playback app ke controls par depend karega.") } catch(_:Exception){addReply("Music link launch nahi hua.")}
             }
-            text.startsWith("yaad hatao ") || text.startsWith("forget ") || text.startsWith("delete memory ") -> {
-                val target = when {
-                    text.startsWith("yaad hatao ") -> clean.substringAfter("yaad hatao ").trim()
-                    text.startsWith("forget ") -> clean.substringAfter("forget ").trim()
-                    else -> clean.substringAfter("delete memory ").trim()
-                }
-                val removed = memories.removeAll { it.equals(target, ignoreCase = true) }
-                addReply(if (removed) "Boss, matching note local memory se hata diya." else "Boss, exact matching note nahi mila.")
-            }
-            text == "saari yaadein hatao" || text == "clear all memories" || text == "delete all memories" -> {
-                memories.clear()
-                addReply("Boss, VEER ki saari saved local notes clear kar di gayi hain.")
-            }
-            text.contains("time") || text.contains("samay") || text.contains("kitne baje") -> {
-                val now = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
-                addReply("Boss, abhi time hai $now")
-            }
-            text.contains("date") || text.contains("tarikh") || text.contains("aaj kya") -> {
-                val date = SimpleDateFormat("dd MMMM yyyy", Locale("hi", "IN")).format(Date())
-                addReply("Boss, aaj ki tarikh hai $date")
-            }
-            text.contains("settings kholo") || text.contains("setting kholo") || text.contains("open settings") -> {
-                pendingAction = "settings"
-                showApproval = true
-                addReply("Boss, Settings kholne ki permission chahiye. Neeche Approve dabayein.")
-            }
-            text.contains("youtube kholo") || text == "youtube" || text.contains("open youtube") -> {
-                pendingAction = "youtube"
-                showApproval = true
-                addReply("Boss, YouTube kholne ki permission chahiye. Neeche Approve dabayein.")
-            }
-            text.contains("chrome kholo") || text.contains("browser kholo") || text.contains("internet kholo") -> {
-                pendingAction = "browser"
-                showApproval = true
-                addReply("Boss, browser kholne ki permission chahiye. Neeche Approve dabayein.")
-            }
-            text.contains("calculator kholo") || text.contains("calculator open") || text.contains("hisab kitab") -> {
-                pendingAction = "calculator"
-                showApproval = true
-                addReply("Boss, Calculator kholne ki permission chahiye. Neeche Approve dabayein.")
-            }
-            text.contains("camera kholo") || text.contains("camera open") -> {
-                pendingAction = "camera"
-                showApproval = true
-                addReply("Boss, Camera kholne ki permission chahiye. Neeche Approve dabayein.")
-            }
-            text.contains("maps kholo") || text.contains("map kholo") || text.contains("google maps") -> {
-                pendingAction = "maps"
-                showApproval = true
-                addReply("Boss, Maps kholne ki permission chahiye. Neeche Approve dabayein.")
-            }
-            text.contains("instagram kholo") || text == "instagram" || text.contains("open instagram") -> {
-                pendingAction = "instagram"; showApproval = true
-                addReply("Instagram open karne ke liye neeche Approve dabayein.")
-            }
-            text.contains("facebook kholo") || text == "facebook" || text.contains("open facebook") -> {
-                pendingAction = "facebook"; showApproval = true
-                addReply("Facebook open karne ke liye neeche Approve dabayein.")
-            }
-            text.contains("whatsapp kholo") || text == "whatsapp" || text.contains("open whatsapp") -> {
-                pendingAction = "whatsapp"; showApproval = true
-                addReply("WhatsApp open karne ke liye neeche Approve dabayein.")
-            }
-            text.contains("twitter kholo") || text.contains("x kholo") || text == "twitter" -> {
-                pendingAction = "x"; showApproval = true
-                addReply("X open karne ke liye neeche Approve dabayein.")
-            }
-            text.contains("telegram kholo") || text == "telegram" -> {
-                pendingAction = "telegram"; showApproval = true
-                addReply("Telegram open karne ke liye neeche Approve dabayein.")
-            }
-            text.contains("youtube studio kholo") || text.contains("studio kholo") -> {
-                pendingAction = "youtube_studio"; showApproval = true
-                addReply("YouTube Studio open karne ke liye neeche Approve dabayein.")
-            }
-            text.contains("gmail kholo") || text == "gmail" -> {
-                pendingAction = "gmail"; showApproval = true
-                addReply("Gmail open karne ke liye neeche Approve dabayein.")
-            }
-            text.contains("dialer kholo") || text.contains("phone kholo") || text.contains("number dial") -> {
-                pendingAction = "dialer"
-                showApproval = true
-                addReply("Boss, Phone dialer kholne ki permission chahiye. VEER khud call nahi karega. Neeche Approve dabayein.")
-            }
-            else -> { if (openAiApiKey.isNotBlank()) askOpenAI(clean, attachedImageBase64) else askGemini(clean, attachedImageBase64); attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg" }
+            text.contains("settings kholo") || text.contains("open settings") -> {runApprovedAction("settings");addReply("Settings khol di.")}
+            text.contains("youtube kholo") || text=="youtube" || text.contains("open youtube") -> {runApprovedAction("youtube");addReply("YouTube khol diya.")}
+            text.contains("youtube music") -> {runApprovedAction("music");addReply("YouTube Music khol diya.")}
+            text.contains("chrome kholo") || text.contains("browser kholo") || text.contains("open browser") -> {runApprovedAction("browser");addReply("Browser khol diya.")}
+            text.contains("calculator kholo") || text.contains("calculator open") -> {runApprovedAction("calculator");addReply("Calculator khol diya.")}
+            text.contains("camera kholo") || text.contains("camera open") -> {runApprovedAction("camera");addReply("Camera khol diya.")}
+            text.contains("maps kholo") || text.contains("map kholo") -> {runApprovedAction("maps");addReply("Maps khol diya.")}
+            text.contains("instagram kholo") || text=="instagram" -> {runApprovedAction("instagram");addReply("Instagram khol diya.")}
+            text.contains("facebook kholo") || text=="facebook" -> {runApprovedAction("facebook");addReply("Facebook khol diya.")}
+            text.contains("whatsapp kholo") || text=="whatsapp" -> {runApprovedAction("whatsapp");addReply("WhatsApp khol diya.")}
+            text.contains("telegram kholo") || text=="telegram" -> {runApprovedAction("telegram");addReply("Telegram khol diya.")}
+            text.contains("gmail kholo") || text=="gmail" -> {runApprovedAction("gmail");addReply("Gmail khol diya.")}
+            else -> { if (openAiApiKey.isNotBlank()) askOpenAI(clean, attachedImageBase64) else askGemini(clean, attachedImageBase64); attachedImageBase64=null;attachedText=null;attachedFileName=null;attachedMimeType="image/jpeg" }
         }
     }
 
