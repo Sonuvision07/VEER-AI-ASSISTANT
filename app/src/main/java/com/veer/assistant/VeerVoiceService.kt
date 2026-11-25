@@ -87,9 +87,24 @@ class VeerVoiceService : Service() {
     }
 
     private fun startRecognition() {
-        if (stopping || awaitingReply || !SpeechRecognizer.isRecognitionAvailable(this)) return
+        if (stopping || awaitingReply) return
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Speech recognition unavailable"))
+            return
+        }
         stopRecognition()
-        val speech = SpeechRecognizer.createSpeechRecognizer(this)
+        val speech = try {
+            SpeechRecognizer.createSpeechRecognizer(this)
+        } catch (e: Exception) {
+            Log.e("VEER", "Unable to create speech recognizer", e)
+            sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Voice setup failed; retrying..."))
+            if (!stopping && !awaitingReply) {
+                consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
+                val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
+                handler.postDelayed({ startRecognition() }, delayMs)
+            }
+            return
+        }
         recognizer = speech
         speech.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) { consecutiveErrors = 0; sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening in background")) }
