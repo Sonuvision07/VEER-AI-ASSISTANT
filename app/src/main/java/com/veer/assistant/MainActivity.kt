@@ -118,6 +118,8 @@ fun VeerApp() {
     var status by remember { mutableStateOf("VEER ONLINE") }
     var typedCommand by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("gemini_api_key", "") ?: "")) }
+    var openAiApiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("openai_api_key", "") ?: "")) }
+    var openAiKeyDraft by remember { mutableStateOf(openAiApiKey) }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
@@ -225,6 +227,65 @@ fun VeerApp() {
         }
         pendingAction = ""
         showApproval = false
+    }
+
+    fun askOpenAI(question: String, imageBase64: String? = null) {
+        val key = openAiApiKey.trim()
+        if (key.isEmpty()) { addReply("Boss, OpenAI API key Settings mein add karein."); showSettings = true; return }
+        val prompt = buildString {
+            if (memories.isNotEmpty()) { append("Saved context:\\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\\n") } }
+            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\\n") }
+            if (!attachedText.isNullOrBlank()) append("\\nAttached document text:\\n").append(attachedText)
+            append("\\nCurrent request: ").append(question)
+        }
+        loading = true
+        status = "CONNECTING TO OPENAI..."
+        Thread {
+            var answer = ""
+            try {
+                val content = org.json.JSONArray()
+                if (!imageBase64.isNullOrBlank()) {
+                    val dataUrl = "data:" + attachedMimeType + ";base64," + imageBase64
+                    content.put(JSONObject().put("type", "input_image").put("image_url", dataUrl))
+                }
+                content.put(JSONObject().put("type", "input_text").put("text", prompt))
+                val input = org.json.JSONArray()
+                    .put(JSONObject().put("role", "developer").put("content", "You are VEER, a mature, highly capable personal assistant. Reply naturally in Hindi/Hinglish matching the user. Be direct, thoughtful and concise by default. Never claim an action you did not perform."))
+                    .put(JSONObject().put("role", "user").put("content", content))
+                val body = JSONObject().put("model", "gpt-6-luna").put("store", false).put("input", input)
+                val connection = (URL("https://api.openai.com/v1/responses").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"; connectTimeout = 15000; readTimeout = 60000; doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Authorization", "Bearer $key")
+                }
+                val code: Int
+                val raw: String
+                try {
+                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    code = connection.responseCode
+                    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                    raw = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                } finally { connection.disconnect() }
+                if (code in 200..299) {
+                    val json = JSONObject(raw)
+                    val output = json.optJSONArray("output")
+                    val result = StringBuilder()
+                    if (output != null) for (i in 0 until output.length()) {
+                        val item = output.optJSONObject(i) ?: continue
+                        val parts = item.optJSONArray("content") ?: continue
+                        for (k in 0 until parts.length()) {
+                            val part = parts.optJSONObject(k) ?: continue
+                            if (part.optString("type") == "output_text") result.append(part.optString("text"))
+                        }
+                    }
+                    answer = if (result.isNotBlank()) result.toString().trim() else "Boss, OpenAI se khaali response mila."
+                } else {
+                    val detail = try { JSONObject(raw).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
+                    answer = "OpenAI API error ($code). " + (detail ?: "API key, model access aur billing check karein.")
+                }
+            } catch (_: Exception) { answer = "Boss, OpenAI connection fail hua. Internet aur API access check karke dobara try karein." }
+            Handler(Looper.getMainLooper()).post { loading = false; addReply(answer) }
+        }.start()
     }
 
     fun askGemini(question: String, imageBase64: String? = null) {
@@ -390,7 +451,7 @@ fun VeerApp() {
                 showApproval = true
                 addReply("Boss, Phone dialer kholne ki permission chahiye. VEER khud call nahi karega. Neeche Approve dabayein.")
             }
-            else -> { askGemini(clean, attachedImageBase64); attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg" }
+            else -> { if (openAiApiKey.isNotBlank()) askOpenAI(clean, attachedImageBase64) else askGemini(clean, attachedImageBase64); attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg" }
         }
     }
 
@@ -632,7 +693,9 @@ fun VeerApp() {
             title = { Text("VEER AI Settings") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Gemini API key yahan save karein. Key aapke phone ke app storage mein rahegi; GitHub par upload nahi hogi.", fontSize = 13.sp)
+                    Text("AI provider keys phone par Android Keystore encryption ke saath save hoti hain; GitHub par upload nahi hoti.", fontSize = 13.sp)
+                    OutlinedTextField(value = openAiKeyDraft, onValueChange = { openAiKeyDraft = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("OpenAI API key (optional)") }, visualTransformation = PasswordVisualTransformation())
+                    Text("OpenAI API billing ChatGPT subscription se alag hoti hai. API usage paid ho sakti hai.", color = Color.Gray, fontSize = 11.sp)
                     OutlinedTextField(
                         value = keyDraft,
                         onValueChange = { keyDraft = it },
@@ -646,6 +709,12 @@ fun VeerApp() {
             },
             confirmButton = {
                 TextButton(onClick = {
+                    val openAiCandidate = openAiKeyDraft.trim()
+                    if (openAiCandidate.isNotEmpty()) {
+                        val encryptedOpenAi = encryptApiKey(openAiCandidate)
+                        if (encryptedOpenAi != null) { openAiApiKey = openAiCandidate; prefs.edit().putString("openai_api_key", encryptedOpenAi).apply() }
+                        else { messages.add("VEER" to "OpenAI key encrypt nahi ho paayi."); return@TextButton }
+                    } else { openAiApiKey = ""; prefs.edit().remove("openai_api_key").apply() }
                     val candidate = keyDraft.trim()
                     if (candidate.isEmpty()) {
                         apiKey = ""
@@ -666,7 +735,7 @@ fun VeerApp() {
                 }) { Text("SAVE") }
             },
             dismissButton = {
-                TextButton(onClick = { keyDraft = ""; apiKey = ""; prefs.edit().remove("gemini_api_key").apply(); showSettings = false }) { Text("REMOVE KEY") }
+                TextButton(onClick = { keyDraft = ""; apiKey = ""; openAiKeyDraft = ""; openAiApiKey = ""; prefs.edit().remove("gemini_api_key").remove("openai_api_key").apply(); showSettings = false }) { Text("REMOVE KEYS") }
             }
         )
     }
