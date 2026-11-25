@@ -291,4 +291,37 @@ class VeerAgentBrainTest {
             maxToolResultChars = 0
         )
     }
+
+    @Test fun blocksToolCallWithOversizedArgumentsBeforeExecution() {
+        val tools = FakeTools()
+        val oversizedCall = AgentToolCall(
+            "write",
+            mapOf("payload" to "x".repeat(50)),
+            AgentRisk.READ_ONLY
+        )
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                AgentDecision("Trying action", oversizedCall, finished = false)
+            },
+            tools,
+            FakeApproval(false),
+            maxToolArgumentChars = 20
+        )
+
+        val result = brain.run(turn())
+
+        assertTrue(result.message.contains("arguments", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+        assertEquals(0, result.steps)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveToolArgumentLimit() {
+        VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("No action") },
+            FakeTools(),
+            FakeApproval(false),
+            maxToolArgumentChars = 0
+        )
+    }
 }
