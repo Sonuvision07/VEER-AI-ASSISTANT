@@ -77,9 +77,14 @@ class VeerAgentBrain(
             if (action == null || decision.second.finished) {
                 return AgentRunResult(decision.second.message, lastProvider, steps)
             }
-            if (!tools.supports(action.name)) {
+            val toolSupported = try {
+                tools.supports(action.name)
+            } catch (_: Exception) {
+                false
+            }
+            if (!toolSupported) {
                 return AgentRunResult(
-                    "VEER ne unsupported tool action roka: ${action.name}.",
+                    "VEER ne tool action block kar diya kyunki tool availability verify nahi ho saki: ${action.name}.",
                     lastProvider, steps
                 )
             }
