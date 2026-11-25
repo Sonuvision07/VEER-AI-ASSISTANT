@@ -624,3 +624,70 @@ private fun HologramCore(modifier: Modifier = Modifier, active: Boolean) {
         drawLine(glow.copy(alpha = 0.35f), Offset(cx, cy + 82f * u), Offset(cx, cy + 92f * u), 1f * u)
     }
 }
+
+
+@Composable
+private fun HologramFace(modifier: Modifier = Modifier, active: Boolean) {
+    val transition = rememberInfiniteTransition(label = "veer_face")
+    val pulse by transition.animateFloat(0.96f, 1.025f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "facePulse")
+    val cyan = if (active) Color(0xFF8AF8FF) else Color(0xFF28C8F5)
+    Canvas(modifier = modifier) {
+        val sx = size.width / 360f
+        val sy = size.height / 390f
+        fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
+        val head = androidx.compose.ui.graphics.Path().apply {
+            moveTo(180f*sx, 24f*sy)
+            cubicTo(92f*sx, 20f*sy, 52f*sx, 88f*sy, 58f*sx, 190f*sy)
+            cubicTo(62f*sx, 294f*sy, 112f*sx, 355f*sy, 180f*sx, 365f*sy)
+            cubicTo(248f*sx, 355f*sy, 298f*sx, 294f*sy, 302f*sx, 190f*sy)
+            cubicTo(308f*sx, 88f*sy, 268f*sx, 20f*sy, 180f*sx, 24f*sy)
+            close()
+        }
+        drawCircle(cyan.copy(alpha = 0.07f), size.minDimension * 0.48f * pulse, p(180f, 190f))
+        drawPath(head, cyan.copy(alpha = 0.12f), style = Stroke(2f*sx))
+        // Fine luminous mesh gives the face its digital hologram appearance.
+        for (row in 0..17) {
+            val y = 42f + row * 17f
+            val t = ((y - 194f) / 174f)
+            val half = 115f * kotlin.math.sqrt((1f - t*t).coerceAtLeast(0.08f))
+            for (col in 0..12) {
+                val x = 180f - half + (2f * half * col / 12f)
+                val yy = y + kotlin.math.sin((col + row) * 0.7f) * 2.2f
+                if (col < 12) {
+                    val nx = 180f - half + (2f * half * (col + 1) / 12f)
+                    drawLine(cyan.copy(alpha = 0.25f), p(x, yy), p(nx, yy + 2f), 0.75f*sx)
+                }
+                if (row < 17) drawLine(cyan.copy(alpha = 0.17f), p(x, yy), p(x + 1f, y + 17f), 0.65f*sx)
+                drawCircle(cyan.copy(alpha = 0.78f), 1.05f*sx, p(x, yy))
+            }
+        }
+        // Ears and cheek contours
+        drawOval(cyan.copy(alpha = 0.55f), p(43f, 164f), androidx.compose.ui.geometry.Size(25f*sx, 66f*sy), style = Stroke(1.5f*sx))
+        drawOval(cyan.copy(alpha = 0.55f), p(292f, 164f), androidx.compose.ui.geometry.Size(25f*sx, 66f*sy), style = Stroke(1.5f*sx))
+        // Brows and eyes
+        drawLine(cyan, p(88f, 145f), p(150f, 139f), 2.3f*sx)
+        drawLine(cyan, p(210f, 139f), p(272f, 145f), 2.3f*sx)
+        drawOval(cyan.copy(alpha = 0.9f), p(91f, 151f), androidx.compose.ui.geometry.Size(68f*sx, 30f*sy), style = Stroke(1.8f*sx))
+        drawOval(cyan.copy(alpha = 0.9f), p(201f, 151f), androidx.compose.ui.geometry.Size(68f*sx, 30f*sy), style = Stroke(1.8f*sx))
+        drawCircle(cyan, 5f*sx, p(125f, 166f))
+        drawCircle(cyan, 5f*sx, p(235f, 166f))
+        // Nose
+        drawLine(cyan.copy(alpha = 0.75f), p(180f, 168f), p(173f, 226f), 1.6f*sx)
+        drawLine(cyan.copy(alpha = 0.75f), p(173f, 226f), p(180f, 232f), 1.6f*sx)
+        drawLine(cyan.copy(alpha = 0.75f), p(180f, 232f), p(187f, 226f), 1.6f*sx)
+        // Mouth
+        val mouth = androidx.compose.ui.graphics.Path().apply {
+            moveTo(145f*sx, 276f*sy)
+            cubicTo(163f*sx, 286f*sy, 197f*sx, 286f*sy, 215f*sx, 276f*sy)
+            moveTo(151f*sx, 280f*sy)
+            cubicTo(166f*sx, 300f*sy, 194f*sx, 300f*sy, 209f*sx, 280f*sy)
+        }
+        drawPath(mouth, cyan.copy(alpha = 0.9f), style = Stroke(1.7f*sx))
+        // Jaw, neck and light scan lines
+        drawLine(cyan.copy(alpha = 0.4f), p(100f, 260f), p(120f, 320f), 1f*sx)
+        drawLine(cyan.copy(alpha = 0.4f), p(260f, 260f), p(240f, 320f), 1f*sx)
+        drawLine(cyan.copy(alpha = 0.65f), p(125f, 340f), p(119f, 390f), 2f*sx)
+        drawLine(cyan.copy(alpha = 0.65f), p(235f, 340f), p(241f, 390f), 2f*sx)
+    }
+}
