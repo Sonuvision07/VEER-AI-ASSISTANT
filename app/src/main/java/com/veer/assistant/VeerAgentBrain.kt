@@ -45,6 +45,8 @@ interface ModelGateway {
 
 interface AgentToolExecutor {
     fun supports(name: String): Boolean
+    /** Trusted registry classification; never trust the model-supplied risk alone. */
+    fun riskFor(name: String): AgentRisk? = null
     fun execute(call: AgentToolCall): String
 }
 
@@ -125,7 +127,15 @@ class VeerAgentBrain(
                     lastProvider, steps
                 )
             }
-            if (action.risk != AgentRisk.READ_ONLY) {
+            // The trusted executor registry—not the model—determines an action's risk.
+            val trustedRisk = try { tools.riskFor(action.name) } catch (_: Exception) { null }
+            if (trustedRisk == null || trustedRisk != action.risk) {
+                return AgentRunResult(
+                    "VEER ne action block kar diya kyunki tool risk verify nahi ho saka ya risk mismatch tha.",
+                    lastProvider, steps
+                )
+            }
+            if (trustedRisk != AgentRisk.READ_ONLY) {
                 // Approval checks must fail closed: an approval-system error is never consent.
                 val approved = try {
                     approval.approved(action)
