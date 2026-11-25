@@ -16,6 +16,11 @@ object VeerLocalBrain {
         RegexOption.IGNORE_CASE
     )
 
+    private val percentage = Regex(
+        """^\s*(?:calculate\s+)?(-?\d+(?:\.\d+)?)\s*(?:%|percent)\s*(?:of|ka)\s*(-?\d+(?:\.\d+)?)\s*[?।.!]*\s*$""",
+        RegexOption.IGNORE_CASE
+    )
+
     fun reply(input: String, memories: List<String> = emptyList()): String? {
         val clean = input.trim()
         if (clean.isEmpty()) return null
@@ -42,6 +47,16 @@ object VeerLocalBrain {
                 return "Boss, abhi " + SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date()) + " baj rahe hain."
             "date", "aaj ki date", "aaj date kya hai", "today's date", "todays date", "what is the date", "date today" ->
                 return "Boss, aaj " + SimpleDateFormat("EEEE, d MMMM yyyy", Locale("hi", "IN")).format(Date()) + " hai."
+        }
+
+        val percentMatch = percentage.matchEntire(clean)
+        if (percentMatch != null) {
+            val percent = percentMatch.groupValues[1].toDoubleOrNull() ?: return null
+            val base = percentMatch.groupValues[2].toDoubleOrNull() ?: return null
+            val result = percent / 100.0 * base
+            if (!result.isFinite()) return "Is calculation ka result valid range mein nahi hai."
+            val formatted = DecimalFormat("0.##########", DecimalFormatSymbols(Locale.US)).format(result)
+            return "Boss, $percent% of $base = $formatted hai."
         }
 
         val match = arithmetic.matchEntire(clean) ?: return null
