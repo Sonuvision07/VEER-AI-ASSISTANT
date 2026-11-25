@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="veer_accessibility_description">VEER optional accessibility bridge. This initial version observes app-window changes only; it does not read screen text or perform taps, typing, or gestures.</string>
+</resources>
