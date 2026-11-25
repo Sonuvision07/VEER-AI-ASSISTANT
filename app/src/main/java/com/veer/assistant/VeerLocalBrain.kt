@@ -2,6 +2,8 @@ package com.veer.assistant
 
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -27,7 +29,7 @@ object VeerLocalBrain {
             "tum kaun ho", "aap kaun ho", "who are you", "who are you?" ->
                 return "Main VEER hoon — aapka personal assistant. Main basic baatein aur calculations offline handle kar sakta hoon; complex kaam ke liye connected AI ki madad le sakta hoon."
             "tum kya kar sakte ho", "aap kya kar sakte ho", "what can you do", "help" ->
-                return "Main time/date, basic hisaab, saved memories aur supported phone actions handle kar sakta hoon. Naye ya complex sawaalon ke liye AI provider ki zaroorat pad sakti hai."
+                return "Main offline hisaab, time, date aur saved memories bata sakta hoon. Complex sawaalon ke liye connected AI ki zaroorat pad sakti hai."
             "kaise ho", "tum kaise ho", "how are you" ->
                 return "Main bilkul ready hoon Boss! Aap batao, aaj kya karna hai?"
             "shukriya", "dhanyawad", "thanks", "thank you" ->
@@ -36,6 +38,10 @@ object VeerLocalBrain {
                 return "Theek hai Boss. Main yahin hoon, jab zaroorat ho bula lena."
             "meri memory mein kya hai", "what do you remember" ->
                 return if (memories.isEmpty()) "Abhi meri local memory mein koi saved note nahi hai." else "Meri local memory mein ye notes hain:\n" + memories.takeLast(10).mapIndexed { i, note -> "${i + 1}. $note" }.joinToString("\n")
+            "time", "time kya hua", "samay batao", "kitne baje hain", "what time is it", "tell me the time" ->
+                return "Boss, abhi " + SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date()) + " baj rahe hain."
+            "date", "aaj ki date", "aaj date kya hai", "today's date", "todays date", "what is the date", "date today" ->
+                return "Boss, aaj " + SimpleDateFormat("EEEE, d MMMM yyyy", Locale("hi", "IN")).format(Date()) + " hai."
         }
 
         val match = arithmetic.matchEntire(clean) ?: return null
