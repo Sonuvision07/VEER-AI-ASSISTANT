@@ -12,7 +12,9 @@ object ClaudeApiClient {
     private const val DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 
     fun generateReply(apiKey: String, prompt: String, model: String = DEFAULT_MODEL): String {
-        require(apiKey.isNotBlank()) { "Claude API key is missing" }
+        val cleanKey = apiKey.trim()
+        require(cleanKey.isNotEmpty()) { "Claude API key missing hai. Settings mein valid Anthropic API key save karein." }
+        require(!cleanKey.any { it.isWhitespace() }) { "Claude API key mein extra spaces ya line break hain. Key dobara paste karein." }
         val body = JSONObject()
             .put("model", model)
             .put("max_tokens", 1200)
@@ -26,7 +28,7 @@ object ClaudeApiClient {
             doOutput = true
             setRequestProperty("content-type", "application/json")
             setRequestProperty("anthropic-version", API_VERSION)
-            setRequestProperty("x-api-key", apiKey)
+            setRequestProperty("x-api-key", cleanKey)
         }
         try {
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
@@ -35,7 +37,13 @@ object ClaudeApiClient {
             val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
                 val detail = try { JSONObject(raw).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
-                throw IllegalStateException("Claude API error (" + code + "): " + (detail ?: "Check API key, model access and billing."))
+                val message = when (code) {
+                    401 -> "Claude API key invalid ya revoke ho chuki hai. Anthropic Console se nayi API key banakar VEER Settings mein save karein. Claude app/Pro subscription password ya key yahan kaam nahi karti."
+                    403 -> "Anthropic ne request deny ki. API account permissions, organization access aur billing status check karein."
+                    429 -> "Claude API rate limit ya usage limit aa gayi hai. Thodi der baad try karein aur Anthropic Console mein usage/billing check karein."
+                    else -> detail?.takeIf { it.isNotBlank() } ?: "Claude API request fail hui (HTTP $code). API key, model access aur billing check karein."
+                }
+                throw IllegalStateException("Claude API error ($code): $message")
             }
             val blocks = JSONObject(raw).optJSONArray("content") ?: JSONArray()
             val answer = StringBuilder()
