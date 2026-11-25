@@ -494,6 +494,11 @@ fun VeerApp() {
         if (clean.isEmpty()) return
         messages.add("BOSS" to clean)
         val text = clean.lowercase(Locale.getDefault())
+        // Handle simple everyday conversation and arithmetic locally before any cloud provider.
+        VeerLocalBrain.reply(clean, memories)?.let { localReply ->
+            addReply(localReply)
+            return
+        }
         when {
             text.startsWith("yaad rakho ") || text.startsWith("remember ") -> {
                 val prefixLength = if (text.startsWith("yaad rakho ")) "yaad rakho ".length else "remember ".length
