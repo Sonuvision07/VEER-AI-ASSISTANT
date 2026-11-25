@@ -399,7 +399,6 @@ fun VeerApp() {
                     val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
                     val generation = JSONObject().put("maxOutputTokens", 900)
                     if (model == "gemini-3.8-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "LOW"))
-                    if (model == "gemini-3.6-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "MINIMAL"))
                     val systemText = "You are VEER, a fast, accurate personal AI assistant. Reply in natural Hindi/Hinglish matching the user. Be concise by default and answer simple questions directly. For complex tasks, give a clear short plan and practical steps. Use relevant saved preferences and recent context. Never invent facts or claim actions you did not perform. The Android app can only open Settings, YouTube, browser, Calculator, Camera, Maps and phone dialer after user approval. Protect privacy. Address the user as Boss naturally, not in every sentence."
                     val requestParts = org.json.JSONArray()
                     if (!imageBase64.isNullOrBlank()) requestParts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", attachedMimeType).put("data", imageBase64)))
