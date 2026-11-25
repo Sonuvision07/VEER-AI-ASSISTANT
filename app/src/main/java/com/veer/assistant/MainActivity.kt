@@ -141,7 +141,6 @@ fun VeerApp() {
     var localAiReady by remember { mutableStateOf(false) }
     var modelDownloading by remember { mutableStateOf(false) }
     var modelDownloadPercent by remember { mutableStateOf(0) }
-    var modelStatus by remember { mutableStateOf("Offline AI model not installed") }
     var showBackConfirm by remember { mutableStateOf(false) }
     var showClearChatConfirm by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
@@ -586,6 +585,11 @@ fun VeerApp() {
                             addReply("Boss, offline AI run nahi ho paaya: " + (error.message ?: "unknown error"))
                         }
                     }
+                    attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg"
+                    return
+                }
+                if (localAiReady && (image != null || !attachedText.isNullOrBlank())) {
+                    addReply("Boss, VEER ka current offline model abhi text-only hai. Image aur document analysis local model mein abhi add nahi hua; normal text chat offline chalegi.")
                     attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg"
                     return
                 }
