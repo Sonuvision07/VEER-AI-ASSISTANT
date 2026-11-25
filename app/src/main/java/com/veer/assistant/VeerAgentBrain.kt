@@ -86,7 +86,7 @@ class VeerAgentBrain(
             if (action == null || decision.second.finished) {
                 return AgentRunResult(decision.second.message, lastProvider, steps)
             }
-            if (action.name.isBlank() || action.name.length > maxToolNameChars) {
+            if (action.name.isBlank() || action.name != action.name.trim() || action.name.any { it.isISOControl() } || action.name.length > maxToolNameChars) {
                 return AgentRunResult(
                     "VEER ne action block kar diya kyunki tool name invalid ya allowed size se bada hai.",
                     lastProvider, steps
