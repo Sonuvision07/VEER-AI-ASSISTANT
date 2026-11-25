@@ -409,7 +409,7 @@ fun VeerApp() {
             text.contains("tarikh") || text.contains("date") || text.contains("aaj kya") -> addReply("Aaj "+SimpleDateFormat("dd MMMM yyyy",Locale("hi","IN")).format(Date()))
             text.contains("gaana chalao") || text.contains("song play") || text.contains("music chalao") || text.contains("play song") -> {
                 val query=clean.replace(Regex("(?i)^(gaana|song|music)\\s*(chalao|play)?\\s*"),"").trim()
-                try { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(if(query.isBlank()) "https://music.youtube.com" else "https://music.youtube.com/search?q="+Uri.encode(query)));addReply(if(query.isBlank()) "YouTube Music open kiya." else "YouTube Music par $query search khola. Playback app ke controls par depend karega.") } catch(_:Exception){addReply("Music link launch nahi hua.")}
+                try {\n                    val musicUrl = if (query.isBlank()) "https://music.youtube.com" else "https://music.youtube.com/search?q=" + Uri.encode(query)\n                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(musicUrl)))\n                    addReply(if (query.isBlank()) "YouTube Music open kiya." else "YouTube Music par $query search khola. Playback app ke controls par depend karega.")\n                } catch (_: Exception) { addReply("Music link launch nahi hua.") }
             }
             text.contains("settings kholo") || text.contains("open settings") -> {runApprovedAction("settings");addReply("Settings khol di.")}
             text.contains("youtube kholo") || text=="youtube" || text.contains("open youtube") -> {runApprovedAction("youtube");addReply("YouTube khol diya.")}
