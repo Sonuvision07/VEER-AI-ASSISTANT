@@ -432,7 +432,6 @@ class VeerAgentBrainTest {
         assertTrue(tools.executed.isEmpty())
         assertEquals(0, result.steps)
     }
-}
 
     @Test fun doesNotRequestAnotherModelDecisionAfterToolStepLimit() {
         val tools = FakeTools()
@@ -454,3 +453,4 @@ class VeerAgentBrainTest {
         assertEquals(1, result.steps)
         assertTrue(result.message.contains("1 tool steps"))
     }
+}
