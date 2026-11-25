@@ -120,6 +120,7 @@ fun VeerApp() {
     var showApproval by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
+    var voiceMode by remember { mutableStateOf(false) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
     val memories = remember {
@@ -192,8 +193,8 @@ fun VeerApp() {
 
     fun addReply(message: String) {
         messages.add("VEER" to message)
-        speak(message)
-        status = "VEER ONLINE"
+        if (voiceMode) speak(message)
+        status = if (voiceMode) "VEER READY" else "ONLINE"
     }
 
     fun runApprovedAction(action: String) {
@@ -428,97 +429,86 @@ fun VeerApp() {
     }
 
     MaterialTheme(colorScheme = darkColorScheme(
-        primary = cyan,
-        background = dark,
-        surface = Color(0xFF102238),
-        onSurface = Color.White
+        primary = cyan, background = Color.Black, surface = Color(0xFF202124), onSurface = Color.White
     )) {
-        Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(dark, Color(0xFF101F35)))
-            )
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("VEER", color = cyan, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                        Text("PERSONAL AI ASSISTANT", color = Color.LightGray, fontSize = 11.sp)
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            if (voiceMode) {
+                Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel() }) { Text("‹  CHAT", color = Color.White, fontSize = 15.sp) }
+                        Spacer(Modifier.weight(1f))
+                        Text("VEER", color = Color(0xFF69DFFF), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("•••", color = Color.LightGray, fontSize = 20.sp) }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = {
-                            messages.clear()
-                            messages.add("VEER" to "Boss, nayi chat shuru kar di.")
-                        }) { Text("NEW CHAT", color = Color.LightGray, fontSize = 10.sp) }
-                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) {
-                            Text("AI SETTINGS", color = cyan)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                HologramCore(
-                    modifier = Modifier.size(190.dp),
-                    active = loading || status.contains("LISTENING") || status.contains("HEARING")
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(if (loading) "AI THINKING..." else status, color = cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(10.dp))
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0x66071220), RoundedCornerShape(16.dp)).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(messages) { item ->
-                        val isBoss = item.first == "BOSS"
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = if (isBoss) Alignment.End else Alignment.Start
-                        ) {
-                            Text(if (isBoss) "BOSS" else "VEER", color = if (isBoss) Color(0xFFFFD180) else cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Surface(color = if (isBoss) Color(0xFF24445A) else Color(0xFF142A40), shape = RoundedCornerShape(12.dp)) {
-                                Text(item.second, color = Color.White, modifier = Modifier.padding(10.dp), fontSize = 14.sp)
-                            }
-                        }
-                    }
-                    if (loading) item { Text("VEER soch raha hai...", color = cyan, fontSize = 13.sp) }
-                }
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = typedCommand,
-                    onValueChange = { typedCommand = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = false,
-                    maxLines = 3,
-                    label = { Text("Boss, yahan message likhein") },
-                    placeholder = { Text("Hindi ya English mein kuch bhi poochhein") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                        focusedBorderColor = cyan, unfocusedBorderColor = Color(0xFF31536B),
-                        cursorColor = cyan, focusedLabelColor = cyan
-                    )
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            val q = typedCommand.trim()
-                            if (q.isNotEmpty() && !loading) { typedCommand = ""; processCommand(q) }
-                        },
-                        enabled = !loading,
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF164A63))
-                    ) { Text("SEND", fontWeight = FontWeight.Bold) }
-                    Button(
-                        onClick = {
+                    Spacer(Modifier.weight(1f))
+                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = loading || status.contains("LISTENING") || status.contains("HEARING"))
+                    Spacer(Modifier.height(18.dp))
+                    Text(when { loading -> "THINKING"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
+                        color = Color(0xFF78DFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text(messages.lastOrNull { it.first == "VEER" }?.second ?: "Namaste. Main sun raha hoon.",
+                        color = Color(0xFFE6F6FF), fontSize = 16.sp, modifier = Modifier.fillMaxWidth().heightIn(max = 88.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(Modifier.weight(1f))
+                    Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel() }, shape = CircleShape, modifier = Modifier.size(58.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("×", fontSize = 27.sp) }
+                        Spacer(Modifier.width(30.dp))
+                        Button(onClick = {
                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen()
                             else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        },
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007C91))
-                    ) { Text("🎙 SPEAK", fontWeight = FontWeight.Bold) }
+                        }, shape = CircleShape, modifier = Modifier.size(76.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1677B8))) { Text("🎙", fontSize = 27.sp) }
+                        Spacer(Modifier.width(30.dp))
+                        OutlinedButton(onClick = { keyDraft = apiKey; showSettings = true }, shape = CircleShape, modifier = Modifier.size(58.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("⚙", fontSize = 21.sp) }
+                    }
                 }
-                Text("Voice recognition ke liye phone ki speech service aur internet zaroori ho sakta hai.", color = Color.Gray, fontSize = 10.sp)
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("☰", color = Color.White, fontSize = 25.sp) }
+                        Spacer(Modifier.weight(1f))
+                        Text("VEER", color = Color(0xFFE9E9E9), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { messages.clear(); messages.add("VEER" to "Namaste. Main VEER hoon. Aaj kis cheez mein madad karun?") }) { Text("＋", color = Color.White, fontSize = 25.sp) }
+                    }
+                    if (messages.size <= 1) {
+                        Spacer(Modifier.weight(1f))
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("What can I help with?", color = Color(0xFFECECEC), fontSize = 24.sp, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(30.dp))
+                            Text("🎙   Start a voice chat", color = Color.LightGray, fontSize = 17.sp)
+                            Spacer(Modifier.height(18.dp))
+                            Text("✧   Ask anything, learn or create", color = Color.LightGray, fontSize = 17.sp)
+                            Spacer(Modifier.height(18.dp))
+                            Text("⌁   Write, plan or solve a problem", color = Color.LightGray, fontSize = 17.sp)
+                        }
+                        Spacer(Modifier.weight(1f))
+                    } else {
+                        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                            items(messages) { item ->
+                                val isBoss = item.first == "BOSS"
+                                Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isBoss) Alignment.End else Alignment.Start) {
+                                    Surface(color = if (isBoss) Color(0xFF30343A) else Color.Transparent, shape = RoundedCornerShape(20.dp)) {
+                                        Text(item.second, color = Color(0xFFF1F1F1), modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp), fontSize = 16.sp, lineHeight = 23.sp)
+                                    }
+                                }
+                            }
+                            if (loading) item { Text("VEER is thinking…", color = Color.Gray, fontSize = 14.sp) }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Color(0xFF242629), RoundedCornerShape(30.dp)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("+", color = Color.White, fontSize = 26.sp) }
+                        OutlinedTextField(value = typedCommand, onValueChange = { typedCommand = it }, modifier = Modifier.weight(1f),
+                            placeholder = { Text("Message VEER", color = Color(0xFFB7B7B7)) }, singleLine = false, maxLines = 4,
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color.White))
+                        TextButton(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("🎙", fontSize = 21.sp) }
+                        Button(onClick = { val q = typedCommand.trim(); if (q.isNotEmpty() && !loading) { typedCommand = ""; processCommand(q) } },
+                            enabled = !loading && typedCommand.isNotBlank(), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFECECEC), contentColor = Color.Black)) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
+                    }
+                }
             }
         }
     }
