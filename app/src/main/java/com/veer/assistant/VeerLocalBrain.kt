@@ -1,6 +1,7 @@
 package com.veer.assistant
 
 import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 
 /**
@@ -8,7 +9,10 @@ import java.util.Locale
  * Unknown or open-ended questions return null so the configured language model can handle them.
  */
 object VeerLocalBrain {
-    private val arithmetic = Regex("""^\s*(?:calculate\s+|hisab\s+|kitna\s+hota\s+hai\s+)?(-?\d+(?:\.\d+)?)\s*([+*/-])\s*(-?\d+(?:\.\d+)?)\s*[?।.!]*\s*$""", RegexOption.IGNORE_CASE)
+    private val arithmetic = Regex(
+        """^\\s*(?:calculate\\s+|hisab\\s+|kitna\\s+hota\\s+hai\\s+)?(-?\\d+(?:\\.\\d+)?)\\s*(\\+|-|\\*|/|plus|add|jod|jodo|minus|ghatao|guna|multiply|into|times|divide|divided\\s+by|bhaag)\\s*(-?\\d+(?:\\.\\d+)?)\\s*[?।.!]*\\s*$""",
+        RegexOption.IGNORE_CASE
+    )
 
     fun reply(input: String, memories: List<String> = emptyList()): String? {
         val clean = input.trim()
@@ -31,25 +35,26 @@ object VeerLocalBrain {
             "bye", "goodbye", "alvida" ->
                 return "Theek hai Boss. Main yahin hoon, jab zaroorat ho bula lena."
             "meri memory mein kya hai", "what do you remember" ->
-                return if (memories.isEmpty()) "Abhi meri local memory mein koi saved note nahi hai." else "Meri local memory mein ye notes hain:\n" + memories.takeLast(10).mapIndexed { i, note -> "${i + 1}. $note" }.joinToString("\n")
+                return if (memories.isEmpty()) "Abhi meri local memory mein koi saved note nahi hai." else "Meri local memory mein ye notes hain:\\n" + memories.takeLast(10).mapIndexed { i, note -> "${i + 1}. $note" }.joinToString("\\n")
         }
 
         val match = arithmetic.matchEntire(clean) ?: return null
         val left = match.groupValues[1].toDoubleOrNull() ?: return null
-        val operator = match.groupValues[2]
+        val operator = match.groupValues[2].lowercase(Locale.ROOT)
         val right = match.groupValues[3].toDoubleOrNull() ?: return null
         val result = when (operator) {
-            "+" -> left + right
-            "-" -> left - right
-            "*" -> left * right
-            "/" -> {
+            "+", "plus", "add", "jod", "jodo" -> left + right
+            "-", "minus", "ghatao" -> left - right
+            "*", "guna", "multiply", "into", "times" -> left * right
+            "/", "divide", "divided by", "bhaag" -> {
                 if (right == 0.0) return "Zero se divide nahi kar sakte, Boss."
                 left / right
             }
             else -> return null
         }
         if (!result.isFinite()) return "Is calculation ka result valid range mein nahi hai."
-        val formatted = DecimalFormat("0.##########").format(result)
+        val symbols = DecimalFormatSymbols(Locale.US)
+        val formatted = DecimalFormat("0.##########", symbols).format(result)
         return "Boss, jawab $formatted hai."
     }
 }
