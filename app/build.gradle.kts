@@ -38,6 +38,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    // On-device language model runtime; inference runs locally without API credentials.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }
