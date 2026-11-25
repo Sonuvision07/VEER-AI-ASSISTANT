@@ -117,6 +117,23 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+private fun VeerBrandMark(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(w * 0.12f, h * 0.20f)
+            lineTo(w * 0.47f, h * 0.82f)
+            quadraticTo(w * 0.50f, h * 0.88f, w * 0.54f, h * 0.81f)
+            lineTo(w * 0.88f, h * 0.20f)
+        }
+        drawPath(path, Brush.linearGradient(listOf(Color(0xFF83F4FF), Color(0xFF28A8FF), Color(0xFF9B7BFF))), style = Stroke(width = w * 0.12f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        drawCircle(Color(0xFF8CEFFF), radius = w * 0.055f, center = Offset(w * 0.50f, h * 0.10f))
+        drawCircle(Color(0xFF27C8FF).copy(alpha = 0.22f), radius = w * 0.46f, style = Stroke(width = w * 0.025f))
+    }
+}
+
+@Composable
 fun VeerApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
@@ -850,23 +867,35 @@ fun VeerApp() {
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("☰", color = Color.White, fontSize = 25.sp) }
+                    Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("☰", color = Color(0xFFB8C8E4), fontSize = 23.sp) }
                         Spacer(Modifier.weight(1f))
-                        Text("VEER", color = Color(0xFFE9E9E9), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            VeerBrandMark(Modifier.size(30.dp))
+                            Text("VEER", color = Color(0xFFF4F8FF), fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        }
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { showClearChatConfirm = true }) { Text("＋", color = Color.White, fontSize = 25.sp) }
+                        TextButton(onClick = { showClearChatConfirm = true }) { Text("＋", color = Color(0xFFB8C8E4), fontSize = 25.sp) }
                     }
                     if (messages.size <= 1) {
-                        Spacer(Modifier.weight(1f))
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("What can I help with?", color = Color(0xFFECECEC), fontSize = 24.sp, fontWeight = FontWeight.Medium)
-                            Spacer(Modifier.height(30.dp))
-                            Text("🎙   Start a voice chat", color = Color.LightGray, fontSize = 17.sp)
-                            Spacer(Modifier.height(18.dp))
-                            Text("✧   Ask anything, learn or create", color = Color.LightGray, fontSize = 17.sp)
-                            Spacer(Modifier.height(18.dp))
-                            Text("⌁   Write, plan or solve a problem", color = Color.LightGray, fontSize = 17.sp)
+                        Spacer(Modifier.weight(0.7f))
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(Modifier.size(164.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x553A8BFF), Color(0x222A4D9B), Color.Transparent)), CircleShape))
+                                VeerBrandMark(Modifier.size(104.dp))
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text("Hello, Boss", color = Color(0xFFF4F7FF), fontSize = 29.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(7.dp))
+                            Text("What can I help you with today?", color = Color(0xFF9EACC4), fontSize = 15.sp)
+                            Spacer(Modifier.height(28.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                listOf("Ask anything", "Create", "Learn").forEach { suggestion ->
+                                    Surface(color = Color(0xFF111C30), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263B5D))) {
+                                        Text(suggestion, color = Color(0xFFD4E1F6), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp))
+                                    }
+                                }
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                     } else {
