@@ -185,6 +185,10 @@ fun VeerApp() {
                     else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
                 }
                 "browser" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")))
+                "calculator" -> context.startActivity(Intent(Intent.ACTION_MAIN).addCategory("android.intent.category.APP_CALCULATOR"))
+                "camera" -> context.startActivity(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE))
+                "maps" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=nearby places")))
+                "dialer" -> context.startActivity(Intent(Intent.ACTION_DIAL))
             }
             addReply("Boss, aapki permission se action complete kar diya.")
         } catch (_: Exception) {
@@ -219,7 +223,7 @@ fun VeerApp() {
                 val body = JSONObject()
                     .put("model", "gemini-3.8-flash")
                     .put("input", prompt)
-                    .put("system_instruction", "You are VEER, a capable, warm, highly practical personal AI assistant. Reply in the same language as the user, especially natural Hindi/Hinglish. Address the user as Boss without overusing it. First understand the actual request and answer it directly. Give accurate, useful, step-by-step guidance when needed; explain unfamiliar concepts simply. Use recent conversation context to avoid asking repeated questions. If information may be outdated or uncertain, say so clearly instead of inventing facts. Never claim you searched the web, opened an app, changed a setting, sent a message, or completed an action unless a connected tool actually did it. This app currently supports only Settings, YouTube, and browser launch with explicit user approval; for unsupported actions explain the limitation honestly. Keep replies concise but complete.")
+                    .put("system_instruction", "You are VEER, a capable, warm, highly practical personal AI assistant. Reply in the same language as the user, especially natural Hindi/Hinglish. Address the user as Boss without overusing it. First understand the actual request and answer it directly. Give accurate, useful, step-by-step guidance when needed; explain unfamiliar concepts simply. Use recent conversation context to avoid asking repeated questions. If information may be outdated or uncertain, say so clearly instead of inventing facts. Never claim you searched the web, opened an app, changed a setting, sent a message, or completed an action unless a connected tool actually did it. You are the planning brain of VEER. For complex requests, first understand the goal, split it into clear ordered steps, identify what information is missing, and present a practical plan before claiming execution. Distinguish clearly between advice, a proposed action, and a completed action. Never invent tool access or claim background work. The Android app currently supports only these local actions with explicit approval: open Settings, YouTube, browser, calculator, camera, Maps, and phone dialer (dialer only; never place a call). For any other device action, explain that it is not yet connected. When a task requires multiple steps, give a short checklist and ask for confirmation before any consequential action. Protect privacy: never ask for passwords or expose API keys. Keep replies concise but complete.")
                     .put("generation_config", JSONObject().put("temperature", 0.45).put("max_output_tokens", 1800))
                 var code = 0
                 var raw = ""
@@ -305,10 +309,30 @@ fun VeerApp() {
                 showApproval = true
                 addReply("Boss, YouTube kholne ki permission chahiye. Neeche Approve dabayein.")
             }
-            text.contains("chrome kholo") || text.contains("browser kholo") -> {
+            text.contains("chrome kholo") || text.contains("browser kholo") || text.contains("internet kholo") -> {
                 pendingAction = "browser"
                 showApproval = true
                 addReply("Boss, browser kholne ki permission chahiye. Neeche Approve dabayein.")
+            }
+            text.contains("calculator kholo") || text.contains("calculator open") || text.contains("hisab kitab") -> {
+                pendingAction = "calculator"
+                showApproval = true
+                addReply("Boss, Calculator kholne ki permission chahiye. Neeche Approve dabayein.")
+            }
+            text.contains("camera kholo") || text.contains("camera open") -> {
+                pendingAction = "camera"
+                showApproval = true
+                addReply("Boss, Camera kholne ki permission chahiye. Neeche Approve dabayein.")
+            }
+            text.contains("maps kholo") || text.contains("map kholo") || text.contains("google maps") -> {
+                pendingAction = "maps"
+                showApproval = true
+                addReply("Boss, Maps kholne ki permission chahiye. Neeche Approve dabayein.")
+            }
+            text.contains("dialer kholo") || text.contains("phone kholo") || text.contains("number dial") -> {
+                pendingAction = "dialer"
+                showApproval = true
+                addReply("Boss, Phone dialer kholne ki permission chahiye. VEER khud call nahi karega. Neeche Approve dabayein.")
             }
             else -> askGemini(clean)
         }
@@ -460,6 +484,10 @@ fun VeerApp() {
             "settings" -> "Phone Settings kholna"
             "youtube" -> "YouTube kholna"
             "browser" -> "Browser kholna"
+            "calculator" -> "Calculator kholna"
+            "camera" -> "Camera kholna"
+            "maps" -> "Maps kholna"
+            "dialer" -> "Phone dialer kholna (call nahi lagegi)"
             else -> "Action chalana"
         }
         AlertDialog(
