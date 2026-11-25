@@ -15,7 +15,6 @@ import kotlin.coroutines.coroutineContext
  * This is a one-time model download, not a hosted inference API.
  */
 object VeerModelInstaller {
-    const val MODEL_SIZE_BYTES = 347L * 1024L * 1024L
     private const val MODEL_URL =
         "https://huggingface.co/litert-community/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm"
     private const val EXPECTED_SHA256 =
@@ -74,7 +73,7 @@ object VeerModelInstaller {
             check(sha256(temporary) == EXPECTED_SHA256) {
                 "Model file verification fail hui. Corrupt download delete kar diya."
             }
-            check(temporary.renameTo(destination)) {
+            if (!temporary.renameTo(destination)) {
                 temporary.copyTo(destination, overwrite = true)
                 temporary.delete()
             }
