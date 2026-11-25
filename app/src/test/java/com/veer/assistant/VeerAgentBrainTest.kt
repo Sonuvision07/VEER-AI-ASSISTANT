@@ -188,7 +188,7 @@ class VeerAgentBrainTest {
             FakeGateway { _, _ ->
                 AgentDecision(
                     "Need permission",
-                    call("write", AgentRisk.EXTERNAL_SIDE_EFFECT),
+                    call("write", AgentRisk.DEVICE_CHANGE),
                     finished = false
                 )
             },
