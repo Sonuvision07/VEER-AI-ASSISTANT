@@ -105,11 +105,12 @@ class VeerAgentBrain(
 
     private fun requestDecision(turn: AgentTurn): Pair<AiProvider, AgentDecision>? {
         for (provider in providerOrder) {
-            if (!gateway.isAvailable(provider)) continue
             try {
+                if (!gateway.isAvailable(provider)) continue
                 return provider to gateway.decide(provider, turn)
             } catch (_: Exception) {
-                // Try the next configured provider; do not expose provider secrets/errors.
+                // Availability checks and requests can both fail; try the next provider.
+                // Do not expose provider secrets/errors.
             }
         }
         return null
