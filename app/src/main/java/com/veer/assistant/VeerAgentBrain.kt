@@ -61,11 +61,13 @@ class VeerAgentBrain(
         AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC
     ),
     private val maxToolSteps: Int = 5,
-    private val maxToolResultChars: Int = 4_000
+    private val maxToolResultChars: Int = 4_000,
+    private val maxToolArgumentChars: Int = 8_000
 ) {
     init {
         require(maxToolSteps > 0) { "maxToolSteps must be positive" }
         require(maxToolResultChars > 0) { "maxToolResultChars must be positive" }
+        require(maxToolArgumentChars > 0) { "maxToolArgumentChars must be positive" }
     }
     fun run(initialTurn: AgentTurn): AgentRunResult {
         var turn = initialTurn
@@ -81,6 +83,13 @@ class VeerAgentBrain(
             val action = decision.second.toolCall
             if (action == null || decision.second.finished) {
                 return AgentRunResult(decision.second.message, lastProvider, steps)
+            }
+            val argumentChars = action.arguments.entries.sumOf { it.key.length + it.value.length }
+            if (argumentChars > maxToolArgumentChars) {
+                return AgentRunResult(
+                    "VEER ne action block kar diya kyunki tool arguments allowed size se bade hain.",
+                    lastProvider, steps
+                )
             }
             val toolSupported = try {
                 tools.supports(action.name)
