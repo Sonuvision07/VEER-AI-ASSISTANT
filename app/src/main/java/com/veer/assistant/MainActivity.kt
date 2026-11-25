@@ -215,11 +215,11 @@ fun VeerApp() {
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
-                context.sendBroadcast(Intent(VeerVoiceService.ACTION_RESUME).setPackage(context.packageName))
+                context.startService(Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
             }
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
-                context.sendBroadcast(Intent(VeerVoiceService.ACTION_RESUME).setPackage(context.packageName))
+                context.startService(Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
             }
         })
         engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER_REPLY")
