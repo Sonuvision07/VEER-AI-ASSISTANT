@@ -83,11 +83,19 @@ class VeerAgentBrain(
                     lastProvider, steps
                 )
             }
-            if (action.risk != AgentRisk.READ_ONLY && !approval.approved(action)) {
-                return AgentRunResult(
-                    decision.second.message.ifBlank { "Is action ke liye aapki approval zaroori hai." },
-                    lastProvider, steps, stoppedForApproval = true
-                )
+            if (action.risk != AgentRisk.READ_ONLY) {
+                // Approval checks must fail closed: an approval-system error is never consent.
+                val approved = try {
+                    approval.approved(action)
+                } catch (_: Exception) {
+                    false
+                }
+                if (!approved) {
+                    return AgentRunResult(
+                        decision.second.message.ifBlank { "Is action ke liye aapki approval zaroori hai." },
+                        lastProvider, steps, stoppedForApproval = true
+                    )
+                }
             }
             val result = try {
                 tools.execute(action)
