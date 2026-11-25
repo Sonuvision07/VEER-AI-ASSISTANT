@@ -131,4 +131,49 @@ class VeerAgentBrainTest {
         assertEquals(AiProvider.OPENAI, result.provider)
         assertEquals("OpenAI reply", result.message)
     }
+    @Test fun fallsBackWhenProviderAvailabilityCheckThrows() {
+        val gateway = object : ModelGateway {
+            override fun isAvailable(provider: AiProvider): Boolean {
+                if (provider == AiProvider.GEMINI) error("availability check failed")
+                return provider == AiProvider.OPENAI
+            }
+
+            override fun decide(provider: AiProvider, turn: AgentTurn) =
+                AgentDecision("OpenAI recovered")
+        }
+        val brain = VeerAgentBrain(
+            gateway,
+            FakeTools(),
+            FakeApproval(false),
+            providerOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AiProvider.OPENAI, result.provider)
+        assertEquals("OpenAI recovered", result.message)
+    }
+
+    @Test fun returnsSafeMessageWhenEveryProviderAvailabilityCheckFails() {
+        val gateway = object : ModelGateway {
+            override fun isAvailable(provider: AiProvider): Boolean =
+                error("availability check failed")
+
+            override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision =
+                error("decision should not be requested")
+        }
+        val brain = VeerAgentBrain(
+            gateway,
+            FakeTools(),
+            FakeApproval(false),
+            providerOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(null, result.provider)
+        assertEquals(0, result.steps)
+        assertTrue(result.message.contains("AI engine"))
+    }
+
 }
