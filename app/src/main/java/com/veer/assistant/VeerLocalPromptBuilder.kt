@@ -30,7 +30,8 @@ internal object VeerLocalPromptBuilder {
         for (note in recentNotes.asReversed()) {
             val entry = "\nSaved note: " + note.trim().take(MAX_ITEM_CHARS)
             if (prompt.length + entry.length > MAX_PROMPT_CHARS) break
-            prompt.insert(prompt.indexOf("\nEarlier "), entry.takeIf { prompt.contains("\nEarlier ") }?.let { prompt.indexOf("\nEarlier ") } ?: prompt.indexOf("\nCurrent request:"), entry)
+            val insertAt = prompt.indexOf("\nEarlier ").takeIf { it >= 0 } ?: prompt.indexOf("\nCurrent request:")
+            prompt.insert(insertAt, entry)
         }
         return prompt.toString()
     }
