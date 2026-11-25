@@ -1,0 +1,120 @@
+package com.veer.assistant
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.Manifest
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
+import android.util.Log
+
+class VeerVoiceService : Service() {
+    private var recognizer: SpeechRecognizer? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var stopping = false
+
+    override fun onCreate() {
+        super.onCreate()
+        createChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopping = true
+            stopRecognition()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        stopping = false
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("VEER voice mode active")
+            .setContentText("VEER is listening. Tap Stop in the app to turn it off.")
+            .setOngoing(true)
+            .build()
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+        startRecognition()
+        return START_NOT_STICKY
+    }
+
+    private fun createChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(CHANNEL_ID, "VEER voice mode", NotificationManager.IMPORTANCE_LOW)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    private fun startRecognition() {
+        if (stopping || !SpeechRecognizer.isRecognitionAvailable(this)) return
+        stopRecognition()
+        val speech = SpeechRecognizer.createSpeechRecognizer(this)
+        recognizer = speech
+        speech.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) { sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening in background")) }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                if (!stopping) handler.postDelayed({ startRecognition() }, 1200)
+            }
+            override fun onResults(results: Bundle?) {
+                val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                if (phrase.isNotBlank()) {
+                    sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
+                }
+                if (!stopping) handler.postDelayed({ startRecognition() }, 5000)
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+        }
+        try { speech.startListening(intent) } catch (e: Exception) { Log.w("VEER", "Speech start failed", e) }
+    }
+
+    private fun stopRecognition() {
+        handler.removeCallbacksAndMessages(null)
+        recognizer?.cancel()
+        recognizer?.destroy()
+        recognizer = null
+    }
+
+    override fun onDestroy() {
+        stopping = true
+        stopRecognition()
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?) = null
+
+    companion object {
+        const val ACTION_TRANSCRIPT = "com.veer.assistant.VOICE_TRANSCRIPT"
+        const val ACTION_STATUS = "com.veer.assistant.VOICE_STATUS"
+        const val ACTION_STOP = "com.veer.assistant.STOP_VOICE"
+        private const val CHANNEL_ID = "veer_voice_channel"
+        private const val NOTIFICATION_ID = 7201
+    }
+}
