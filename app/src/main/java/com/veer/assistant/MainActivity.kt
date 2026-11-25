@@ -226,11 +226,6 @@ fun VeerApp() {
                     if (launch != null) context.startActivity(launch)
                     else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com")))
                 }
-                "music_unused_legacy" -> {
-                    val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.youtube.music")
-                    if (launch != null) context.startActivity(launch)
-                    else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com")))
-                }
                 "browser" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")))
                 "calculator" -> context.startActivity(Intent(Intent.ACTION_MAIN).addCategory("android.intent.category.APP_CALCULATOR"))
                 "camera" -> context.startActivity(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE))
