@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -140,7 +142,7 @@ fun VeerApp() {
             } catch (e: Exception) {
                 answer = "Boss, internet ya AI connection mein problem aa gayi. " + (e.message ?: "Please try again.")
             }
-            context.runOnUiThread {
+            Handler(Looper.getMainLooper()).post {
                 loading = false
                 addReply(answer)
             }
