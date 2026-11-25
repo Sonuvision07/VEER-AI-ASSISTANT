@@ -335,7 +335,7 @@ class VeerAgentBrainTest {
         val exactCall = AgentToolCall(
             "write",
             mapOf("key" to "12345"),
-            AgentRisk.READ_ONLY
+            AgentRisk.DEVICE_CHANGE
         )
         val brain = VeerAgentBrain(
             FakeGateway { _, turn ->
@@ -346,8 +346,8 @@ class VeerAgentBrainTest {
                 }
             },
             tools,
-            FakeApproval(false),
-            maxToolArgumentChars = 8
+            FakeApproval(true),
+            maxToolArgumentChars = 9
         )
 
         val result = brain.run(turn())
