@@ -192,6 +192,15 @@ fun VeerApp() {
             showSettings = true
             return
         }
+        val prompt = buildString {
+            val contextMessages = messages.takeLast(12)
+            if (contextMessages.isNotEmpty()) {
+                append("Recent conversation for context:\\n")
+                contextMessages.forEach { append(it.first).append(": ").append(it.second).append("\\n") }
+                append("\\nCurrent user message: ")
+            }
+            append(question)
+        }
         loading = true
         status = "AI THINKING..."
         Thread {
@@ -208,15 +217,7 @@ fun VeerApp() {
                 }
                 val body = JSONObject()
                     .put("model", "gemini-3.8-flash")
-                    .put("input", buildString {
-                        val contextMessages = messages.takeLast(12)
-                        if (contextMessages.isNotEmpty()) {
-                            append("Recent conversation for context:\\n")
-                            contextMessages.forEach { append(it.first).append(": ").append(it.second).append("\\n") }
-                            append("\\nCurrent user message: ")
-                        }
-                        append(question)
-                    })
+                    .put("input", prompt)
                     .put("system_instruction", "You are VEER, a helpful personal AI assistant. Reply naturally in the same language as the user, especially Hindi or Hinglish. Address the user respectfully as Boss. Use recent conversation context when relevant. Be accurate, concise, and never claim to have performed phone actions unless the app actually did them. If a task requires phone control, explain that VEER will ask for approval before supported actions.")
                     .put("generation_config", JSONObject().put("temperature", 0.7).put("max_output_tokens", 1200))
                 connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
