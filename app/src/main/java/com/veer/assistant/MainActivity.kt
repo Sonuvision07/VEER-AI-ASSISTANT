@@ -496,8 +496,15 @@ fun VeerApp() {
         val text = clean.lowercase(Locale.getDefault())
         when {
             text.startsWith("yaad rakho ") || text.startsWith("remember ") -> {
-                val note = if (text.startsWith("yaad rakho ")) clean.substringAfter("yaad rakho ").trim() else clean.substringAfter("remember ").trim()
-                if (note.isNotBlank()) { if (memories.none { it.equals(note, ignoreCase = true) }) memories.add(note); addReply("Note local memory mein save kiya.") } else addReply("Kya yaad rakhna hai?")
+                val prefixLength = if (text.startsWith("yaad rakho ")) "yaad rakho ".length else "remember ".length
+                val note = clean.drop(prefixLength).trim()
+                if (note.isNotBlank()) {
+                    if (memories.none { it.equals(note, ignoreCase = true) }) {
+                        memories.add(note)
+                        if (memories.size > 100) memories.removeAt(0)
+                    }
+                    addReply("Note local memory mein save kiya.")
+                } else addReply("Kya yaad rakhna hai?")
             }
             text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("show memories") -> addReply(if (memories.isEmpty()) "Abhi koi note save nahi hai." else "Saved notes:\n" + memories.mapIndexed { i, note -> "${i+1}. $note" }.joinToString("\n"))
             text.startsWith("forget ") || text.startsWith("yaad hatao ") -> { val target = if (text.startsWith("forget ")) clean.substringAfter("forget ") else clean.substringAfter("yaad hatao "); val removed=memories.removeAll{it.equals(target.trim(),true)}; addReply(if(removed) "Note delete kiya." else "Note nahi mila.") }
