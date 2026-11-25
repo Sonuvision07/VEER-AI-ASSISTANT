@@ -25,8 +25,8 @@ jobs:
         with:
           gradle-version: 8.9
 
-      - name: Run unit tests
-        run: gradle testDebugUnitTest
+      - name: Run unit tests and Android lint
+        run: gradle testDebugUnitTest lintDebug
 
       - name: Build APK
         run: gradle assembleDebug
