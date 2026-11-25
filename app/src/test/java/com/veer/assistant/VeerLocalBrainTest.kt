@@ -52,6 +52,14 @@ class VeerLocalBrainTest {
         assertTrue(reply.endsWith(" hai."))
     }
 
+    @Test fun percentageOfAmountIsCalculatedOffline() {
+        assertEquals("Boss, 10.0% of 500.0 = 50 hai.", VeerLocalBrain.reply("10% of 500"))
+    }
+
+    @Test fun percentageWordAndHindiKaAreSupported() {
+        assertEquals("Boss, 12.5% of 800.0 = 100 hai.", VeerLocalBrain.reply("12.5 percent ka 800"))
+    }
+
     @Test fun unknownQuestionFallsThroughToConfiguredProvider() {
         assertNull(VeerLocalBrain.reply("Explain quantum mechanics in detail"))
     }
