@@ -407,4 +407,29 @@ class VeerAgentBrainTest {
         )
     }
 
+    @Test fun blocksActionWhenModelRiskDoesNotMatchTrustedRegistry() {
+        val tools = FakeTools()
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Attempt", call("write", AgentRisk.READ_ONLY), finished = false) },
+            tools,
+            FakeApproval(true)
+        )
+        val result = brain.run(turn())
+        assertTrue(result.message.contains("risk mismatch", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+        assertEquals(0, result.steps)
+    }
+
+    @Test fun blocksActionWhenTrustedRiskIsMissing() {
+        val tools = FakeTools(risks = mapOf("read" to AgentRisk.READ_ONLY))
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Attempt", call("write", AgentRisk.DEVICE_CHANGE), finished = false) },
+            tools,
+            FakeApproval(true)
+        )
+        val result = brain.run(turn())
+        assertTrue(result.message.contains("risk", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+        assertEquals(0, result.steps)
+    }
 }
