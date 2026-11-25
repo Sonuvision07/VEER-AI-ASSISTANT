@@ -874,7 +874,7 @@ fun VeerApp() {
                     Text("AI provider keys phone par Android Keystore encryption ke saath save hoti hain; GitHub par upload nahi hoti.", fontSize = 13.sp)
                     Divider()
                     Text("Optional Accessibility Bridge", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Is first version mein VEER sirf app-window change observe karta hai. Yeh screen ka text nahi padhta aur taps, typing ya gestures nahi karta. Future automation ke liye Android Settings mein ise manually enable karna hoga.", fontSize = 11.sp, color = Color.Gray)
+                    Text("VEER screen ka text nahi padhta, taps ya typing automate nahi karta. Android Settings mein ise manually enable karne ke baad bhi Back action sirf aapke alag APPROVE confirmation par chalega.", fontSize = 11.sp, color = Color.Gray)
                     TextButton(onClick = {
                         try {
                             context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -882,7 +882,7 @@ fun VeerApp() {
                             messages.add("VEER" to "Accessibility Settings open nahi ho paayi.")
                         }
                     }) { Text("OPEN ACCESSIBILITY SETTINGS") }
-                    TextButton(onClick = { showBackConfirm = true }) { Text("TEST APPROVED BACK ACTION") }
+                    TextButton(onClick = { showSettings = false; showBackConfirm = true }) { Text("TEST APPROVED BACK ACTION") }
                     Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Box {
                         TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; else -> "AUTO (fallback order)" }) }
