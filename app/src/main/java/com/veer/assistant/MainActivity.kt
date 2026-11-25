@@ -216,27 +216,40 @@ fun VeerApp() {
             var answer: String
             try {
                 val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/interactions")
-                val connection = (endpoint.openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 20000
-                    readTimeout = 45000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                    setRequestProperty("x-goog-api-key", key)
-                }
                 val body = JSONObject()
                     .put("model", "gemini-3.8-flash")
                     .put("input", prompt)
                     .put("system_instruction", "You are VEER, a capable, warm, highly practical personal AI assistant. Reply in the same language as the user, especially natural Hindi/Hinglish. Address the user as Boss without overusing it. First understand the actual request and answer it directly. Give accurate, useful, step-by-step guidance when needed; explain unfamiliar concepts simply. Use recent conversation context to avoid asking repeated questions. If information may be outdated or uncertain, say so clearly instead of inventing facts. Never claim you searched the web, opened an app, changed a setting, sent a message, or completed an action unless a connected tool actually did it. This app currently supports only Settings, YouTube, and browser launch with explicit user approval; for unsupported actions explain the limitation honestly. Keep replies concise but complete.")
                     .put("generation_config", JSONObject().put("temperature", 0.45).put("max_output_tokens", 1800))
-                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                val code = connection.responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val raw = stream.bufferedReader().use { it.readText() }
-                connection.disconnect()
+                var code = 0
+                var raw = ""
+                for (attempt in 0..2) {
+                    val connection = (endpoint.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 20000
+                        readTimeout = 45000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                        setRequestProperty("x-goog-api-key", key)
+                    }
+                    try {
+                        connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                        code = connection.responseCode
+                        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                        raw = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                    } finally {
+                        connection.disconnect()
+                    }
+                    if (code !in listOf(429, 500, 502, 503, 504) || attempt == 2) break
+                    Thread.sleep(1500L * (attempt + 1))
+                }
                 if (code !in 200..299) {
                     val detail = try { JSONObject(raw).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
-                    answer = "AI service error ($code). " + (detail ?: "API key ya model settings check karein.")
+                    answer = if (code in listOf(429, 500, 502, 503, 504)) {
+                        "Boss, Gemini server abhi busy hai (error $code). VEER ne 3 baar retry kiya, lekin service abhi available nahi hai. Thodi der baad dobara SEND karein."
+                    } else {
+                        "AI service error ($code). " + (detail ?: "API key ya model settings check karein.")
+                    }
                 } else {
                     val json = JSONObject(raw)
                     val directText = json.optString("output_text", "")
