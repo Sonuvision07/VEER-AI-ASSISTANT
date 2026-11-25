@@ -58,7 +58,7 @@ class VeerOnDeviceAiEngine private constructor(
         }
         val answer = StringBuilder()
         activeConversation.sendMessageAsync(prompt).collect { message ->
-            answer.append(message.text)
+            answer.append(message.contents.contents.filterIsInstance<com.google.ai.edge.litertlm.Content.Text>().joinToString("") { it.text })
         }
         return answer.toString().trim()
     }
