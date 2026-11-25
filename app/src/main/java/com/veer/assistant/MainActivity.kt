@@ -289,10 +289,10 @@ fun VeerApp() {
         val key = openAiApiKey.trim()
         if (key.isEmpty()) { addReply("Boss, OpenAI API key Settings mein add karein."); showSettings = true; return }
         val prompt = buildString {
-            if (memories.isNotEmpty()) { append("Saved context:\\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\\n") } }
-            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\\n") }
-            if (!attachedText.isNullOrBlank()) append("\\nAttached document text:\\n").append(attachedText)
-            append("\\nCurrent request: ").append(question)
+            if (memories.isNotEmpty()) { append("Saved context:\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\n") } }
+            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
+            if (!attachedText.isNullOrBlank()) append("\nAttached document text:\n").append(attachedText)
+            append("\nCurrent request: ").append(question)
         }
         loading = true
         status = "CONNECTING TO OPENAI..."
@@ -352,11 +352,11 @@ fun VeerApp() {
         val key = claudeApiKey.trim()
         if (key.isEmpty()) { addReply("Boss, Claude API key Settings mein add karein."); showSettings = true; return }
         val prompt = buildString {
-            append("You are VEER, a mature personal AI assistant. Reply naturally in Hindi/Hinglish matching the user. Be accurate, direct and concise by default. Never claim actions you did not perform.\\n\\n")
-            if (memories.isNotEmpty()) { append("Saved context:\\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\\n") } }
-            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\\n") }
-            if (!attachedText.isNullOrBlank()) append("\\nAttached document text:\\n").append(attachedText)
-            append("\\nCurrent request: ").append(question)
+            append("You are VEER, a mature personal AI assistant. Reply naturally in Hindi/Hinglish matching the user. Be accurate, direct and concise by default. Never claim actions you did not perform.\n\n")
+            if (memories.isNotEmpty()) { append("Saved context:\n"); memories.takeLast(12).forEach { append("- ").append(it).append("\n") } }
+            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
+            if (!attachedText.isNullOrBlank()) append("\nAttached document text:\n").append(attachedText)
+            append("\nCurrent request: ").append(question)
         }
         loading = true
         status = "CONNECTING TO CLAUDE..."
@@ -380,12 +380,12 @@ fun VeerApp() {
         }
         val prompt = buildString {
             if (memories.isNotEmpty()) {
-                append("Relevant saved notes:\\n")
-                memories.takeLast(12).forEach { append("- ").append(it).append("\\n") }
-                append("\\n")
+                append("Relevant saved notes:\n")
+                memories.takeLast(12).forEach { append("- ").append(it).append("\n") }
+                append("\n")
             }
-            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\\n") }
-            if (!attachedText.isNullOrBlank()) append("\\n\\nAttached document text:\\n").append(attachedText)
+            messages.takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
+            if (!attachedText.isNullOrBlank()) append("\n\nAttached document text:\n").append(attachedText)
             append("Current request: ").append(question)
         }
         loading = true
@@ -499,7 +499,7 @@ fun VeerApp() {
                 val note = if (text.startsWith("yaad rakho ")) clean.substringAfter("yaad rakho ").trim() else clean.substringAfter("remember ").trim()
                 if (note.isNotBlank()) { if (memories.none { it.equals(note, ignoreCase = true) }) memories.add(note); addReply("Note local memory mein save kiya.") } else addReply("Kya yaad rakhna hai?")
             }
-            text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("show memories") -> addReply(if (memories.isEmpty()) "Abhi koi note save nahi hai." else "Saved notes:\\n" + memories.mapIndexed { i, note -> "${i+1}. $note" }.joinToString("\\n"))
+            text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("show memories") -> addReply(if (memories.isEmpty()) "Abhi koi note save nahi hai." else "Saved notes:\n" + memories.mapIndexed { i, note -> "${i+1}. $note" }.joinToString("\n"))
             text.startsWith("forget ") || text.startsWith("yaad hatao ") -> { val target = if (text.startsWith("forget ")) clean.substringAfter("forget ") else clean.substringAfter("yaad hatao "); val removed=memories.removeAll{it.equals(target.trim(),true)}; addReply(if(removed) "Note delete kiya." else "Note nahi mila.") }
             text=="clear all memories" || text=="saari yaadein hatao" -> {memories.clear();addReply("Saved memories clear kar di.")}
             text.contains("time") || text.contains("samay") || text.contains("kitne baje") -> addReply("Abhi time hai "+SimpleDateFormat("hh:mm a",Locale.getDefault()).format(Date()))
@@ -851,7 +851,7 @@ fun VeerApp() {
         AlertDialog(
             onDismissRequest = { showApproval = false; pendingAction = "" },
             title = { Text("VEER Permission") },
-            text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\\n\\n$actionLabel") },
+            text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\n\n$actionLabel") },
             confirmButton = {
                 TextButton(onClick = { runApprovedAction(pendingAction) }) { Text("APPROVE") }
             },
