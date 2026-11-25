@@ -227,4 +227,29 @@ class VeerAgentBrainTest {
         assertEquals(0, result.steps)
         assertTrue(result.message.contains("block", ignoreCase = true))
     }
+
+    @Test fun toolExecutionFailureDoesNotExposeExceptionDetails() {
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun execute(call: AgentToolCall): String =
+                error("SECRET_TOKEN_sensitive_exception")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, turn ->
+                if (turn.previousToolResult == null) {
+                    AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false)
+                } else {
+                    AgentDecision(turn.previousToolResult)
+                }
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(1, result.steps)
+        assertTrue(result.message.contains("safely stop"))
+        assertFalse(result.message.contains("SECRET_TOKEN"))
+    }
 }
