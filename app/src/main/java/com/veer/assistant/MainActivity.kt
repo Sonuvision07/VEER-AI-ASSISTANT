@@ -7,6 +7,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -36,9 +39,55 @@ import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+
+private const val VEER_KEY_ALIAS = "veer_gemini_api_key"
+
+private fun encryptApiKey(value: String): String? {
+    return try {
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        var secret = store.getKey(VEER_KEY_ALIAS, null) as? SecretKey
+        if (secret == null) {
+            val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+            generator.init(
+                KeyGenParameterSpec.Builder(
+                    VEER_KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .build()
+            )
+            secret = generator.generateKey()
+        }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, secret)
+        val encrypted = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+        Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP)
+    } catch (_: Exception) { null }
+}
+
+private fun decryptApiKey(encoded: String): String {
+    if (encoded.isBlank()) return ""
+    return try {
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val secret = store.getKey(VEER_KEY_ALIAS, null) as? SecretKey ?: return ""
+        val combined = Base64.decode(encoded, Base64.NO_WRAP)
+        if (combined.size <= 12) return ""
+        val iv = combined.copyOfRange(0, 12)
+        val payload = combined.copyOfRange(12, combined.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, secret, GCMParameterSpec(128, iv))
+        String(cipher.doFinal(payload), Charsets.UTF_8)
+    } catch (_: Exception) { "" }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,7 +105,7 @@ fun VeerApp() {
 
     var status by remember { mutableStateOf("VEER ONLINE") }
     var typedCommand by remember { mutableStateOf("") }
-    var apiKey by remember { mutableStateOf(prefs.getString("gemini_api_key", "") ?: "") }
+    var apiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("gemini_api_key", "") ?: "")) }
     var keyDraft by remember { mutableStateOf(apiKey) }
     var showSettings by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -343,10 +392,23 @@ fun VeerApp() {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    apiKey = keyDraft.trim()
-                    prefs.edit().putString("gemini_api_key", apiKey).apply()
-                    showSettings = false
-                    messages.add("VEER" to if (apiKey.isNotEmpty()) "Boss, API key is device par save ho gayi. Ab AI chat try kar sakte hain." else "API key hata di gayi hai.")
+                    val candidate = keyDraft.trim()
+                    if (candidate.isEmpty()) {
+                        apiKey = ""
+                        prefs.edit().remove("gemini_api_key").apply()
+                        messages.add("VEER" to "API key hata di gayi hai.")
+                        showSettings = false
+                    } else {
+                        val encrypted = encryptApiKey(candidate)
+                        if (encrypted != null) {
+                            apiKey = candidate
+                            prefs.edit().putString("gemini_api_key", encrypted).apply()
+                            messages.add("VEER" to "Boss, API key securely is phone par save ho gayi. Ab AI chat try karein.")
+                            showSettings = false
+                        } else {
+                            messages.add("VEER" to "Boss, API key encrypt nahi ho paayi. Dobara try karein.")
+                        }
+                    }
                 }) { Text("SAVE") }
             },
             dismissButton = {
