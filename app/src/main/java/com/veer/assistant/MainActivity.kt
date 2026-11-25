@@ -393,7 +393,7 @@ fun VeerApp() {
         status = "CONNECTING TO AI..."
         Thread {
             var answer = ""
-            val models = listOf("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite")
+            val models = listOf("gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
             for ((index, model) in models.withIndex()) {
                 try {
                     val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
