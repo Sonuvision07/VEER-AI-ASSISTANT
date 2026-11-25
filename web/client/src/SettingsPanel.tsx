@@ -1,4 +1,4 @@
-import{useState}from"react";
+import{useEffect,useState}from"react";
 type Props={language:string;rate:number;voiceName:string;onVoiceNameChange:(value:string)=>void;onLanguageChange:(value:string)=>void;onRateChange:(value:number)=>void};
 export default function SettingsPanel({language,rate,onLanguageChange,onRateChange}:Props){
  const[open,setOpen]=useState(false);
