@@ -40,7 +40,7 @@ class VeerAgentBrainTest {
         val tools = FakeTools()
         val approval = FakeApproval(false)
         val brain = VeerAgentBrain(
-            FakeGateway { _, _ -> AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false) },
+            FakeGateway { _, turn -> if (turn.previousToolResult == null) AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false) else AgentDecision("Read complete") },
             tools,
             approval
         )
@@ -72,7 +72,7 @@ class VeerAgentBrainTest {
         val tools = FakeTools()
         val approval = FakeApproval(true)
         val brain = VeerAgentBrain(
-            FakeGateway { _, _ -> AgentDecision("Approved", call("write", AgentRisk.EXTERNAL_SIDE_EFFECT), finished = false) },
+            FakeGateway { _, turn -> if (turn.previousToolResult == null) AgentDecision("Approved", call("write", AgentRisk.EXTERNAL_SIDE_EFFECT), finished = false) else AgentDecision("Action complete") },
             tools,
             approval
         )
