@@ -576,14 +576,11 @@ fun VeerApp() {
             else -> {
                 val image = attachedImageBase64
                 if (localAiReady && image == null && attachedText.isNullOrBlank()) {
-                    val localPrompt = buildString {
-                        if (memories.isNotEmpty()) {
-                            append("Relevant saved notes:\n")
-                            memories.takeLast(12).forEach { append("- ").append(it).append("\n") }
-                        }
-                        messages.dropLast(1).takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
-                        append("\nCurrent request: ").append(clean)
-                    }
+                    val localPrompt = VeerLocalPromptBuilder.build(
+                        memories = memories.toList(),
+                        history = messages.dropLast(1).takeLast(8).toList(),
+                        currentRequest = clean
+                    )
                     loading = true
                     status = "LOCAL AI THINKING..."
                     localAiScope.launch {
