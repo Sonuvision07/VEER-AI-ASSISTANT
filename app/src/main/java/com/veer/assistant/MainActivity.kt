@@ -19,6 +19,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -205,7 +206,22 @@ fun VeerApp() {
     }
 
     fun speak(message: String) {
-        tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER_REPLY")
+        val engine = tts
+        if (engine == null) {
+            context.sendBroadcast(Intent(VeerVoiceService.ACTION_RESUME).setPackage(context.packageName))
+            return
+        }
+        engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                context.sendBroadcast(Intent(VeerVoiceService.ACTION_RESUME).setPackage(context.packageName))
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                context.sendBroadcast(Intent(VeerVoiceService.ACTION_RESUME).setPackage(context.packageName))
+            }
+        })
+        engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER_REPLY")
     }
 
     fun addReply(message: String) {
@@ -648,7 +664,6 @@ fun VeerApp() {
                 when (intent?.action) {
                     VeerVoiceService.ACTION_TRANSCRIPT -> {
                         val phrase = intent.getStringExtra("text").orEmpty()
-                        backgroundVoiceActive = false
                         if (phrase.isNotBlank()) {
                             voiceMode = true
                             processCommand(phrase)
