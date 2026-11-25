@@ -122,6 +122,27 @@ fun VeerApp() {
     var loading by remember { mutableStateOf(false) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    val memories = remember {
+        val saved = prefs.getString("veer_memories", null)
+        val restored = mutableListOf<String>()
+        try {
+            if (!saved.isNullOrBlank()) {
+                val array = org.json.JSONArray(saved)
+                for (i in 0 until array.length()) {
+                    val value = array.optString(i)
+                    if (value.isNotBlank()) restored.add(value)
+                }
+            }
+        } catch (_: Exception) {}
+        mutableStateListOf<String>().apply { addAll(restored.takeLast(100)) }
+    }
+
+    LaunchedEffect(memories.size) {
+        val saved = org.json.JSONArray()
+        memories.takeLast(100).forEach { saved.put(it) }
+        prefs.edit().putString("veer_memories", saved.toString()).apply()
+    }
+
     val messages = remember {
         val saved = prefs.getString("chat_history", null)
         val restored = mutableListOf<Pair<String, String>>()
@@ -206,6 +227,11 @@ fun VeerApp() {
             return
         }
         val prompt = buildString {
+            if (memories.isNotEmpty()) {
+                append("Saved personal notes (use only when relevant):\\n")
+                memories.takeLast(30).forEach { append("- ").append(it).append("\\n") }
+                append("\\n")
+            }
             val contextMessages = messages.takeLast(12)
             if (contextMessages.isNotEmpty()) {
                 append("Recent conversation for context:\n")
@@ -291,6 +317,34 @@ fun VeerApp() {
         messages.add("BOSS" to clean)
         val text = clean.lowercase(Locale.getDefault())
         when {
+            text.startsWith("yaad rakho ") || text.startsWith("remember ") || text.startsWith("save memory ") -> {
+                val note = when {
+                    text.startsWith("yaad rakho ") -> clean.substringAfter("yaad rakho ").trim()
+                    text.startsWith("remember ") -> clean.substringAfter("remember ").trim()
+                    else -> clean.substringAfter("save memory ").trim()
+                }
+                if (note.isNotBlank()) {
+                    if (memories.none { it.equals(note, ignoreCase = true) }) memories.add(note)
+                    addReply("Boss, note VEER ki private local memory mein save kar diya.")
+                } else addReply("Boss, bataiye kya yaad rakhna hai.")
+            }
+            text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("what do you remember") || text.contains("show memories") -> {
+                if (memories.isEmpty()) addReply("Boss, abhi koi personal note save nahi hai. Yaad rakho bolkar note save kar sakte hain.")
+                else addReply("Boss, meri local memory mein ye notes hain:\\n" + memories.mapIndexed { index, note -> (index + 1).toString() + ". " + note }.joinToString("\\n"))
+            }
+            text.startsWith("yaad hatao ") || text.startsWith("forget ") || text.startsWith("delete memory ") -> {
+                val target = when {
+                    text.startsWith("yaad hatao ") -> clean.substringAfter("yaad hatao ").trim()
+                    text.startsWith("forget ") -> clean.substringAfter("forget ").trim()
+                    else -> clean.substringAfter("delete memory ").trim()
+                }
+                val removed = memories.removeAll { it.equals(target, ignoreCase = true) }
+                addReply(if (removed) "Boss, matching note local memory se hata diya." else "Boss, exact matching note nahi mila.")
+            }
+            text == "saari yaadein hatao" || text == "clear all memories" || text == "delete all memories" -> {
+                memories.clear()
+                addReply("Boss, VEER ki saari saved local notes clear kar di gayi hain.")
+            }
             text.contains("time") || text.contains("samay") || text.contains("kitne baje") -> {
                 val now = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
                 addReply("Boss, abhi time hai $now")
