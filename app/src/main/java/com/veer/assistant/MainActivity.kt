@@ -484,7 +484,7 @@ fun VeerApp() {
                             encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
                         } else throw IllegalArgumentException("Supported files: PDF, images, TXT, MD and CSV")
                     }
-                } catch (e: Exception) { status = "FILE READ FAILED" }
+                } catch (e: Exception) { encoded = null; extractedText = null }
                 Handler(Looper.getMainLooper()).post {
                     if (encoded != null || !extractedText.isNullOrBlank()) {
                         attachedImageBase64 = encoded
@@ -589,8 +589,8 @@ fun VeerApp() {
                             colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color.White))
                         TextButton(onClick = { cameraLauncher.launch(null) }) { Text("📷", fontSize = 19.sp) }
                         TextButton(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("🎙", fontSize = 21.sp) }
-                        Button(onClick = { val q = typedCommand.trim(); if (q.isNotEmpty() && !loading) { typedCommand = ""; processCommand(q) } },
-                            enabled = !loading && typedCommand.isNotBlank(), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
+                        Button(onClick = { val q = typedCommand.trim().ifBlank { "Please analyse the attached file and explain its important details." }; if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) { typedCommand = ""; processCommand(q) } },
+                            enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFECECEC), contentColor = Color.Black)) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
