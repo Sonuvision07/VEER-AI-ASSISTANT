@@ -2,6 +2,8 @@ package com.veer.assistant
 
 import android.Manifest
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.graphics.Bitmap
@@ -131,6 +133,7 @@ fun VeerApp() {
     var pendingAction by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
+    var backgroundVoiceActive by remember { mutableStateOf(false) }
     var attachedImageBase64 by remember { mutableStateOf<String?>(null) }
     var attachedMimeType by remember { mutableStateOf("image/jpeg") }
     var attachedText by remember { mutableStateOf<String?>(null) }
@@ -639,6 +642,30 @@ fun VeerApp() {
         onDispose { recognizer?.destroy(); recognizer = null }
     }
 
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context?, intent: Intent?) {
+                when (intent?.action) {
+                    VeerVoiceService.ACTION_TRANSCRIPT -> {
+                        val phrase = intent.getStringExtra("text").orEmpty()
+                        backgroundVoiceActive = false
+                        if (phrase.isNotBlank()) {
+                            voiceMode = true
+                            processCommand(phrase)
+                        }
+                    }
+                    VeerVoiceService.ACTION_STATUS -> status = intent.getStringExtra("status") ?: status
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(VeerVoiceService.ACTION_TRANSCRIPT)
+            addAction(VeerVoiceService.ACTION_STATUS)
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose { try { context.unregisterReceiver(receiver) } catch (_: Exception) {} }
+    }
+
     MaterialTheme(colorScheme = darkColorScheme(
         primary = cyan, background = Color.Black, surface = Color(0xFF202124), onSurface = Color.White
     )) {
@@ -655,7 +682,7 @@ fun VeerApp() {
                     Spacer(Modifier.weight(1f))
                     HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = loading || status.contains("LISTENING") || status.contains("HEARING"))
                     Spacer(Modifier.height(18.dp))
-                    Text(when { loading -> "THINKING"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
+                    Text(when { loading -> "THINKING"; backgroundVoiceActive -> "BACKGROUND VOICE ACTIVE"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
                         color = Color(0xFF78DFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp)
                     Spacer(Modifier.height(10.dp))
                     Text(messages.lastOrNull { it.first == "VEER" }?.second ?: "Namaste. Main sun raha hoon.",
@@ -671,8 +698,19 @@ fun VeerApp() {
                             else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }, shape = CircleShape, modifier = Modifier.size(76.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1677B8))) { Text("🎙", fontSize = 27.sp) }
                         Spacer(Modifier.width(30.dp))
-                        OutlinedButton(onClick = { keyDraft = apiKey; showSettings = true }, shape = CircleShape, modifier = Modifier.size(58.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("⚙", fontSize = 21.sp) }
+                        OutlinedButton(onClick = {
+                            if (backgroundVoiceActive) {
+                                context.stopService(Intent(context, VeerVoiceService::class.java))
+                                backgroundVoiceActive = false
+                            } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                try {
+                                    ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java))
+                                    backgroundVoiceActive = true
+                                    status = "BACKGROUND VOICE STARTING"
+                                } catch (_: Exception) { status = "BACKGROUND VOICE COULD NOT START" }
+                            } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }, shape = CircleShape, modifier = Modifier.size(58.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(if (backgroundVoiceActive) "■" else "BG", fontSize = 15.sp) }
                     }
                 }
             } else {
