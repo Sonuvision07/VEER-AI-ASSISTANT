@@ -21,6 +21,8 @@ class VeerVoiceService : Service() {
     private var recognizer: SpeechRecognizer? = null
     private val handler = Handler(Looper.getMainLooper())
     private var stopping = false
+    private var awaitingReply = false
+    private var consecutiveErrors = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -28,6 +30,14 @@ class VeerVoiceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_RESUME) {
+            if (!stopping) {
+                awaitingReply = false
+                consecutiveErrors = 0
+                startRecognition()
+            }
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             stopping = true
             stopRecognition()
@@ -40,6 +50,7 @@ class VeerVoiceService : Service() {
             return START_NOT_STICKY
         }
         stopping = false
+        awaitingReply = false
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("VEER voice mode active")
@@ -63,7 +74,7 @@ class VeerVoiceService : Service() {
     }
 
     private fun startRecognition() {
-        if (stopping || !SpeechRecognizer.isRecognitionAvailable(this)) return
+        if (stopping || awaitingReply || !SpeechRecognizer.isRecognitionAvailable(this)) return
         stopRecognition()
         val speech = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer = speech
@@ -74,14 +85,19 @@ class VeerVoiceService : Service() {
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
-                if (!stopping) handler.postDelayed({ startRecognition() }, 1200)
+                if (!stopping && !awaitingReply) {
+                    consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
+                    val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
+                    handler.postDelayed({ startRecognition() }, delayMs)
+                }
             }
             override fun onResults(results: Bundle?) {
                 val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                 if (phrase.isNotBlank()) {
+                    awaitingReply = true
                     sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
                 }
-                if (!stopping) handler.postDelayed({ startRecognition() }, 5000)
+                if (!stopping && !awaitingReply) handler.postDelayed({ startRecognition() }, 1500)
             }
             override fun onPartialResults(partialResults: Bundle?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -114,6 +130,7 @@ class VeerVoiceService : Service() {
         const val ACTION_TRANSCRIPT = "com.veer.assistant.VOICE_TRANSCRIPT"
         const val ACTION_STATUS = "com.veer.assistant.VOICE_STATUS"
         const val ACTION_STOP = "com.veer.assistant.STOP_VOICE"
+        const val ACTION_RESUME = "com.veer.assistant.RESUME_VOICE"
         private const val CHANNEL_ID = "veer_voice_channel"
         private const val NOTIFICATION_ID = 7201
     }
