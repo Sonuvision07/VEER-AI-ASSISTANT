@@ -324,4 +324,30 @@ class VeerAgentBrainTest {
             maxToolArgumentChars = 0
         )
     }
+
+    @Test fun allowsToolArgumentsExactlyAtConfiguredLimit() {
+        val tools = FakeTools()
+        val exactCall = AgentToolCall(
+            "write",
+            mapOf("key" to "12345"),
+            AgentRisk.READ_ONLY
+        )
+        val brain = VeerAgentBrain(
+            FakeGateway { _, turn ->
+                if (turn.previousToolResult == null) {
+                    AgentDecision("Run", exactCall, finished = false)
+                } else {
+                    AgentDecision("Completed")
+                }
+            },
+            tools,
+            FakeApproval(false),
+            maxToolArgumentChars = 8
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(1, result.steps)
+        assertEquals(1, tools.executed.size)
+    }
 }
