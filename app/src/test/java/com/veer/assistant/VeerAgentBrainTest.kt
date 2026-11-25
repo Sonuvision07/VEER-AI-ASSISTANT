@@ -433,3 +433,24 @@ class VeerAgentBrainTest {
         assertEquals(0, result.steps)
     }
 }
+
+    @Test fun doesNotRequestAnotherModelDecisionAfterToolStepLimit() {
+        val tools = FakeTools()
+        var decisionCalls = 0
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisionCalls += 1
+                AgentDecision("Working", call("read", AgentRisk.READ_ONLY), finished = false)
+            },
+            tools,
+            FakeApproval(false),
+            maxToolSteps = 1
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(1, decisionCalls)
+        assertEquals(1, tools.executed.size)
+        assertEquals(1, result.steps)
+        assertTrue(result.message.contains("1 tool steps"))
+    }
