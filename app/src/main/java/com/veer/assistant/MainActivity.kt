@@ -160,6 +160,12 @@ fun VeerApp() {
         tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER_REPLY")
     }
 
+    fun addReply(message: String) {
+        messages.add("VEER" to message)
+        speak(message)
+        status = "VEER ONLINE"
+    }
+
     fun runApprovedAction(action: String) {
         try {
             when (action) {
@@ -177,12 +183,6 @@ fun VeerApp() {
         }
         pendingAction = ""
         showApproval = false
-    }
-
-    fun addReply(message: String) {
-        messages.add("VEER" to message)
-        speak(message)
-        status = "VEER ONLINE"
     }
 
     fun askGemini(question: String) {
