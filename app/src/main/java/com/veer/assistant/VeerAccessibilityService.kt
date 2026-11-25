@@ -4,16 +4,36 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 
 /**
- * Opt-in accessibility bridge foundation.
- * This initial stage observes only window-state transitions.
- * It does not read screen text, capture content, click, type, or perform gestures.
+ * Explicitly opt-in bridge. The first actionable capability is a single BACK action,
+ * invoked only from the app after the user confirms it. No screen text is inspected.
  */
 class VeerAccessibilityService : AccessibilityService() {
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        activeService = this
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Deliberately no screen-content inspection or automatic actions in this stage.
+        // No screen-content inspection, logging, or automatic interaction.
     }
 
     override fun onInterrupt() {
-        // No ongoing action to interrupt in the observer-only foundation.
+        // No ongoing action to interrupt.
+    }
+
+    override fun onDestroy() {
+        if (activeService === this) activeService = null
+        super.onDestroy()
+    }
+
+    companion object {
+        @Volatile
+        private var activeService: VeerAccessibilityService? = null
+
+        /** Returns false when the user has not enabled the service in Android Settings. */
+        fun performApprovedBack(): Boolean {
+            val service = activeService ?: return false
+            return service.performGlobalAction(GLOBAL_ACTION_BACK)
+        }
     }
 }
