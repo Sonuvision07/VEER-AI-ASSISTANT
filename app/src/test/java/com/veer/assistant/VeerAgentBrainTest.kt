@@ -14,10 +14,12 @@ class VeerAgentBrainTest {
     }
 
     private class FakeTools(
-        private val supported: Set<String> = setOf("read", "write")
+        private val supported: Set<String> = setOf("read", "write"),
+        private val risks: Map<String, AgentRisk> = mapOf("read" to AgentRisk.READ_ONLY, "write" to AgentRisk.DEVICE_CHANGE)
     ) : AgentToolExecutor {
         val executed = mutableListOf<AgentToolCall>()
         override fun supports(name: String) = name in supported
+        override fun riskFor(name: String) = risks[name]
         override fun execute(call: AgentToolCall): String {
             executed += call
             return "done"
@@ -72,7 +74,7 @@ class VeerAgentBrainTest {
         val tools = FakeTools()
         val approval = FakeApproval(true)
         val brain = VeerAgentBrain(
-            FakeGateway { _, turn -> if (turn.previousToolResult == null) AgentDecision("Approved", call("write", AgentRisk.EXTERNAL_SIDE_EFFECT), finished = false) else AgentDecision("Action complete") },
+            FakeGateway { _, turn -> if (turn.previousToolResult == null) AgentDecision("Approved", call("write", AgentRisk.DEVICE_CHANGE), finished = false) else AgentDecision("Action complete") },
             tools,
             approval
         )
@@ -206,6 +208,7 @@ class VeerAgentBrainTest {
         val tools = object : AgentToolExecutor {
             override fun supports(name: String): Boolean =
                 error("tool registry unavailable")
+            override fun riskFor(name: String): AgentRisk? = AgentRisk.READ_ONLY
 
             override fun execute(call: AgentToolCall): String =
                 error("unsupported action must never execute")
@@ -231,6 +234,7 @@ class VeerAgentBrainTest {
     @Test fun toolExecutionFailureDoesNotExposeExceptionDetails() {
         val tools = object : AgentToolExecutor {
             override fun supports(name: String) = true
+            override fun riskFor(name: String): AgentRisk? = AgentRisk.READ_ONLY
             override fun execute(call: AgentToolCall): String =
                 error("SECRET_TOKEN_sensitive_exception")
         }
@@ -256,6 +260,7 @@ class VeerAgentBrainTest {
     @Test fun truncatesOversizedToolResultBeforeNextModelRequest() {
         val tools = object : AgentToolExecutor {
             override fun supports(name: String) = true
+            override fun riskFor(name: String): AgentRisk? = AgentRisk.READ_ONLY
             override fun execute(call: AgentToolCall): String = "x".repeat(100)
         }
         var receivedToolResult: String? = null
