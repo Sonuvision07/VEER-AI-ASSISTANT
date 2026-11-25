@@ -234,23 +234,34 @@ fun VeerApp() {
         }
     }
 
+    fun resumeBackgroundVoiceIfEnabled() {
+        if (!backgroundVoiceActive) return
+        try {
+            ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
+        } catch (error: Exception) {
+            backgroundVoiceActive = false
+            status = "BACKGROUND VOICE STOPPED"
+            messages.add("VEER" to "Background voice dobara start nahi ho paayi. Voice button se phir try karein.")
+        }
+    }
+
     fun speak(message: String) {
         val engine = tts
         if (engine == null) {
-            context.startService(Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
+            resumeBackgroundVoiceIfEnabled()
             return
         }
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {
-                context.startService(Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
-            }
+            override fun onDone(utteranceId: String?) { Handler(Looper.getMainLooper()).post { resumeBackgroundVoiceIfEnabled() } }
             @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                context.startService(Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
-            }
+            override fun onError(utteranceId: String?) { Handler(Looper.getMainLooper()).post { resumeBackgroundVoiceIfEnabled() } }
         })
-        engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER_REPLY")
+        val result = engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VEER_REPLY")
+        if (result == TextToSpeech.ERROR) {
+            status = "VOICE OUTPUT ERROR"
+            resumeBackgroundVoiceIfEnabled()
+        }
     }
 
     fun addReply(message: String) {
@@ -650,7 +661,11 @@ fun VeerApp() {
             return
         }
         recognizer?.destroy()
-        val speech = SpeechRecognizer.createSpeechRecognizer(context)
+        val speech = try { VeerSpeechRecognizerFactory.create(context) } catch (error: Exception) {
+            status = "VOICE SETUP ERROR"
+            addReply("Boss, voice recognition start nahi ho paayi. Microphone permission aur phone ka speech service check karein.")
+            return
+        }
         recognizer = speech
         speech.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) { status = "LISTENING..." }
@@ -658,10 +673,22 @@ fun VeerApp() {
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() { status = "PROCESSING..." }
-            override fun onError(error: Int) { status = "TAP TO TRY AGAIN" }
+            override fun onError(error: Int) {
+                status = "VOICE INPUT ERROR"
+                val detail = when (error) {
+                    SpeechRecognizer.ERROR_AUDIO -> "Microphone audio error."
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission nahi mili."
+                    SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech service ko network chahiye ho sakta hai."
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Awaaz samajh nahi aayi. Dobara bolkar try karein."
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice service busy hai. Kuch seconds baad try karein."
+                    else -> "Voice recognition error ($error). Dobara try karein."
+                }
+                addReply("Boss, $detail")
+            }
             override fun onResults(results: Bundle?) {
                 val words = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!words.isNullOrEmpty()) processCommand(words[0])
+                else addReply("Boss, awaaz clear nahi mili. Mic dabakar phir boliye.")
                 status = "VEER ONLINE"
             }
             override fun onPartialResults(partialResults: Bundle?) {}
@@ -781,7 +808,7 @@ fun VeerApp() {
             if (voiceMode) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel() }) { Text("‹  CHAT", color = Color.White, fontSize = 15.sp) }
+                        TextButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel(); recognizer?.destroy(); recognizer = null }) { Text("‹  CHAT", color = Color.White, fontSize = 15.sp) }
                         Spacer(Modifier.weight(1f))
                         Text("VEER", color = Color(0xFF69DFFF), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.weight(1f))
@@ -798,7 +825,7 @@ fun VeerApp() {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Spacer(Modifier.weight(1f))
                     Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel() }, shape = CircleShape, modifier = Modifier.size(58.dp),
+                        OutlinedButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel(); recognizer?.destroy(); recognizer = null }, shape = CircleShape, modifier = Modifier.size(58.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("×", fontSize = 27.sp) }
                         Spacer(Modifier.width(30.dp))
                         Button(onClick = {
