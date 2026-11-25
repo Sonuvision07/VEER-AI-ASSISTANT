@@ -10,7 +10,7 @@ import java.util.Locale
  */
 object VeerLocalBrain {
     private val arithmetic = Regex(
-        """^\\s*(?:calculate\\s+|hisab\\s+|kitna\\s+hota\\s+hai\\s+)?(-?\\d+(?:\\.\\d+)?)\\s*(\\+|-|\\*|/|plus|add|jod|jodo|minus|ghatao|guna|multiply|into|times|divide|divided\\s+by|bhaag)\\s*(-?\\d+(?:\\.\\d+)?)\\s*[?।.!]*\\s*$""",
+        """^\s*(?:calculate\s+|hisab\s+|kitna\s+hota\s+hai\s+)?(-?\d+(?:\.\d+)?)\s*(\+|-|\*|/|plus|add|jod|jodo|minus|ghatao|guna|multiply|into|times|divide|divided\s+by|bhaag)\s*(-?\d+(?:\.\d+)?)\s*[?।.!]*\s*$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -35,7 +35,7 @@ object VeerLocalBrain {
             "bye", "goodbye", "alvida" ->
                 return "Theek hai Boss. Main yahin hoon, jab zaroorat ho bula lena."
             "meri memory mein kya hai", "what do you remember" ->
-                return if (memories.isEmpty()) "Abhi meri local memory mein koi saved note nahi hai." else "Meri local memory mein ye notes hain:\\n" + memories.takeLast(10).mapIndexed { i, note -> "${i + 1}. $note" }.joinToString("\\n")
+                return if (memories.isEmpty()) "Abhi meri local memory mein koi saved note nahi hai." else "Meri local memory mein ye notes hain:\n" + memories.takeLast(10).mapIndexed { i, note -> "${i + 1}. $note" }.joinToString("\n")
         }
 
         val match = arithmetic.matchEntire(clean) ?: return null
