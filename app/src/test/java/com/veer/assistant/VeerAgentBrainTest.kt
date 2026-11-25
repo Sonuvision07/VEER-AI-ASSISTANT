@@ -201,4 +201,30 @@ class VeerAgentBrainTest {
         assertEquals(0, result.steps)
     }
 
+
+    @Test fun blocksActionWhenToolSupportCheckThrows() {
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String): Boolean =
+                error("tool registry unavailable")
+
+            override fun execute(call: AgentToolCall): String =
+                error("unsupported action must never execute")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                AgentDecision(
+                    "Trying action",
+                    call("write", AgentRisk.READ_ONLY),
+                    finished = false
+                )
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(0, result.steps)
+        assertTrue(result.message.contains("block", ignoreCase = true))
+    }
 }
