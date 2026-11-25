@@ -154,24 +154,20 @@ fun VeerApp() {
         Thread {
             var answer: String
             try {
-                val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + Uri.encode(key))
+                val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/interactions")
                 val connection = (endpoint.openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 20000
-                    readTimeout = 30000
+                    readTimeout = 45000
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    setRequestProperty("x-goog-api-key", key)
                 }
                 val body = JSONObject()
-                    .put("system_instruction", JSONObject().put("parts", org.json.JSONArray().put(
-                        JSONObject().put("text", "You are VEER, a helpful personal AI assistant. Reply naturally in the same language as the user, especially Hindi or Hinglish. Address the user respectfully as Boss. Be accurate, concise, and never claim to have performed phone actions unless the app actually did them.")
-                    )))
-                    .put("contents", org.json.JSONArray().put(
-                        JSONObject().put("role", "user").put("parts", org.json.JSONArray().put(
-                            JSONObject().put("text", question)
-                        ))
-                    ))
-                    .put("generationConfig", JSONObject().put("temperature", 0.7).put("maxOutputTokens", 1200))
+                    .put("model", "gemini-3.8-flash")
+                    .put("input", question)
+                    .put("system_instruction", "You are VEER, a helpful personal AI assistant. Reply naturally in the same language as the user, especially Hindi or Hinglish. Address the user respectfully as Boss. Be accurate, concise, and never claim to have performed phone actions unless the app actually did them.")
+                    .put("generation_config", JSONObject().put("temperature", 0.7).put("max_output_tokens", 1200))
                 connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
@@ -182,10 +178,23 @@ fun VeerApp() {
                     answer = "AI service error ($code). " + (detail ?: "API key ya model settings check karein.")
                 } else {
                     val json = JSONObject(raw)
-                    answer = json.optJSONArray("candidates")
-                        ?.optJSONObject(0)?.optJSONObject("content")
-                        ?.optJSONArray("parts")?.optJSONObject(0)?.optString("text")
-                        ?.takeIf { !it.isNullOrBlank() }
+                    val directText = json.optString("output_text", "")
+                    val steps = json.optJSONArray("steps")
+                    val collected = StringBuilder()
+                    if (steps != null) {
+                        for (i in 0 until steps.length()) {
+                            val step = steps.optJSONObject(i) ?: continue
+                            if (step.optString("type") == "model_output") {
+                                val parts = step.optJSONArray("content") ?: continue
+                                for (j in 0 until parts.length()) {
+                                    val part = parts.optJSONObject(j) ?: continue
+                                    if (part.optString("type") == "text") collected.append(part.optString("text"))
+                                }
+                            }
+                        }
+                    }
+                    answer = directText.takeIf { it.isNotBlank() }
+                        ?: collected.toString().takeIf { it.isNotBlank() }
                         ?: "Boss, AI se khaali response mila. Dobara try karein."
                 }
             } catch (e: Exception) {
