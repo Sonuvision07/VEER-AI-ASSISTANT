@@ -52,20 +52,24 @@ class VeerVoiceService : Service() {
             return START_NOT_STICKY
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            voicePrefs.edit().putBoolean("background_voice_enabled", false).apply()
+            sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Microphone permission required"))
             stopSelf()
             return START_NOT_STICKY
         }
         if (!startVoiceForeground()) {
+            voicePrefs.edit().putBoolean("background_voice_enabled", false).apply()
+            sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Background voice could not start"))
             stopSelf()
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_RESUME) {
-            if (!stopping) {
-                awaitingReply = false
-                wakeArmedAtMs = 0L
-                consecutiveErrors = 0
-                startRecognition()
-            }
+            stopping = false
+            awaitingReply = false
+            wakeArmedAtMs = 0L
+            consecutiveErrors = 0
+            recognitionLanguageAttempt = 0
+            startRecognition()
             return START_NOT_STICKY
         }
         voicePrefs.edit().putBoolean("background_voice_enabled", true).apply()
