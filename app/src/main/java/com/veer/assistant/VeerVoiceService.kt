@@ -143,6 +143,8 @@ class VeerVoiceService : Service() {
         speech.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 if (recognizer !== speech) return
+                // A successful readiness callback means the recognizer recovered; restart backoff from zero.
+                consecutiveErrors = 0
                 sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening for Hey Veer"))
             }
             override fun onBeginningOfSpeech() {}
