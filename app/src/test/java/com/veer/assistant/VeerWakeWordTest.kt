@@ -33,7 +33,7 @@ class VeerWakeWordTest {
         assertEquals("", VeerWakeWord.extractCommand("noise Hey Veer"))
     }
 
-    @Test fun ignoresSpeechWithoutWakePhrase() {
+    @Test fun trimsHindiDandaAfterWakePhrase() {\n        assertEquals("यूट्यूब खोलो", VeerWakeWord.extractCommand("हे वीर। यूट्यूब खोलो"))\n    }\n\n    @Test fun trimsHindiDandaAtCommandEnd() {\n        assertEquals("यूट्यूब खोलो", VeerWakeWord.extractCommand("हे वीर, यूट्यूब खोलो।"))\n    }\n\n    @Test fun ignoresSpeechWithoutWakePhrase() {
         assertNull(VeerWakeWord.extractCommand("open YouTube"))
     }
 }
