@@ -928,7 +928,13 @@ fun VeerApp() {
                                     ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java))
                                     backgroundVoiceActive = true
                                     status = "BACKGROUND VOICE STARTING"
-                                } catch (_: Exception) { status = "BACKGROUND VOICE COULD NOT START" }
+                                } catch (_: Exception) {
+                                    // The service never starts when startForegroundService throws.
+                                    prefs.edit().putBoolean("background_voice_enabled", false).apply()
+                                    backgroundVoiceActive = false
+                                    status = "BACKGROUND VOICE COULD NOT START"
+                                    messages.add("VEER" to "Background voice start nahi ho paayi. App ko dobara kholkar try karein.")
+                                }
                             } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }, shape = CircleShape, modifier = Modifier.size(58.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(if (backgroundVoiceActive) "■" else "BG", fontSize = 15.sp) }
