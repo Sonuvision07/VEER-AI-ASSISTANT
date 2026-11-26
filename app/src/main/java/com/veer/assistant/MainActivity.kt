@@ -847,7 +847,11 @@ fun VeerApp() {
             // Release this recognizer immediately so a later attempt cannot inherit a dead instance.
             if (recognizer === speech) {
                 recognizer = null
-                speech.destroy()
+                try {
+                    speech.destroy()
+                } catch (_: Exception) {
+                    // Keep the original startup error visible even if cleanup also fails.
+                }
                 status = "VOICE ERROR"
                 addReply("Boss, voice recognition start nahi ho paayi. Dobara mic dabakar try karein.")
             }
