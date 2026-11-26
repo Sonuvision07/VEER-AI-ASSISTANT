@@ -186,6 +186,14 @@ class VeerVoiceService : Service() {
             }
             override fun onResults(results: Bundle?) {
                 if (recognizer !== speech || stopping || awaitingReply) return
+                // Results finish this recognition session. Release it before command
+                // handling and before the delayed next listening session is scheduled.
+                recognizer = null
+                try {
+                    speech.destroy()
+                } catch (cleanupError: Exception) {
+                    Log.w("VEER", "Failed recognizer cleanup after results", cleanupError)
+                }
                 consecutiveErrors = 0
                 val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.map { it.trim() }.orEmpty()
