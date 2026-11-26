@@ -21,8 +21,16 @@ class VeerWakeWordTest {
         assertEquals("पंखा चलाओ", VeerWakeWord.extractCommand("हेवीर पंखा चलाओ"))
     }
 
+    @Test fun ignoresWordsBeforeWakePhrase() {
+        assertEquals("open YouTube", VeerWakeWord.extractCommand("noise before Hey Veer, open YouTube"))
+    }
+
     @Test fun returnsEmptyCommandWhenOnlyWakePhraseWasSpoken() {
         assertEquals("", VeerWakeWord.extractCommand("Hey Veer"))
+    }
+
+    @Test fun returnsEmptyCommandWhenWakePhraseIsAtTranscriptEnd() {
+        assertEquals("", VeerWakeWord.extractCommand("noise Hey Veer"))
     }
 
     @Test fun ignoresSpeechWithoutWakePhrase() {

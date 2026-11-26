@@ -19,8 +19,7 @@ internal object VeerWakeWord {
             .minByOrNull { it.range.first }
             ?: return null
 
-        return (transcript.substring(0, match.range.first) + " " +
-            transcript.substring(match.range.last + 1))
+        return transcript.substring(match.range.last + 1)
             .replace(Regex("\\s+"), " ")
             .trim { it.isWhitespace() || it in ",.!?:;—-" }
     }
