@@ -843,7 +843,12 @@ fun VeerApp() {
                             processCommand(phrase)
                         }
                     }
-                    VeerVoiceService.ACTION_STATUS -> status = intent.getStringExtra("status") ?: status
+                    VeerVoiceService.ACTION_STATUS -> {
+                        status = intent.getStringExtra("status") ?: status
+                        if (!prefs.getBoolean("background_voice_enabled", false)) {
+                            backgroundVoiceActive = false
+                        }
+                    }
                 }
             }
         }
