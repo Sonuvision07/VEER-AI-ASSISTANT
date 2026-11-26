@@ -1,6 +1,7 @@
 package com.veer.assistant
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -67,11 +68,19 @@ class VeerVoiceService : Service() {
     }
 
     private fun startVoiceForeground(): Boolean {
+        val stopIntent = Intent(this, VeerVoiceService::class.java).setAction(ACTION_STOP)
+        val stopPendingIntent = PendingIntent.getService(
+            this,
+            NOTIFICATION_ID,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("VEER voice mode active")
-            .setContentText("Say Hey Veer, then give your command. Tap Stop in the app to turn it off.")
+            .setContentText("Say Hey Veer, then give your command. Use Stop to end listening.")
             .setOngoing(true)
+            .addAction(android.R.drawable.ic_media_pause, "Stop", stopPendingIntent)
             .build()
         return try {
             if (Build.VERSION.SDK_INT >= 34) {
