@@ -70,16 +70,17 @@ import java.util.Locale
 
 
 private const val VEER_KEY_ALIAS = "veer_gemini_api_key"
+private const val VEER_PC_TOKEN_ALIAS = "veer_pc_agent_token"
 
-private fun encryptApiKey(value: String): String? {
+private fun encryptSecret(value: String, alias: String): String? {
     return try {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        var secret = store.getKey(VEER_KEY_ALIAS, null) as? SecretKey
+        var secret = store.getKey(alias, null) as? SecretKey
         if (secret == null) {
             val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
             generator.init(
                 KeyGenParameterSpec.Builder(
-                    VEER_KEY_ALIAS,
+                    alias,
                     KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
                 ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
@@ -94,11 +95,11 @@ private fun encryptApiKey(value: String): String? {
     } catch (_: Exception) { null }
 }
 
-private fun decryptApiKey(encoded: String): String {
+private fun decryptSecret(encoded: String, alias: String): String {
     if (encoded.isBlank()) return ""
     return try {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val secret = store.getKey(VEER_KEY_ALIAS, null) as? SecretKey ?: return ""
+        val secret = store.getKey(alias, null) as? SecretKey ?: return ""
         val combined = Base64.decode(encoded, Base64.NO_WRAP)
         if (combined.size <= 12) return ""
         val iv = combined.copyOfRange(0, 12)
@@ -108,6 +109,9 @@ private fun decryptApiKey(encoded: String): String {
         String(cipher.doFinal(payload), Charsets.UTF_8)
     } catch (_: Exception) { "" }
 }
+
+private fun encryptApiKey(value: String): String? = encryptSecret(value, VEER_KEY_ALIAS)
+private fun decryptApiKey(encoded: String): String = decryptSecret(encoded, VEER_KEY_ALIAS)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -167,6 +171,12 @@ fun VeerApp() {
     var claudeApiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("claude_api_key", "") ?: "")) }
     var claudeKeyDraft by remember { mutableStateOf(claudeApiKey) }
     var selectedProvider by remember { mutableStateOf(prefs.getString("ai_provider", "AUTO") ?: "AUTO") }
+    var pcAgentUrl by remember { mutableStateOf(prefs.getString("pc_agent_url", "") ?: "") }
+    var pcAgentUrlDraft by remember { mutableStateOf(pcAgentUrl) }
+    var pcAgentToken by remember { mutableStateOf(decryptSecret(prefs.getString("pc_agent_token", "") ?: "", VEER_PC_TOKEN_ALIAS)) }
+    var pcAgentTokenDraft by remember { mutableStateOf(pcAgentToken) }
+    var pcAgentStatus by remember { mutableStateOf(if (pcAgentUrl.isNotBlank() && pcAgentToken.isNotBlank()) "Saved; connection not checked" else "Not configured") }
+    var pcAgentChecking by remember { mutableStateOf(false) }
     var showProviderMenu by remember { mutableStateOf(false) }
     val fallbackAttempted = remember { mutableStateListOf<String>() }
     var keyDraft by remember { mutableStateOf(apiKey) }
@@ -1147,6 +1157,73 @@ fun VeerApp() {
                         }
                     }) { Text("OPEN ACCESSIBILITY SETTINGS") }
                     TextButton(onClick = { showSettings = false; showBackConfirm = true }) { Text("TEST APPROVED BACK ACTION") }
+                    Divider()
+                    Text("WINDOWS PC COMPANION", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                    Text("Tailscale Serve ka HTTPS address aur Windows agent token daalein. VEER sirf connection health test karega; abhi PC par koi command execute nahi hogi.", fontSize = 11.sp, color = Color.Gray)
+                    OutlinedTextField(
+                        value = pcAgentUrlDraft,
+                        onValueChange = { pcAgentUrlDraft = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Windows PC HTTPS address") },
+                        placeholder = { Text("https://my-pc.example.ts.net") }
+                    )
+                    OutlinedTextField(
+                        value = pcAgentTokenDraft,
+                        onValueChange = { pcAgentTokenDraft = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Windows agent token") },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    Text("Connection: $pcAgentStatus", fontSize = 11.sp, color = if (pcAgentStatus.startsWith("Connected")) Color(0xFF58D68D) else Color.Gray)
+                    Button(
+                        onClick = {
+                            val base = try { VeerPcAgentClient.normalizeBaseUrl(pcAgentUrlDraft) } catch (error: Exception) {
+                                pcAgentStatus = error.message ?: "Enter a valid Tailscale HTTPS address"
+                                return@Button
+                            }
+                            val token = try { VeerPcAgentClient.validateToken(pcAgentTokenDraft) } catch (error: Exception) {
+                                pcAgentStatus = error.message ?: "Check the Windows agent token"
+                                return@Button
+                            }
+                            pcAgentChecking = true
+                            pcAgentStatus = "Connecting securely..."
+                            localAiScope.launch {
+                                try {
+                                    val health = withContext(Dispatchers.IO) { VeerPcAgentClient(base, token).health() }
+                                    val encryptedToken = encryptSecret(token, VEER_PC_TOKEN_ALIAS)
+                                    if (encryptedToken == null) {
+                                        pcAgentStatus = "Connected, but token could not be encrypted"
+                                    } else {
+                                        prefs.edit().putString("pc_agent_url", base).putString("pc_agent_token", encryptedToken).apply()
+                                        pcAgentUrl = base
+                                        pcAgentToken = token
+                                        pcAgentUrlDraft = base
+                                        pcAgentTokenDraft = token
+                                        pcAgentStatus = "Connected — " + health.agent + " v" + health.version
+                                        messages.add("VEER" to "Windows PC agent se secure HTTPS connection verify ho gaya. Abhi sirf health check enabled hai.")
+                                    }
+                                } catch (error: Exception) {
+                                    pcAgentStatus = "Connection failed: " + (error.message ?: "Check Tailscale and token")
+                                } finally {
+                                    pcAgentChecking = false
+                                }
+                            }
+                        },
+                        enabled = !pcAgentChecking && pcAgentUrlDraft.isNotBlank() && pcAgentTokenDraft.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (pcAgentChecking) "CONNECTING..." else "TEST & SAVE PC CONNECTION") }
+                    TextButton(
+                        onClick = {
+                            prefs.edit().remove("pc_agent_url").remove("pc_agent_token").apply()
+                            pcAgentUrl = ""
+                            pcAgentUrlDraft = ""
+                            pcAgentToken = ""
+                            pcAgentTokenDraft = ""
+                            pcAgentStatus = "Not configured"
+                        }
+                    ) { Text("REMOVE PC CONNECTION") }
                     Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Box {
                         TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; else -> "AUTO (fallback order)" }) }
