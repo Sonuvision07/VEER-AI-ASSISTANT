@@ -55,6 +55,18 @@ class VeerWakeWordTest {
         )
     }
 
+    @Test fun removesRepeatedEnglishWakePhraseBeforeCommand() {
+        assertEquals("open YouTube", VeerWakeWord.extractCommand("Hey Veer, Hey Veer, open YouTube"))
+    }
+
+    @Test fun removesRepeatedHindiWakePhraseBeforeCommand() {
+        assertEquals("यूट्यूब खोलो", VeerWakeWord.extractCommand("हे वीर, हे वीर, यूट्यूब खोलो"))
+    }
+
+    @Test fun repeatedWakePhraseWithoutCommandStillReturnsEmpty() {
+        assertEquals("", VeerWakeWord.extractCommand("Hey Veer, Hey Veer"))
+    }
+
     @Test fun ignoresSpeechWithoutWakePhrase() {
         assertNull(VeerWakeWord.extractCommand("open YouTube"))
     }
