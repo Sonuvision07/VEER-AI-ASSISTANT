@@ -669,6 +669,18 @@ fun VeerApp() {
         val clean = command.trim()
         if (clean.isEmpty()) return
         messages.add("BOSS" to clean)
+        val approvalPhrase = VeerApprovalPhrase.parse(clean)
+        if (showApproval && approvalPhrase != VeerApprovalPhrase.Decision.NONE) {
+            if (approvalPhrase == VeerApprovalPhrase.Decision.APPROVE) {
+                runApprovedAction(pendingAction)
+            } else {
+                pendingAction = ""
+                pendingMusicUrl = null
+                showApproval = false
+                addReply("Theek hai Boss, action cancel kar diya.")
+            }
+            return
+        }
         val text = clean.lowercase(Locale.getDefault())
         // Handle simple everyday conversation and arithmetic locally before any cloud provider.
         VeerLocalBrain.reply(clean, memories)?.let { localReply ->
