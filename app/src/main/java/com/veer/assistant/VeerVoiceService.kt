@@ -164,14 +164,20 @@ class VeerVoiceService : Service() {
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
                 if (recognizer !== speech || stopping || awaitingReply) return
+                Log.w("VEER", "Background speech recognition failed with error code $error")
                 if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE &&
                     VeerRecognitionLanguage.hasNext(recognitionLanguageAttempt)) {
                     recognitionLanguageAttempt = VeerRecognitionLanguage.nextAttempt(recognitionLanguageAttempt)
                     sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Speech language unavailable; switching language..."))
                 } else {
-                    sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status",
-                        if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) "Speech language unavailable. Check Google Speech Services language downloads."
-                        else "Voice reconnecting..."))
+                    val statusMessage = when (error) {
+                        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
+                            "Speech language unavailable. Check Google Speech Services language downloads."
+                        SpeechRecognizer.ERROR_SERVER_DISCONNECTED ->
+                            "Android speech service disconnected; VEER is reconnecting..."
+                        else -> "Voice reconnecting..."
+                    }
+                    sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", statusMessage))
                 }
                 // A terminal recognition callback ends this session. Release its idle
                 // recognizer now rather than holding it throughout the retry backoff.
