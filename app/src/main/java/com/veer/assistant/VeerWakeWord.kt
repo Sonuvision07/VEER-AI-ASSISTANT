@@ -21,6 +21,6 @@ internal object VeerWakeWord {
 
         return transcript.substring(match.range.last + 1)
             .replace(Regex("\\s+"), " ")
-            .trim { it.isWhitespace() || it in ",.!?:;—-" }
+            .trim { it.isWhitespace() || it in ",.!?:;—-" || it == '।' }
     }
 }
