@@ -33,7 +33,21 @@ class VeerWakeWordTest {
         assertEquals("", VeerWakeWord.extractCommand("noise Hey Veer"))
     }
 
-    @Test fun trimsHindiDandaAfterWakePhrase() {\n        assertEquals("यूट्यूब खोलो", VeerWakeWord.extractCommand("हे वीर। यूट्यूब खोलो"))\n    }\n\n    @Test fun trimsHindiDandaAtCommandEnd() {\n        assertEquals("यूट्यूब खोलो", VeerWakeWord.extractCommand("हे वीर, यूट्यूब खोलो।"))\n    }\n\n    @Test fun ignoresSpeechWithoutWakePhrase() {
+    @Test fun trimsHindiDandaAfterWakePhrase() {\n        assertEquals("यूट्यूब खोलो", VeerWakeWord.extractCommand("हे वीर। यूट्यूब खोलो"))\n    }\n\n    @Test fun trimsHindiDandaAtCommandEnd() {\n        assertEquals("यूट्यूब खोलो", VeerWakeWord.extractCommand("हे वीर, यूट्यूब खोलो।"))\n    }\n\n    @Test fun prefersCommandAlternativeOverWakeOnlyAlternative() {
+        assertEquals(
+            "open YouTube",
+            VeerWakeWord.selectCandidate(listOf("Hey Veer", "Hey Veer, open YouTube"))?.second
+        )
+    }
+
+    @Test fun keepsWakeOnlyAlternativeWhenNoCommandWasRecognized() {
+        assertEquals(
+            "",
+            VeerWakeWord.selectCandidate(listOf("ordinary speech", "Hey Veer"))?.second
+        )
+    }
+
+    @Test fun ignoresSpeechWithoutWakePhrase() {
         assertNull(VeerWakeWord.extractCommand("open YouTube"))
     }
 }
