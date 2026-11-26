@@ -35,11 +35,19 @@ class VeerVoiceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val voicePrefs = getSharedPreferences("veer_settings", MODE_PRIVATE)
         if (intent?.action == ACTION_STOP) {
+            voicePrefs.edit().putBoolean("background_voice_enabled", false).apply()
             stopping = true
             wakeArmedAtMs = 0L
             stopRecognition()
             stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_RESUME && !voicePrefs.getBoolean("background_voice_enabled", false)) {
+            stopping = true
+            stopRecognition()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -60,6 +68,7 @@ class VeerVoiceService : Service() {
             }
             return START_NOT_STICKY
         }
+        voicePrefs.edit().putBoolean("background_voice_enabled", true).apply()
         stopping = false
         awaitingReply = false
         recognitionLanguageAttempt = 0

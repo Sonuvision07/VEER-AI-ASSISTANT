@@ -270,6 +270,10 @@ fun VeerApp() {
     }
 
     fun resumeBackgroundVoiceIfEnabled() {
+        if (!prefs.getBoolean("background_voice_enabled", false)) {
+            backgroundVoiceActive = false
+            return
+        }
         if (!backgroundVoiceActive) return
         try {
             ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
@@ -878,10 +882,12 @@ fun VeerApp() {
                         Spacer(Modifier.width(30.dp))
                         OutlinedButton(onClick = {
                             if (backgroundVoiceActive) {
+                                prefs.edit().putBoolean("background_voice_enabled", false).apply()
                                 context.stopService(Intent(context, VeerVoiceService::class.java))
                                 backgroundVoiceActive = false
                             } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                                 try {
+                                    prefs.edit().putBoolean("background_voice_enabled", true).apply()
                                     ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java))
                                     backgroundVoiceActive = true
                                     status = "BACKGROUND VOICE STARTING"
