@@ -1087,7 +1087,12 @@ fun VeerApp() {
             else -> "Action chalana"
         }
         AlertDialog(
-            onDismissRequest = { showApproval = false; pendingAction = ""; pendingMusicUrl = null },
+            onDismissRequest = {
+                showApproval = false
+                pendingAction = ""
+                pendingMusicUrl = null
+                addReply("Permission request cancel kar di.")
+            },
             title = { Text("VEER Permission") },
             text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\n\n$actionLabel") },
             confirmButton = {
