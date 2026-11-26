@@ -41,6 +41,7 @@ class VeerVoiceService : Service() {
             stopping = true
             wakeArmedAtMs = 0L
             stopRecognition()
+            sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Background voice stopped"))
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
