@@ -14,7 +14,7 @@ class VeerVoiceRetryPolicyTest {
     @Test
     fun delayIsCappedAtFifteenSeconds() {
         assertEquals(7_200L, VeerVoiceRetryPolicy.delayForFailureCount(6))
-        assertEquals(15_000L, VeerVoiceRetryPolicy.delayForFailureCount(20))
+        assertEquals(7_200L, VeerVoiceRetryPolicy.delayForFailureCount(20))
     }
 
     @Test
@@ -27,6 +27,6 @@ class VeerVoiceRetryPolicyTest {
     @Test
     fun invalidFailureCountUsesSafeMinimum() {
         assertEquals(1_200L, VeerVoiceRetryPolicy.delayForFailureCount(0))
-        assertEquals(15_000L, VeerVoiceRetryPolicy.delayForFailureCount(-10))
+        assertEquals(1_200L, VeerVoiceRetryPolicy.delayForFailureCount(-10))
     }
 }

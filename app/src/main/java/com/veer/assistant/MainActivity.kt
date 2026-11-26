@@ -684,7 +684,7 @@ fun VeerApp() {
         }
     }
 
-    fun listen() {
+    fun listen(languageAttempt: Int = 0) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             status = "MICROPHONE PERMISSION REQUIRED"
             return
@@ -709,7 +709,14 @@ fun VeerApp() {
             override fun onEndOfSpeech() { status = "PROCESSING..." }
             override fun onError(error: Int) {
                 status = "VOICE INPUT ERROR"
+                if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE &&
+                    VeerRecognitionLanguage.hasNext(languageAttempt)) {
+                    status = "SWITCHING SPEECH LANGUAGE..."
+                    Handler(Looper.getMainLooper()).postDelayed({ listen(VeerRecognitionLanguage.nextAttempt(languageAttempt)) }, 250L)
+                    return
+                }
                 val detail = when (error) {
+                    SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Hindi/English speech pack phone ke speech service mein available nahi hai. System language fallback bhi try ho chuka hai."
                     SpeechRecognizer.ERROR_AUDIO -> "Microphone audio error."
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission nahi mili."
                     SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech service ko network chahiye ho sakta hai."
@@ -730,8 +737,10 @@ fun VeerApp() {
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
+            VeerRecognitionLanguage.localeForAttempt(languageAttempt)?.let { locale ->
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
+            }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
         try { speech.startListening(intent) } catch (_: Exception) { status = "VOICE ERROR" }

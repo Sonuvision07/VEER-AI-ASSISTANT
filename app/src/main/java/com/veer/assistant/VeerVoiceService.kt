@@ -24,6 +24,7 @@ class VeerVoiceService : Service() {
     private var awaitingReply = false
     private var consecutiveErrors = 0
     private var retryScheduled = false
+    private var recognitionLanguageAttempt = 0
     private var wakeArmedAtMs = 0L
     private val WAKE_COMMAND_WINDOW_MS = 8_000L
 
@@ -60,6 +61,7 @@ class VeerVoiceService : Service() {
         }
         stopping = false
         awaitingReply = false
+        recognitionLanguageAttempt = 0
         startRecognition()
         return START_NOT_STICKY
     }
@@ -120,7 +122,15 @@ class VeerVoiceService : Service() {
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
                 if (recognizer !== speech || stopping || awaitingReply) return
-                sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Voice reconnecting..."))
+                if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE &&
+                    VeerRecognitionLanguage.hasNext(recognitionLanguageAttempt)) {
+                    recognitionLanguageAttempt = VeerRecognitionLanguage.nextAttempt(recognitionLanguageAttempt)
+                    sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Speech language unavailable; switching language..."))
+                } else {
+                    sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status",
+                        if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) "Speech language unavailable. Check Google Speech Services language downloads."
+                        else "Voice reconnecting..."))
+                }
                 scheduleRecognitionRetry()
             }
             override fun onResults(results: Bundle?) {
@@ -157,8 +167,10 @@ class VeerVoiceService : Service() {
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
+            VeerRecognitionLanguage.localeForAttempt(recognitionLanguageAttempt)?.let { locale ->
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
+            }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
         try {
