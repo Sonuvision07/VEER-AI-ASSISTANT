@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -180,10 +181,10 @@ class VeerVoiceService : Service() {
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", command))
                     }
                     command != null -> {
-                        wakeCommandWindow.arm(System.currentTimeMillis())
+                        wakeCommandWindow.arm(SystemClock.elapsedRealtime())
                         sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "VEER activated. Say your command"))
                     }
-                    phrase.isNotBlank() && wakeCommandWindow.isActive(System.currentTimeMillis()) -> {
+                    phrase.isNotBlank() && wakeCommandWindow.isActive(SystemClock.elapsedRealtime()) -> {
                         wakeCommandWindow.clear()
                         awaitingReply = true
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
@@ -191,7 +192,7 @@ class VeerVoiceService : Service() {
                     else -> {
                         // Preserve an armed window for empty results; expire it on timeout or unrelated speech.
                         val wakeWindowActive = wakeCommandWindow.expireIfNeeded(
-                            System.currentTimeMillis(),
+                            SystemClock.elapsedRealtime(),
                             phrase.isNotBlank()
                         )
                         sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra(
@@ -201,7 +202,7 @@ class VeerVoiceService : Service() {
                     }
                 }
                 if (!stopping && !awaitingReply) {
-                    val delayMs = if (wakeCommandWindow.isActive(System.currentTimeMillis())) 350L else 700L
+                    val delayMs = if (wakeCommandWindow.isActive(SystemClock.elapsedRealtime())) 350L else 700L
                     handler.postDelayed({ startRecognition() }, delayMs)
                 }
             }
