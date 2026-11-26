@@ -230,6 +230,15 @@ class VeerVoiceService : Service() {
             speech.startListening(intent)
         } catch (e: Exception) {
             Log.w("VEER", "Speech start failed", e)
+            // Release a recognizer whose startListening call failed before scheduling recovery.
+            if (recognizer === speech) {
+                recognizer = null
+            }
+            try {
+                speech.destroy()
+            } catch (cleanupError: Exception) {
+                Log.w("VEER", "Failed recognizer cleanup also failed", cleanupError)
+            }
             scheduleRecognitionRetry()
         }
     }
