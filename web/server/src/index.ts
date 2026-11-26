@@ -22,6 +22,7 @@ async function body(req: IncomingMessage) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
     prompt?: string; messages?: Array<{ role: string; content: string }>;
     attachments?: Array<{ mimeType: string; data: string }>;
+    preferences?: { style?: string; length?: string; language?: string; beginnerMode?: boolean };
   };
 }
 const server = createServer(async (req, res) => {
@@ -61,11 +62,18 @@ const server = createServer(async (req, res) => {
       (input.messages ?? []).slice(-20).map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content.slice(0, 12000) }] }));
     if (!contents.length) contents.push({ role: "user", parts });
     else contents[contents.length - 1] = { role: "user", parts };
+    const preferences = input.preferences ?? {};
+    const styleGuide = preferences.style === "friendly" ? "Use a warm, friendly and respectful tone." : preferences.style === "professional" ? "Use a clear, professional and neutral tone." : "Use a natural, balanced tone.";
+    const lengthGuide = preferences.length === "short" ? "Keep answers concise and focus on essentials." : preferences.length === "detailed" ? "Give thorough explanations with useful context and steps." : "Use a balanced level of detail.";
+    const languageGuide = preferences.language === "hindi" ? "Reply in Hindi." : preferences.language === "hinglish" ? "Reply in natural Hinglish using Roman Hindi where suitable." : preferences.language === "english" ? "Reply in English." : "Match the language used by the user.";
+    const beginnerGuide = preferences.beginnerMode === false ? "Do not simplify unnecessarily; match the user's level." : "Assume the user may be a beginner: explain simply, define technical terms, and use steps when helpful.";
+    const systemInstruction = "You are VEER, a helpful personal AI. " + [styleGuide, lengthGuide, languageGuide, beginnerGuide, "Be honest about limitations; never fake actions. Never initiate payments, transfers, purchases, messages or other consequential actions without explicit user confirmation and an authorized integration."].join(" ");
+    const maxOutputTokens = preferences.length === "short" ? 1024 : preferences.length === "detailed" ? 3072 : 2048;
     const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" +
       encodeURIComponent(model) + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(apiKey), {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
-      body: JSON.stringify({ system_instruction: { parts: [{ text: "You are VEER, a helpful personal AI. Match the user's language, including Hindi and Hinglish. Be honest about limitations; never fake actions." }] },
-        contents, generationConfig: { temperature: .7, maxOutputTokens: 2048 } })
+      body: JSON.stringify({ system_instruction: { parts: [{ text: systemInstruction }] },
+        contents, generationConfig: { temperature: .7, maxOutputTokens } })
     });
     if (!upstream.ok || !upstream.body) { json(res, 502, { error: "AI provider request failed. Please try again." }); return; }
     res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive" });
