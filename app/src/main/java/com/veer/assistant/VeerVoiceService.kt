@@ -275,9 +275,20 @@ class VeerVoiceService : Service() {
     private fun stopRecognition() {
         handler.removeCallbacksAndMessages(null)
         retryScheduled = false
-        recognizer?.cancel()
-        recognizer?.destroy()
+        // Invalidate callbacks before touching the recognizer: cancel/destroy may
+        // synchronously trigger listener activity on some speech-service versions.
+        val previousRecognizer = recognizer
         recognizer = null
+        try {
+            previousRecognizer?.cancel()
+        } catch (error: Exception) {
+            Log.w("VEER", "Failed to cancel speech recognizer during stop", error)
+        }
+        try {
+            previousRecognizer?.destroy()
+        } catch (error: Exception) {
+            Log.w("VEER", "Failed to destroy speech recognizer during stop", error)
+        }
     }
 
     override fun onDestroy() {
