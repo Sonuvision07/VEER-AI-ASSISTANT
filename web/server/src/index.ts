@@ -1,5 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { URL } from "node:url";
+import { validateInput, allowedImage } from "./validation.js";
 
 const port = Number(process.env.PORT || 8787);
 const origin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
@@ -48,16 +49,12 @@ const server = createServer(async (req, res) => {
   res.on("close", () => { if (!res.writableEnded) { disconnected = true; controller.abort(); } });
   try {
     const input = await body(req);
-    if (typeof input.prompt !== "string" || input.prompt.length > 100000 || !Array.isArray(input.messages) ||
-      input.messages.length > 30 || input.messages.some(m => !m || typeof m.content !== "string" ||
-      !(m.role === "user" || m.role === "assistant")) ||
-      (input.attachments !== undefined && (!Array.isArray(input.attachments) ||
-      input.attachments.some(a => !a || typeof a.data !== "string || typeof a.mimeType !== "string")))) {
+    if (!validateInput(input)) {
       json(res, 400, { error: "Invalid request. Prompt limit is 100,000 characters and history limit is 30 messages." }); return;
     }
     const parts: Array<Record<string, unknown>> = [{ text: input.prompt }];
     for (const file of (input.attachments || []).slice(0, 4)) {
-      if (file.data.length < 12_000_000 && /^image\/(png|jpeg|webp|gif)$/.test(file.mimeType))
+      if (allowedImage(file.mimeType, file.data))
         parts.push({ inline_data: { mime_type: file.mimeType, data: file.data } });
     }
     const contents: Array<{ role: "user" | "model"; parts: Array<Record<string, unknown>> }> =
