@@ -150,7 +150,8 @@ class VeerVoiceService : Service() {
             return
         }
         recognizer = speech
-        speech.setRecognitionListener(object : RecognitionListener {
+        try {
+            speech.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 if (recognizer !== speech) return
                 // A successful readiness callback means the recognizer recovered; restart backoff from zero.
@@ -236,19 +237,18 @@ class VeerVoiceService : Service() {
             override fun onPartialResults(partialResults: Bundle?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            VeerRecognitionLanguage.localeForAttempt(recognitionLanguageAttempt)?.let { locale ->
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                VeerRecognitionLanguage.localeForAttempt(recognitionLanguageAttempt)?.let { locale ->
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
+                }
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             }
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        }
-        try {
             speech.startListening(intent)
         } catch (e: Exception) {
-            Log.w("VEER", "Speech start failed", e)
-            // Release a recognizer whose startListening call failed before scheduling recovery.
+            Log.w("VEER", "Speech recognizer setup/start failed", e)
+            // Release a recognizer if listener registration or startListening fails.
             if (recognizer === speech) {
                 recognizer = null
             }
