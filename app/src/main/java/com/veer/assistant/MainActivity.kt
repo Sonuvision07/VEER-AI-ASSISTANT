@@ -274,13 +274,17 @@ fun VeerApp() {
     }
 
     DisposableEffect(context) {
+        // The callback can run only after the engine is created. Keep a holder so
+        // the callback can compare identity without illegally capturing a val
+        // that is still being initialized.
+        val engineHolder = arrayOfNulls<TextToSpeech>(1)
         val engine = TextToSpeech(context) { result ->
-            // TextToSpeech initialization is asynchronous. Ignore callbacks from an
-            // engine whose Compose effect has already been disposed or replaced.
-            if (tts === engine) {
+            // Ignore callbacks from an engine whose effect was disposed/replaced.
+            val currentEngine = engineHolder[0]
+            if (currentEngine != null && tts === currentEngine) {
                 if (result == TextToSpeech.SUCCESS) {
-                    engine.language = Locale("hi", "IN")
-                    engine.setSpeechRate(0.94f)
+                    currentEngine.language = Locale("hi", "IN")
+                    currentEngine.setSpeechRate(0.94f)
                     ttsReady = true
                 } else {
                     ttsReady = false
@@ -296,6 +300,7 @@ fun VeerApp() {
                 }
             }
         }
+        engineHolder[0] = engine
         tts = engine
         onDispose {
             // Invalidate a late onInit callback before shutting the engine down.
