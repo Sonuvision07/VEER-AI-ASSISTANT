@@ -113,7 +113,6 @@ class VeerVoiceService : Service() {
         speech.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 if (recognizer !== speech) return
-                consecutiveErrors = 0
                 sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening for Hey Veer"))
             }
             override fun onBeginningOfSpeech() {}
@@ -135,6 +134,7 @@ class VeerVoiceService : Service() {
             }
             override fun onResults(results: Bundle?) {
                 if (recognizer !== speech || stopping || awaitingReply) return
+                consecutiveErrors = 0
                 val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
                 val command = VeerWakeWord.extractCommand(phrase)
                 when {
