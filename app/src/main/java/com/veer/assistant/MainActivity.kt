@@ -603,21 +603,11 @@ fun VeerApp() {
                     addReply(if (query.isBlank()) "YouTube Music open kiya." else "YouTube Music par $query search khola. Playback app ke controls par depend karega.")
                 } catch (_: Exception) { addReply("Music link launch nahi hua.") }
             }
-            text.contains("settings kholo") || text.contains("open settings") -> { pendingAction = "settings"; showApproval = true }
-            text.contains("youtube kholo") || text=="youtube" || text.contains("open youtube") -> { pendingAction = "youtube"; showApproval = true }
-            text.contains("youtube music") -> { pendingAction = "music"; showApproval = true }
-            text.contains("chrome kholo") || text.contains("browser kholo") || text.contains("open browser") -> { pendingAction = "browser"; showApproval = true }
-            text.contains("calculator kholo") || text.contains("calculator open") -> { pendingAction = "calculator"; showApproval = true }
-            text.contains("camera kholo") || text.contains("camera open") -> { pendingAction = "camera"; showApproval = true }
-            text.contains("maps kholo") || text.contains("map kholo") -> { pendingAction = "maps"; showApproval = true }
-            text.contains("instagram kholo") || text=="instagram" -> { pendingAction = "instagram"; showApproval = true }
-            text.contains("facebook kholo") || text=="facebook" -> { pendingAction = "facebook"; showApproval = true }
-            text.contains("whatsapp kholo") || text=="whatsapp" -> { pendingAction = "whatsapp"; showApproval = true }
-            text.contains("telegram kholo") || text=="telegram" -> { pendingAction = "telegram"; showApproval = true }
-            text.contains("gmail kholo") || text=="gmail" || text.contains("open gmail") -> { pendingAction = "gmail"; showApproval = true }
-            text.contains("phone kholo") || text.contains("dialer kholo") || text.contains("open dialer") || text.contains("number dial karo") -> { pendingAction = "dialer"; showApproval = true }
-            text.contains("x kholo") || text=="open x" -> { pendingAction = "x"; showApproval = true }
-            text.contains("youtube studio kholo") || text.contains("open youtube studio") -> { pendingAction = "youtube_studio"; showApproval = true }
+            VeerCommandRouter.route(clean) != null -> {
+                val routed = VeerCommandRouter.route(clean)!!
+                pendingAction = routed.action
+                showApproval = true
+            }
             else -> {
                 val image = attachedImageBase64
                 if (localAiReady && image == null && attachedText.isNullOrBlank()) {
