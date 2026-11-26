@@ -3,13 +3,7 @@ name: VEER Windows Agent CI
 on:
   push:
     branches: [main]
-    paths:
-      - "windows/**"
-      - ".github/workflows/windows-agent-ci.yml"
   pull_request:
-    paths:
-      - "windows/**"
-      - ".github/workflows/windows-agent-ci.yml"
   workflow_dispatch:
 
 jobs:
