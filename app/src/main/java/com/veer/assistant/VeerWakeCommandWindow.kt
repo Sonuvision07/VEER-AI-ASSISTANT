@@ -7,14 +7,16 @@ package com.veer.assistant
 internal class VeerWakeCommandWindow(
     private val durationMs: Long = DEFAULT_DURATION_MS
 ) {
-    private var armedAtMs: Long = 0L
+    private var armedAtMs: Long? = null
 
     fun arm(nowMs: Long) {
         armedAtMs = nowMs
     }
 
-    fun isActive(nowMs: Long): Boolean =
-        armedAtMs > 0L && nowMs >= armedAtMs && nowMs - armedAtMs <= durationMs
+    fun isActive(nowMs: Long): Boolean {
+        val armedAt = armedAtMs ?: return false
+        return nowMs >= armedAt && nowMs - armedAt <= durationMs
+    }
 
     /**
      * Empty recognition results preserve an active window. Any unrelated speech
@@ -29,7 +31,7 @@ internal class VeerWakeCommandWindow(
     }
 
     fun clear() {
-        armedAtMs = 0L
+        armedAtMs = null
     }
 
     companion object {

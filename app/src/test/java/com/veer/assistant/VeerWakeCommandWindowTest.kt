@@ -34,6 +34,20 @@ class VeerWakeCommandWindowTest {
         assertFalse(window.expireIfNeeded(1_500L, hasSpeech = true))
     }
 
+    @Test fun activationAtZeroElapsedTimeIsValid() {
+        val window = VeerWakeCommandWindow()
+        window.arm(0L)
+
+        assertTrue(window.isActive(1L))
+    }
+
+    @Test fun clockValueBeforeActivationExpiresWindow() {
+        val window = VeerWakeCommandWindow()
+        window.arm(1_000L)
+
+        assertFalse(window.isActive(999L))
+    }
+
     @Test fun clearResetsStaleActivationOnNewSession() {
         val window = VeerWakeCommandWindow()
         window.arm(1_000L)
