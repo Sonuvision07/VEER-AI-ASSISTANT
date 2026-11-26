@@ -46,4 +46,4 @@ GitHub Actions runs the same tests on windows-latest whenever the Windows agent 
 
 ## Integration status
 
-The Android APK does not yet have the pairing screen/API client. The cloud worker is not provisioned yet. Do not claim end-to-end PC or cloud control until those components are implemented and tested.
+The Android app now includes a Tailscale HTTPS pairing screen and an authenticated health check; the token is encrypted with Android Keystore. It does not yet expose remote file operations or browser actions in the Android UI, and the cloud worker is not provisioned. Do not claim end-to-end PC or cloud control until those actions are separately approved, implemented, and tested.
