@@ -821,6 +821,10 @@ fun VeerApp() {
             override fun onResults(results: Bundle?) {
                 if (recognizer !== speech) return
                 val words = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                // A single-shot recognition session is finished once results arrive.
+                // Release it before processing the command or updating the UI.
+                recognizer = null
+                try { speech.destroy() } catch (_: Exception) {}
                 if (!words.isNullOrEmpty()) processCommand(words[0])
                 else addReply("Boss, awaaz clear nahi mili. Mic dabakar phir boliye.")
                 status = "VEER ONLINE"
