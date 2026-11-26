@@ -19,4 +19,10 @@ class VeerRecognitionLanguageTest {
         assertEquals(2, VeerRecognitionLanguage.nextAttempt(1))
         assertEquals(2, VeerRecognitionLanguage.nextAttempt(2))
     }
+    @Test fun finalFallbackSwitchesAwayFromOnDeviceRecognizer() {
+        assertTrue(VeerRecognitionLanguage.useOnDeviceRecognizer(0))
+        assertTrue(VeerRecognitionLanguage.useOnDeviceRecognizer(1))
+        assertFalse(VeerRecognitionLanguage.useOnDeviceRecognizer(2))
+        assertFalse(VeerRecognitionLanguage.useOnDeviceRecognizer(99))
+    }
 }

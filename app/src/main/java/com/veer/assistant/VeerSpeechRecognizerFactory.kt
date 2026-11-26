@@ -9,8 +9,8 @@ object VeerSpeechRecognizerFactory {
     fun isOnDeviceAvailable(context: Context): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
 
-    fun create(context: Context): SpeechRecognizer {
-        if (isOnDeviceAvailable(context)) {
+    fun create(context: Context, preferOnDevice: Boolean = true): SpeechRecognizer {
+        if (preferOnDevice && isOnDeviceAvailable(context)) {
             try { return SpeechRecognizer.createOnDeviceSpeechRecognizer(context) }
             catch (_: Exception) { /* Fall back to the platform recognizer. */ }
         }

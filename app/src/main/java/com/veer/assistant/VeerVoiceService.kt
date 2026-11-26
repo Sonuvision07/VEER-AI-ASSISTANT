@@ -102,7 +102,7 @@ class VeerVoiceService : Service() {
         }
         stopRecognition()
         val speech = try {
-            VeerSpeechRecognizerFactory.create(this)
+            VeerSpeechRecognizerFactory.create(this, VeerRecognitionLanguage.useOnDeviceRecognizer(recognitionLanguageAttempt))
         } catch (e: Exception) {
             Log.e("VEER", "Unable to create speech recognizer", e)
             sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Voice setup failed; retrying..."))
