@@ -23,6 +23,7 @@ class VeerVoiceService : Service() {
     private var stopping = false
     private var awaitingReply = false
     private var consecutiveErrors = 0
+    private var retryScheduled = false
     private var wakeArmedAtMs = 0L
     private val WAKE_COMMAND_WINDOW_MS = 8_000L
 
@@ -93,7 +94,8 @@ class VeerVoiceService : Service() {
     private fun startRecognition() {
         if (stopping || awaitingReply) return
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Speech recognition unavailable"))
+            sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Speech recognition unavailable; retrying..."))
+            scheduleRecognitionRetry()
             return
         }
         stopRecognition()
@@ -102,29 +104,27 @@ class VeerVoiceService : Service() {
         } catch (e: Exception) {
             Log.e("VEER", "Unable to create speech recognizer", e)
             sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Voice setup failed; retrying..."))
-            if (!stopping && !awaitingReply) {
-                consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
-                val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
-                handler.postDelayed({ startRecognition() }, delayMs)
-            }
+            scheduleRecognitionRetry()
             return
         }
         recognizer = speech
         speech.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { consecutiveErrors = 0; sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening for Hey Veer")) }
+            override fun onReadyForSpeech(params: Bundle?) {
+                if (recognizer !== speech) return
+                consecutiveErrors = 0
+                sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening for Hey Veer"))
+            }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
-                if (!stopping && !awaitingReply) {
-                    consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
-                    val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
-                    sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Voice reconnecting..."))
-                    handler.postDelayed({ startRecognition() }, delayMs)
-                }
+                if (recognizer !== speech || stopping || awaitingReply) return
+                sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Voice reconnecting..."))
+                scheduleRecognitionRetry()
             }
             override fun onResults(results: Bundle?) {
+                if (recognizer !== speech || stopping || awaitingReply) return
                 val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
                 val command = VeerWakeWord.extractCommand(phrase)
                 when {
@@ -165,16 +165,24 @@ class VeerVoiceService : Service() {
             speech.startListening(intent)
         } catch (e: Exception) {
             Log.w("VEER", "Speech start failed", e)
-            if (!stopping && !awaitingReply) {
-                consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
-                val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
-                handler.postDelayed({ startRecognition() }, delayMs)
-            }
+            scheduleRecognitionRetry()
         }
+    }
+
+    private fun scheduleRecognitionRetry() {
+        if (stopping || awaitingReply || retryScheduled) return
+        consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
+        val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
+        retryScheduled = true
+        handler.postDelayed({
+            retryScheduled = false
+            if (!stopping && !awaitingReply) startRecognition()
+        }, delayMs)
     }
 
     private fun stopRecognition() {
         handler.removeCallbacksAndMessages(null)
+        retryScheduled = false
         recognizer?.cancel()
         recognizer?.destroy()
         recognizer = null
