@@ -170,9 +170,7 @@ class VeerVoiceService : Service() {
                 val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.map { it.trim() }.orEmpty()
                 // Recognition alternatives can differ; prefer any candidate that actually contains the wake phrase.
-                val wakeMatch = phrases.firstNotNullOfOrNull { candidate ->
-                    VeerWakeWord.extractCommand(candidate)?.let { candidate to it }
-                }
+                val wakeMatch = VeerWakeWord.selectCandidate(phrases)
                 val phrase = wakeMatch?.first ?: phrases.firstOrNull().orEmpty()
                 val command = wakeMatch?.second
                 when {
