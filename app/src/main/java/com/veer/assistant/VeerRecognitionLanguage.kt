@@ -9,4 +9,7 @@ internal object VeerRecognitionLanguage {
 
     /** Last fallback uses Android's standard recognizer, not the same on-device engine. */
     fun useOnDeviceRecognizer(attempt: Int): Boolean = attempt < locales.lastIndex
+
+    /** Use Android's standard recognizer after an on-device engine disconnects. */
+    fun systemFallbackAttempt(): Int = locales.lastIndex
 }
