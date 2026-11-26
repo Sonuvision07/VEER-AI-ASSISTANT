@@ -23,6 +23,9 @@ class VeerPcAgentClientTest {
             VeerPcAgentClient.normalizeBaseUrl("http://my-pc.example.ts.net")
         }
         assertThrows(IllegalArgumentException::class.java) {
+            VeerPcAgentClient.normalizeBaseUrl("my-pc.example.ts.net")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
             VeerPcAgentClient.normalizeBaseUrl("https://user:pass@my-pc.example.ts.net")
         }
         assertThrows(IllegalArgumentException::class.java) {
