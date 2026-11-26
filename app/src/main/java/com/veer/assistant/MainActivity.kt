@@ -259,8 +259,8 @@ fun VeerApp() {
     DisposableEffect(context) {
         val engine = TextToSpeech(context) { result ->
             if (result == TextToSpeech.SUCCESS) {
-                engine.language = Locale("hi", "IN")
-                engine.setSpeechRate(0.94f)
+                tts?.language = Locale("hi", "IN")
+                tts?.setSpeechRate(0.94f)
                 ttsReady = true
             } else {
                 ttsReady = false
