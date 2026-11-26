@@ -8,10 +8,15 @@ class VeerCommandRouterTest {
     @Test fun routesSupportedAppCommands() {
         val cases = mapOf(
             "Open settings" to "settings",
+            "settings open karo" to "settings",
             "YouTube kholo" to "youtube",
+            "youtube app open karo" to "youtube",
+            "youtube chalao" to "youtube",
             "youtube music kholo" to "music",
+            "youtube music open karo" to "music",
             "open youtube studio" to "youtube_studio",
             "calculator open" to "calculator",
+            "calculator khol do" to "calculator",
             "camera kholo" to "camera",
             "open maps" to "maps",
             "instagram" to "instagram",
@@ -25,8 +30,9 @@ class VeerCommandRouterTest {
         }
     }
 
-    @Test fun trimsAndNormalizesWhitespace() {
+    @Test fun trimsAndNormalizesWhitespaceAndPunctuation() {
         assertEquals("youtube", VeerCommandRouter.route("  OPEN   YOUTUBE  ")?.action)
+        assertEquals("youtube", VeerCommandRouter.route("YouTube app open karo!")?.action)
     }
 
     @Test fun doesNotRouteIncidentalMentions() {
