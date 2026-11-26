@@ -83,6 +83,7 @@ class VeerVoiceService : Service() {
         voicePrefs.edit().putBoolean("background_voice_enabled", true).apply()
         stopping = false
         awaitingReply = false
+        wakeArmedAtMs = 0L
         recognitionLanguageAttempt = 0
         startRecognition()
         return START_NOT_STICKY
@@ -189,8 +190,16 @@ class VeerVoiceService : Service() {
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
                     }
                     else -> {
-                        wakeArmedAtMs = 0L
-                        sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Waiting for Hey Veer"))
+                        // Empty recognition results must not cancel a still-valid wake command window.
+                        val wakeWindowExpired = wakeArmedAtMs == 0L ||
+                            System.currentTimeMillis() - wakeArmedAtMs > WAKE_COMMAND_WINDOW_MS
+                        if (phrase.isNotBlank() || wakeWindowExpired) {
+                            wakeArmedAtMs = 0L
+                        }
+                        sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra(
+                            "status",
+                            if (wakeArmedAtMs > 0L) "VEER activated. Say your command" else "Waiting for Hey Veer"
+                        ))
                     }
                 }
                 if (!stopping && !awaitingReply) {
