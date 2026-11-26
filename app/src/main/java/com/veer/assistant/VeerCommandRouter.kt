@@ -24,7 +24,7 @@ object VeerCommandRouter {
 
     private val politePrefixes = listOf("please ", "hey veer ", "veer ", "can you ", "could you ")
     private val openingPrefixes = listOf("open ", "launch ", "start ")
-    private val openingSuffixes = listOf(" open", " launch", " start", " kholo", " khol do", " kholna", " chalao", " shuru karo", " khul jao")
+    private val openingSuffixes = listOf(" open", " launch", " start", " kholo", " khol do", " kholna", " chalao", " shuru karo", " khul jao", " open karo")
 
     fun route(command: String): VeerRoutedCommand? {
         var normalized = command.trim().lowercase(java.util.Locale.ROOT)
