@@ -286,6 +286,11 @@ fun VeerApp() {
             resumeBackgroundVoiceIfEnabled()
             return
         }
+        val preferredLocale = VeerSpeechLanguage.localeForText(message)
+        val languageResult = engine.setLanguage(preferredLocale)
+        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+            engine.setLanguage(Locale("hi", "IN"))
+        }
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) { Handler(Looper.getMainLooper()).post { resumeBackgroundVoiceIfEnabled() } }
