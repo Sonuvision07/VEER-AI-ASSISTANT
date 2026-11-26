@@ -810,6 +810,12 @@ fun VeerApp() {
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice service busy hai. Kuch seconds baad try karein."
                     else -> "Voice recognition error ($error). Dobara try karein."
                 }
+                // Terminal errors leave this single-shot recognizer idle; release it now
+                // instead of retaining it until the next manual microphone attempt.
+                if (recognizer === speech) {
+                    recognizer = null
+                    try { speech.destroy() } catch (_: Exception) {}
+                }
                 addReply("Boss, $detail")
             }
             override fun onResults(results: Bundle?) {
