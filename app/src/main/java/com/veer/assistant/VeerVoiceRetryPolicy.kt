@@ -2,11 +2,11 @@ package com.veer.assistant
 
 /**
  * Backoff policy for restarting Android SpeechRecognizer after transient failures.
- * The delay grows linearly and is capped to avoid rapid microphone restart loops.
+ * The delay grows linearly and is bounded by the configured retry count and maximum delay.
  */
 object VeerVoiceRetryPolicy {
     const val INITIAL_DELAY_MS = 1_200L
-    const val MAX_DELAY_MS = 15_000L
+    const val MAX_DELAY_MS = 7_200L
     const val MAX_FAILURE_COUNT = 6
 
     fun nextFailureCount(current: Int): Int =

@@ -12,7 +12,7 @@ class VeerVoiceRetryPolicyTest {
     }
 
     @Test
-    fun delayIsCappedAtFifteenSeconds() {
+    fun delayIsCappedAtMaximumRetryDelay() {
         assertEquals(7_200L, VeerVoiceRetryPolicy.delayForFailureCount(6))
         assertEquals(7_200L, VeerVoiceRetryPolicy.delayForFailureCount(20))
     }
