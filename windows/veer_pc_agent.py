@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import heapq
 import json
 import os
 import secrets
@@ -21,7 +22,7 @@ def default_app_dir() -> Path:
 
 
 def load_token(app_dir: Path | None = None) -> str:
-    """Load or atomically create the local bearer token without replacing a valid one."""
+    """Load or securely create the local bearer token without replacing a valid one."""
     root = (app_dir or default_app_dir()).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     token_file = root / "agent.token"
@@ -63,7 +64,7 @@ def safe_path(workspace: Path, raw: str) -> Path:
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError("A relative workspace path is required")
     candidate = Path(raw)
-    if candidate.is_absolute():
+    if candidate.is_absolute() or candidate.drive or candidate.root:
         raise ValueError("Absolute paths are not allowed")
     root = workspace.resolve()
     target = (root / candidate).resolve()
@@ -76,6 +77,10 @@ def _handler_for(workspace: Path, token: str):
     class Handler(BaseHTTPRequestHandler):
         server_version = "VEER-PC-Agent/0.2"
         sys_version = ""
+
+        def setup(self) -> None:
+            super().setup()
+            self.connection.settimeout(15)
 
         def log_message(self, fmt: str, *args) -> None:
             # Never log Authorization headers or request bodies.
@@ -132,18 +137,18 @@ def _handler_for(workspace: Path, token: str):
                 folder = safe_path(workspace, relative)
                 if not folder.is_dir():
                     raise ValueError("Workspace folder not found")
-                entries = sorted(folder.iterdir(), key=lambda item: item.name.casefold())[:200]
+                entries = heapq.nsmallest(200, folder.iterdir(), key=lambda item: item.name.casefold())
                 items = [
                     {
                         "name": item.name,
-                        "type": "folder" if item.is_dir() else "file",
-                        "size": item.stat().st_size if item.is_file() else None,
+                        "type": "link" if item.is_symlink() else "folder" if item.is_dir() else "file",
+                        "size": item.stat().st_size if item.is_file() and not item.is_symlink() else None,
                     }
                     for item in entries
                 ]
                 return self.send_json(200, {
                     "ok": True,
-                    "path": str(folder.relative_to(workspace)),
+                    "path": folder.relative_to(workspace).as_posix(),
                     "items": items,
                 })
             except ValueError as error:
@@ -168,7 +173,7 @@ def _handler_for(workspace: Path, token: str):
                     parsed = urlparse(url)
                     if parsed.scheme.lower() not in ("https", "http") or not parsed.hostname:
                         raise ValueError("Only valid HTTP(S) URLs are allowed")
-                    if parsed.username or parsed.password:
+                    if parsed.username is not None or parsed.password is not None:
                         raise ValueError("URLs containing credentials are not allowed")
                     try:
                         _ = parsed.port
@@ -187,6 +192,8 @@ def _handler_for(workspace: Path, token: str):
                     raise ValueError("Text content too large")
 
                 target = safe_path(workspace, relative)
+                if target == workspace.resolve():
+                    raise ValueError("A file name inside the workspace is required")
                 target.parent.mkdir(parents=True, exist_ok=True)
                 # Re-resolve after directory creation to catch symlink changes.
                 target = safe_path(workspace, relative)
@@ -196,7 +203,7 @@ def _handler_for(workspace: Path, token: str):
                         handle.write(content)
                 except FileExistsError:
                     return self.send_json(409, {"ok": False, "error": "Refusing to overwrite existing file"})
-                return self.send_json(201, {"ok": True, "created": str(target.relative_to(workspace))})
+                return self.send_json(201, {"ok": True, "created": target.relative_to(workspace).as_posix()})
             except ValueError as error:
                 return self.send_json(400, {"ok": False, "error": str(error)})
             except OSError:
@@ -222,8 +229,11 @@ def create_server(
     if host not in ("127.0.0.1", "localhost"):
         raise ValueError("VEER PC Agent must bind to loopback only")
     root = (app_dir or default_app_dir()).expanduser().resolve()
-    workspace = root / "workspace"
-    workspace.mkdir(parents=True, exist_ok=True)
+    workspace_candidate = root / "workspace"
+    workspace_candidate.mkdir(parents=True, exist_ok=True)
+    workspace = workspace_candidate.resolve()
+    if workspace != workspace_candidate:
+        raise ValueError("VEER workspace cannot be a symlink or junction")
     active_token = token if token is not None else load_token(root)
     if len(active_token) < TOKEN_MIN_LENGTH:
         raise ValueError("VEER bearer token must be at least 40 characters")
