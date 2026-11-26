@@ -86,7 +86,7 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
             } catch (_: Exception) {
                 throw IllegalArgumentException("Enter a valid HTTPS address")
             }
-            require(uri.scheme.equals("https", ignoreCase = true)) {
+            require(uri.scheme?.equals("https", ignoreCase = true) == true) {
                 "For safety, the Windows connection must use HTTPS (Tailscale Serve)"
             }
             require(!uri.host.isNullOrBlank() && uri.rawUserInfo == null) {
