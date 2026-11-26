@@ -189,6 +189,8 @@ fun VeerApp() {
     var attachedText by remember { mutableStateOf<String?>(null) }
     var attachedFileName by remember { mutableStateOf<String?>(null) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsReady by remember { mutableStateOf(false) }
+    var pendingTtsMessage by remember { mutableStateOf<String?>(null) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
     val memories = remember {
         val saved = prefs.getString("veer_memories", null)
@@ -257,12 +259,26 @@ fun VeerApp() {
     DisposableEffect(context) {
         val engine = TextToSpeech(context) { result ->
             if (result == TextToSpeech.SUCCESS) {
-                tts?.language = Locale("hi", "IN")
-                tts?.setSpeechRate(0.94f)
+                engine.language = Locale("hi", "IN")
+                engine.setSpeechRate(0.94f)
+                ttsReady = true
+            } else {
+                ttsReady = false
+                pendingTtsMessage = null
+                if (prefs.getBoolean("background_voice_enabled", false)) {
+                    try {
+                        ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
+                    } catch (_: Exception) {
+                        backgroundVoiceActive = false
+                    }
+                }
+                status = "VOICE OUTPUT UNAVAILABLE"
             }
         }
         tts = engine
         onDispose {
+            ttsReady = false
+            pendingTtsMessage = null
             engine.stop()
             engine.shutdown()
             tts = null
@@ -293,8 +309,9 @@ fun VeerApp() {
 
     fun speak(message: String) {
         val engine = tts
-        if (engine == null) {
-            resumeBackgroundVoiceIfEnabled()
+        if (engine == null || !ttsReady) {
+            // Keep the reply until Android finishes initializing TextToSpeech.
+            pendingTtsMessage = message
             return
         }
         val preferredLocale = VeerSpeechLanguage.localeForText(message)
@@ -319,6 +336,14 @@ fun VeerApp() {
         messages.add("VEER" to message)
         if (voiceMode) speak(message)
         status = if (voiceMode) "VEER READY" else "ONLINE"
+    }
+
+    LaunchedEffect(ttsReady, pendingTtsMessage) {
+        val pending = pendingTtsMessage
+        if (ttsReady && !pending.isNullOrBlank()) {
+            pendingTtsMessage = null
+            speak(pending)
+        }
     }
 
     fun launchSocialApp(packageName: String, fallbackUrl: String) {
