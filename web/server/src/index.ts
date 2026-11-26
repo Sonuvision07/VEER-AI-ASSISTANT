@@ -58,7 +58,7 @@ const server = createServer(async (req, res) => {
         parts.push({ inline_data: { mime_type: file.mimeType, data: file.data } });
     }
     const contents: Array<{ role: "user" | "model"; parts: Array<Record<string, unknown>> }> =
-      input.messages.slice(-20).map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content.slice(0, 12000) }] }));
+      (input.messages ?? []).slice(-20).map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content.slice(0, 12000) }] }));
     if (!contents.length) contents.push({ role: "user", parts });
     else contents[contents.length - 1] = { role: "user", parts };
     const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" +
