@@ -825,7 +825,18 @@ fun VeerApp() {
             }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
-        try { speech.startListening(intent) } catch (_: Exception) { status = "VOICE ERROR" }
+        try {
+            speech.startListening(intent)
+        } catch (_: Exception) {
+            // startListening can fail before Android delivers any RecognitionListener callback.
+            // Release this recognizer immediately so a later attempt cannot inherit a dead instance.
+            if (recognizer === speech) {
+                recognizer = null
+                speech.destroy()
+                status = "VOICE ERROR"
+                addReply("Boss, voice recognition start nahi ho paayi. Dobara mic dabakar try karein.")
+            }
+        }
     }
 
     fun bitmapToBase64(bitmap: Bitmap): String {
