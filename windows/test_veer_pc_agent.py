@@ -77,6 +77,37 @@ class VeerPcAgentTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertFalse((self.app_dir / "outside.txt").exists())
 
+    def test_workspace_symlink_escape_is_rejected(self):
+        outside = self.app_dir / "outside-folder"
+        outside.mkdir()
+        link = self.server.veer_workspace / "outside-link"
+        try:
+            link.symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Directory symlinks are unavailable on this Windows runner")
+        status, _ = self.request("/files?path=outside-link")
+        self.assertEqual(status, 400)
+        status, _ = self.request("/write-text", "POST", {"path": "outside-link/escape.txt", "content": "blocked"})
+        self.assertEqual(status, 400)
+        self.assertFalse((outside / "escape.txt").exists())
+
+    def test_workspace_root_symlink_is_rejected(self):
+        linked_app = self.app_dir / "linked-app"
+        linked_app.mkdir()
+        outside = self.app_dir / "outside-workspace"
+        outside.mkdir()
+        try:
+            (linked_app / "workspace").symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Directory symlinks are unavailable on this Windows runner")
+        with self.assertRaises(ValueError):
+            veer_pc_agent.create_server(port=0, app_dir=linked_app, token=TEST_TOKEN)
+
+    def test_body_must_be_json_object(self):
+        status, body = self.request("/write-text", "POST", ["not", "an", "object"])
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+
     def test_absolute_paths_are_rejected(self):
         status, _ = self.request("/write-text", "POST", {"path": str(self.app_dir / "outside.txt"), "content": "blocked"})
         self.assertEqual(status, 400)
