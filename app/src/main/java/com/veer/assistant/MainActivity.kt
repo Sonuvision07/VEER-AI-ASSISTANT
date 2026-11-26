@@ -827,6 +827,16 @@ fun VeerApp() {
                     }, 250L)
                     return
                 }
+                if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED &&
+                    VeerRecognitionLanguage.useOnDeviceRecognizer(languageAttempt)) {
+                    status = "SWITCHING TO SYSTEM SPEECH..."
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (recognizer === speech) {
+                            listen(VeerRecognitionLanguage.systemFallbackAttempt())
+                        }
+                    }, 350L)
+                    return
+                }
                 Log.w("VEER", "Speech recognition failed with error code $error")
                 val detail = when (error) {
                     SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Hindi/English speech pack phone ke speech service mein available nahi hai. System language fallback bhi try ho chuka hai."
