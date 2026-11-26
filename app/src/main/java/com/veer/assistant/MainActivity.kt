@@ -69,6 +69,11 @@ import java.util.Date
 import java.util.Locale
 
 
+private fun safelyReleaseSpeechRecognizer(speech: SpeechRecognizer?) {
+    try { speech?.cancel() } catch (_: Exception) {}
+    try { speech?.destroy() } catch (_: Exception) {}
+}
+
 private const val VEER_KEY_ALIAS = "veer_gemini_api_key"
 private const val VEER_PC_TOKEN_ALIAS = "veer_pc_agent_token"
 
@@ -930,7 +935,11 @@ fun VeerApp() {
     }
 
     DisposableEffect(Unit) {
-        onDispose { recognizer?.destroy(); recognizer = null }
+        onDispose {
+            val activeRecognizer = recognizer
+            recognizer = null
+            safelyReleaseSpeechRecognizer(activeRecognizer)
+        }
     }
 
     DisposableEffect(context) {
@@ -968,7 +977,7 @@ fun VeerApp() {
             if (voiceMode) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel(); recognizer?.destroy(); recognizer = null }) { Text("‹  CHAT", color = Color.White, fontSize = 15.sp) }
+                        TextButton(onClick = { voiceMode = false; status = "ONLINE"; val activeRecognizer = recognizer; recognizer = null; safelyReleaseSpeechRecognizer(activeRecognizer) }) { Text("‹  CHAT", color = Color.White, fontSize = 15.sp) }
                         Spacer(Modifier.weight(1f))
                         Text("VEER", color = Color(0xFF69DFFF), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.weight(1f))
@@ -985,7 +994,7 @@ fun VeerApp() {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Spacer(Modifier.weight(1f))
                     Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = { voiceMode = false; status = "ONLINE"; recognizer?.cancel(); recognizer?.destroy(); recognizer = null }, shape = CircleShape, modifier = Modifier.size(58.dp),
+                        OutlinedButton(onClick = { voiceMode = false; status = "ONLINE"; val activeRecognizer = recognizer; recognizer = null; safelyReleaseSpeechRecognizer(activeRecognizer) }, shape = CircleShape, modifier = Modifier.size(58.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("×", fontSize = 27.sp) }
                         Spacer(Modifier.width(30.dp))
                         Button(onClick = {
