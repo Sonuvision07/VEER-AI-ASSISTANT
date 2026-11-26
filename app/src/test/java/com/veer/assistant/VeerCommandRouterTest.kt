@@ -30,6 +30,21 @@ class VeerCommandRouterTest {
         }
     }
 
+    @Test fun acceptsNaturalHindiEnglishAndPoliteVariants() {
+        val cases = mapOf(
+            "Hey Veer, YouTube app khol do please" to "youtube",
+            "please open the Instagram app" to "instagram",
+            "Veer WhatsApp chalao" to "whatsapp",
+            "could you launch Telegram please" to "telegram",
+            "Chrome kholna" to "browser",
+            "Google Maps shuru karo" to "maps",
+            "Calculator app kholo" to "calculator"
+        )
+        cases.forEach { (input, expected) ->
+            assertEquals(input, expected, VeerCommandRouter.route(input)?.action)
+        }
+    }
+
     @Test fun trimsAndNormalizesWhitespaceAndPunctuation() {
         assertEquals("youtube", VeerCommandRouter.route("  OPEN   YOUTUBE  ")?.action)
         assertEquals("youtube", VeerCommandRouter.route("YouTube app open karo!")?.action)
@@ -39,6 +54,7 @@ class VeerCommandRouterTest {
         assertNull(VeerCommandRouter.route("I like watching YouTube videos"))
         assertNull(VeerCommandRouter.route("Please tell me how to open settings"))
         assertNull(VeerCommandRouter.route("Instagram is my favourite app"))
+        assertNull(VeerCommandRouter.route("What is YouTube?"))
     }
 
     @Test fun rejectsBlankAndOversizedCommands() {

@@ -5,29 +5,58 @@ data class VeerRoutedCommand(val action: String)
 
 object VeerCommandRouter {
     private val routes = listOf(
-        "settings" to listOf("settings kholo", "open settings", "settings open karo", "settings khol do"),
-        "youtube_studio" to listOf("youtube studio kholo", "open youtube studio", "youtube studio open karo", "youtube studio khol do"),
-        "music" to listOf("youtube music kholo", "open youtube music", "youtube music", "youtube music open karo", "youtube music chalao", "music app kholo"),
-        "youtube" to listOf("youtube kholo", "open youtube", "youtube", "youtube open karo", "youtube khol do", "youtube app kholo", "youtube app open karo", "open the youtube app", "youtube chalao"),
-        "browser" to listOf("chrome kholo", "browser kholo", "open browser", "chrome open karo", "browser open karo", "chrome khol do"),
-        "calculator" to listOf("calculator kholo", "calculator open", "open calculator", "calculator open karo", "calculator khol do"),
-        "camera" to listOf("camera kholo", "camera open", "open camera", "camera open karo", "camera khol do"),
-        "maps" to listOf("maps kholo", "map kholo", "open maps", "open map", "maps open karo", "maps khol do"),
-        "instagram" to listOf("instagram kholo", "open instagram", "instagram", "instagram open karo", "instagram khol do", "instagram app kholo"),
-        "facebook" to listOf("facebook kholo", "open facebook", "facebook", "facebook open karo", "facebook khol do"),
-        "whatsapp" to listOf("whatsapp kholo", "open whatsapp", "whatsapp", "whatsapp open karo", "whatsapp khol do", "whatsapp app kholo"),
-        "telegram" to listOf("telegram kholo", "open telegram", "telegram", "telegram open karo", "telegram khol do"),
-        "gmail" to listOf("gmail kholo", "open gmail", "gmail", "gmail open karo", "gmail khol do"),
-        "dialer" to listOf("phone kholo", "dialer kholo", "open dialer", "number dial karo"),
-        "x" to listOf("x kholo", "open x")
+        "settings" to listOf("settings", "setting", "phone settings"),
+        "youtube_studio" to listOf("youtube studio"),
+        "music" to listOf("youtube music", "music app", "music"),
+        "youtube" to listOf("youtube"),
+        "browser" to listOf("chrome", "browser", "internet"),
+        "calculator" to listOf("calculator"),
+        "camera" to listOf("camera"),
+        "maps" to listOf("google maps", "maps", "map"),
+        "instagram" to listOf("instagram"),
+        "facebook" to listOf("facebook"),
+        "whatsapp" to listOf("whatsapp"),
+        "telegram" to listOf("telegram"),
+        "gmail" to listOf("gmail"),
+        "dialer" to listOf("phone dialer", "dialer", "phone"),
+        "x" to listOf("twitter", "x")
+    )
+
+    private val politePrefixes = listOf("please ", "veer ", "hey veer ", "can you ", "could you ")
+    private val openVerbs = listOf(
+        "open", "launch", "start", "kholo", "khol do", "kholna", "open karo",
+        "chalao", "shuru karo", "khul jao"
     )
 
     fun route(command: String): VeerRoutedCommand? {
-        val normalized = command.trim().lowercase(java.util.Locale.ROOT)
+        var normalized = command.trim().lowercase(java.util.Locale.ROOT)
             .replace(Regex("[!?.,।]+$"), "")
             .replace(Regex("\\s+"), " ")
         if (normalized.isEmpty() || normalized.length > 120) return null
-        val match = routes.firstOrNull { (_, phrases) -> phrases.any { it == normalized } }
+
+        var changed: Boolean
+        do {
+            changed = false
+            politePrefixes.firstOrNull { normalized.startsWith(it) }?.let {
+                normalized = normalized.removePrefix(it).trim()
+                changed = true
+            }
+        } while (changed)
+
+        normalized = normalized.removeSuffix(" please").trim()
+        normalized = normalized
+            .replace(Regex("^(open|launch|start) the "), "")
+            .replace(Regex("^(open|launch|start) "), "")
+
+        for (verb in openVerbs.sortedByDescending { it.length }) {
+            if (normalized.endsWith(" $verb")) {
+                normalized = normalized.removeSuffix(" $verb").trim()
+                break
+            }
+        }
+        normalized = normalized.removeSuffix(" app").trim()
+
+        val match = routes.firstOrNull { (_, names) -> names.any { it == normalized } }
         return match?.let { VeerRoutedCommand(it.first) }
     }
 }
