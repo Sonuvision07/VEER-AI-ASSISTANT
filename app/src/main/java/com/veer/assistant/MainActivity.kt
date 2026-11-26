@@ -183,7 +183,7 @@ fun VeerApp() {
     var pendingMusicUrl by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
-    var backgroundVoiceActive by remember { mutableStateOf(false) }
+    var backgroundVoiceActive by remember { mutableStateOf(prefs.getBoolean("background_voice_enabled", false)) }
     var attachedImageBase64 by remember { mutableStateOf<String?>(null) }
     var attachedMimeType by remember { mutableStateOf("image/jpeg") }
     var attachedText by remember { mutableStateOf<String?>(null) }
@@ -281,6 +281,13 @@ fun VeerApp() {
             backgroundVoiceActive = false
             status = "BACKGROUND VOICE STOPPED"
             messages.add("VEER" to "Background voice dobara start nahi ho paayi. Voice button se phir try karein.")
+        }
+    }
+
+    // Restore the persisted voice-mode state after Activity/process recreation.
+    LaunchedEffect(Unit) {
+        if (backgroundVoiceActive && prefs.getBoolean("background_voice_enabled", false)) {
+            resumeBackgroundVoiceIfEnabled()
         }
     }
 
