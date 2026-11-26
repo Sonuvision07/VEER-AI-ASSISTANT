@@ -275,31 +275,36 @@ fun VeerApp() {
 
     DisposableEffect(context) {
         val engine = TextToSpeech(context) { result ->
-            if (result == TextToSpeech.SUCCESS) {
-                tts?.language = Locale("hi", "IN")
-                tts?.setSpeechRate(0.94f)
-                ttsReady = true
-            } else {
-                ttsReady = false
-                pendingTtsMessage = null
-                if (prefs.getBoolean("background_voice_enabled", false)) {
-                    try {
-                        ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
-                    } catch (_: Exception) {
-                        backgroundVoiceActive = false
+            // TextToSpeech initialization is asynchronous. Ignore callbacks from an
+            // engine whose Compose effect has already been disposed or replaced.
+            if (tts === engine) {
+                if (result == TextToSpeech.SUCCESS) {
+                    engine.language = Locale("hi", "IN")
+                    engine.setSpeechRate(0.94f)
+                    ttsReady = true
+                } else {
+                    ttsReady = false
+                    pendingTtsMessage = null
+                    if (prefs.getBoolean("background_voice_enabled", false)) {
+                        try {
+                            ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java).setAction(VeerVoiceService.ACTION_RESUME))
+                        } catch (_: Exception) {
+                            backgroundVoiceActive = false
+                        }
                     }
+                    status = "VOICE OUTPUT UNAVAILABLE"
                 }
-                status = "VOICE OUTPUT UNAVAILABLE"
             }
         }
         tts = engine
         onDispose {
+            // Invalidate a late onInit callback before shutting the engine down.
+            if (tts === engine) tts = null
             ttsReady = false
             pendingTtsMessage = null
             activeTtsUtteranceId = null
             engine.stop()
             engine.shutdown()
-            tts = null
         }
     }
 
