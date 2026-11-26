@@ -23,6 +23,8 @@ class VeerVoiceService : Service() {
     private var stopping = false
     private var awaitingReply = false
     private var consecutiveErrors = 0
+    private var wakeArmedAtMs = 0L
+    private val WAKE_COMMAND_WINDOW_MS = 8_000L
 
     override fun onCreate() {
         super.onCreate()
@@ -32,6 +34,7 @@ class VeerVoiceService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopping = true
+            wakeArmedAtMs = 0L
             stopRecognition()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -48,6 +51,7 @@ class VeerVoiceService : Service() {
         if (intent?.action == ACTION_RESUME) {
             if (!stopping) {
                 awaitingReply = false
+                wakeArmedAtMs = 0L
                 consecutiveErrors = 0
                 startRecognition()
             }
@@ -63,7 +67,7 @@ class VeerVoiceService : Service() {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("VEER voice mode active")
-            .setContentText("VEER is listening. Tap Stop in the app to turn it off.")
+            .setContentText("Say Hey Veer, then give your command. Tap Stop in the app to turn it off.")
             .setOngoing(true)
             .build()
         return try {
@@ -107,7 +111,7 @@ class VeerVoiceService : Service() {
         }
         recognizer = speech
         speech.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { consecutiveErrors = 0; sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening in background")) }
+            override fun onReadyForSpeech(params: Bundle?) { consecutiveErrors = 0; sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Listening for Hey Veer")) }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
@@ -121,12 +125,32 @@ class VeerVoiceService : Service() {
                 }
             }
             override fun onResults(results: Bundle?) {
-                val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                if (phrase.isNotBlank()) {
-                    awaitingReply = true
-                    sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
+                val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
+                val command = VeerWakeWord.extractCommand(phrase)
+                when {
+                    command != null && command.isNotBlank() -> {
+                        wakeArmedAtMs = 0L
+                        awaitingReply = true
+                        sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", command))
+                    }
+                    command != null -> {
+                        wakeArmedAtMs = System.currentTimeMillis()
+                        sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "VEER activated. Say your command"))
+                    }
+                    phrase.isNotBlank() && wakeArmedAtMs > 0L && System.currentTimeMillis() - wakeArmedAtMs <= WAKE_COMMAND_WINDOW_MS -> {
+                        wakeArmedAtMs = 0L
+                        awaitingReply = true
+                        sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
+                    }
+                    else -> {
+                        wakeArmedAtMs = 0L
+                        sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Waiting for Hey Veer"))
+                    }
                 }
-                if (!stopping && !awaitingReply) handler.postDelayed({ startRecognition() }, 1500)
+                if (!stopping && !awaitingReply) {
+                    val delayMs = if (wakeArmedAtMs > 0L) 350L else 700L
+                    handler.postDelayed({ startRecognition() }, delayMs)
+                }
             }
             override fun onPartialResults(partialResults: Bundle?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -158,6 +182,7 @@ class VeerVoiceService : Service() {
 
     override fun onDestroy() {
         stopping = true
+        wakeArmedAtMs = 0L
         stopRecognition()
         super.onDestroy()
     }
