@@ -798,7 +798,8 @@ fun VeerApp() {
             return
         }
         recognizer = speech
-        speech.setRecognitionListener(object : RecognitionListener {
+        try {
+            speech.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 if (recognizer !== speech) return
                 status = "LISTENING..."
@@ -867,21 +868,20 @@ fun VeerApp() {
             }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
-        try {
             speech.startListening(intent)
-        } catch (_: Exception) {
-            // startListening can fail before Android delivers any RecognitionListener callback.
-            // Release this recognizer immediately so a later attempt cannot inherit a dead instance.
+        } catch (error: Exception) {
+            Log.w("VEER", "Speech recognizer setup/start failed", error)
+            // Listener registration and startListening can both throw before callbacks arrive.
             if (recognizer === speech) {
                 recognizer = null
-                try {
-                    speech.destroy()
-                } catch (_: Exception) {
-                    // Keep the original startup error visible even if cleanup also fails.
-                }
-                status = "VOICE ERROR"
-                addReply("Boss, voice recognition start nahi ho paayi. Dobara mic dabakar try karein.")
             }
+            try {
+                speech.destroy()
+            } catch (cleanupError: Exception) {
+                Log.w("VEER", "Failed recognizer cleanup after setup/start failure", cleanupError)
+            }
+            status = "VOICE ERROR"
+            addReply("Boss, voice recognition start nahi ho paayi. Dobara mic dabakar try karein.")
         }
     }
 
