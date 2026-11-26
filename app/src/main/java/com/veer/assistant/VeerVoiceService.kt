@@ -172,6 +172,16 @@ class VeerVoiceService : Service() {
                         if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) "Speech language unavailable. Check Google Speech Services language downloads."
                         else "Voice reconnecting..."))
                 }
+                // A terminal recognition callback ends this session. Release its idle
+                // recognizer now rather than holding it throughout the retry backoff.
+                if (recognizer === speech) {
+                    recognizer = null
+                    try {
+                        speech.destroy()
+                    } catch (cleanupError: Exception) {
+                        Log.w("VEER", "Failed recognizer cleanup after error", cleanupError)
+                    }
+                }
                 scheduleRecognitionRetry()
             }
             override fun onResults(results: Bundle?) {
