@@ -22,16 +22,15 @@ object VeerCommandRouter {
         "x" to listOf("twitter", "x")
     )
 
-    private val politePrefixes = listOf("please ", "veer ", "hey veer ", "can you ", "could you ")
-    private val openVerbs = listOf(
-        "open", "launch", "start", "kholo", "khol do", "kholna", "open karo",
-        "chalao", "shuru karo", "khul jao"
-    )
+    private val politePrefixes = listOf("please ", "hey veer ", "veer ", "can you ", "could you ")
+    private val openingPrefixes = listOf("open ", "launch ", "start ")
+    private val openingSuffixes = listOf(" open", " launch", " start", " kholo", " khol do", " kholna", " chalao", " shuru karo", " khul jao")
 
     fun route(command: String): VeerRoutedCommand? {
         var normalized = command.trim().lowercase(java.util.Locale.ROOT)
-            .replace(Regex("[!?.,।]+$"), "")
+            .replace(Regex("[!?.,।]+"), " ")
             .replace(Regex("\\s+"), " ")
+            .trim()
         if (normalized.isEmpty() || normalized.length > 120) return null
 
         var changed: Boolean
@@ -44,15 +43,15 @@ object VeerCommandRouter {
         } while (changed)
 
         normalized = normalized.removeSuffix(" please").trim()
-        normalized = normalized
-            .replace(Regex("^(open|launch|start) the "), "")
-            .replace(Regex("^(open|launch|start) "), "")
+        openingPrefixes.firstOrNull { normalized.startsWith(it) }?.let {
+            normalized = normalized.removePrefix(it).trim()
+        }
+        openingPrefixes.firstOrNull { normalized.startsWith(it + "the ") }?.let {
+            normalized = normalized.removePrefix(it + "the ").trim()
+        }
 
-        for (verb in openVerbs.sortedByDescending { it.length }) {
-            if (normalized.endsWith(" $verb")) {
-                normalized = normalized.removeSuffix(" $verb").trim()
-                break
-            }
+        openingSuffixes.sortedByDescending { it.length }.firstOrNull { normalized.endsWith(it) }?.let {
+            normalized = normalized.removeSuffix(it).trim()
         }
         normalized = normalized.removeSuffix(" app").trim()
 
