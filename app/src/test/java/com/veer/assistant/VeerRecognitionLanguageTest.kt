@@ -19,6 +19,10 @@ class VeerRecognitionLanguageTest {
         assertEquals(2, VeerRecognitionLanguage.nextAttempt(1))
         assertEquals(2, VeerRecognitionLanguage.nextAttempt(2))
     }
+    @Test fun serverDisconnectCanSwitchDirectlyToSystemRecognizer() {
+        assertEquals(2, VeerRecognitionLanguage.systemFallbackAttempt())
+        assertFalse(VeerRecognitionLanguage.useOnDeviceRecognizer(VeerRecognitionLanguage.systemFallbackAttempt()))
+    }
     @Test fun finalFallbackSwitchesAwayFromOnDeviceRecognizer() {
         assertTrue(VeerRecognitionLanguage.useOnDeviceRecognizer(0))
         assertTrue(VeerRecognitionLanguage.useOnDeviceRecognizer(1))
