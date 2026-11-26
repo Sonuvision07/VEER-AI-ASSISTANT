@@ -52,6 +52,13 @@ class VeerVoiceService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Ignore stale/null start commands if background voice has already been disabled.
+        if (intent?.action != ACTION_RESUME && !voicePrefs.getBoolean("background_voice_enabled", false)) {
+            stopping = true
+            stopRecognition()
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             voicePrefs.edit().putBoolean("background_voice_enabled", false).apply()
             sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Microphone permission required"))
