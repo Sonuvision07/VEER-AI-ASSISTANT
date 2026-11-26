@@ -167,8 +167,14 @@ class VeerVoiceService : Service() {
             override fun onResults(results: Bundle?) {
                 if (recognizer !== speech || stopping || awaitingReply) return
                 consecutiveErrors = 0
-                val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
-                val command = VeerWakeWord.extractCommand(phrase)
+                val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.map { it.trim() }.orEmpty()
+                // Recognition alternatives can differ; prefer any candidate that actually contains the wake phrase.
+                val wakeMatch = phrases.firstNotNullOfOrNull { candidate ->
+                    VeerWakeWord.extractCommand(candidate)?.let { candidate to it }
+                }
+                val phrase = wakeMatch?.first ?: phrases.firstOrNull().orEmpty()
+                val command = wakeMatch?.second
                 when {
                     command != null && command.isNotBlank() -> {
                         wakeArmedAtMs = 0L
