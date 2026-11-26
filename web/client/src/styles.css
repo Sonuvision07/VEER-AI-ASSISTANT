@@ -68,3 +68,6 @@
 .prompt-content form button:disabled{opacity:.4}
 @media(max-width:720px){.prompt-library{width:calc(100% - 24px)}.prompt-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:380px){.prompt-grid{grid-template-columns:1fr}}
+
+
+.ai-provider-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}.ai-provider-controls label{font-size:9px;letter-spacing:1px;color:#8ba2c7}.ai-provider-controls select{max-width:145px;min-width:90px;background:#101a2d;color:#dce8ff;border:1px solid #263b5e;border-radius:8px;padding:7px;font-size:11px}.ai-provider-controls small{font-size:10px;color:#91a0b8}@media(max-width:760px){.ai-provider-controls{order:5;width:100%;margin:5px 0 0;justify-content:flex-start}.ai-provider-controls select{flex:1;min-width:0}.ai-provider-controls .export-chat{padding:7px 9px;font-size:10px}}
