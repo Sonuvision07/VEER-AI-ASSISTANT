@@ -1,0 +1,28 @@
+name: VEER Windows Agent CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows-agent-ci.yml"
+  pull_request:
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows-agent-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Windows agent
+        run: python -m py_compile windows/veer_pc_agent.py
+      - name: Run security and API tests
+        run: python -m unittest discover -s windows -p "test_*.py" -v
