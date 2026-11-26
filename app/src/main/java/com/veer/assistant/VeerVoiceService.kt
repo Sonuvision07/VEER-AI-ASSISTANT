@@ -169,6 +169,10 @@ class VeerVoiceService : Service() {
                     VeerRecognitionLanguage.hasNext(recognitionLanguageAttempt)) {
                     recognitionLanguageAttempt = VeerRecognitionLanguage.nextAttempt(recognitionLanguageAttempt)
                     sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Speech language unavailable; switching language..."))
+                } else if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED &&
+                    VeerRecognitionLanguage.useOnDeviceRecognizer(recognitionLanguageAttempt)) {
+                    recognitionLanguageAttempt = VeerRecognitionLanguage.systemFallbackAttempt()
+                    sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "On-device speech disconnected; switching to Android system speech..."))
                 } else {
                     val statusMessage = when (error) {
                         SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
