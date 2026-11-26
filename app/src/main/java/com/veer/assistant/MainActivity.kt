@@ -342,38 +342,47 @@ fun VeerApp() {
             pendingTtsMessage = message
             return
         }
-        val preferredLocale = VeerSpeechLanguage.localeForText(message)
-        val languageResult = engine.setLanguage(preferredLocale)
-        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-            engine.setLanguage(Locale("hi", "IN"))
-        }
-        ttsUtteranceSequence += 1L
-        val utteranceId = "VEER_REPLY_$ttsUtteranceSequence"
-        activeTtsUtteranceId = utteranceId
-        engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {
-                Handler(Looper.getMainLooper()).post {
-                    if (utteranceId == activeTtsUtteranceId) {
-                        activeTtsUtteranceId = null
-                        resumeBackgroundVoiceIfEnabled()
+        try {
+            val preferredLocale = VeerSpeechLanguage.localeForText(message)
+            val languageResult = engine.setLanguage(preferredLocale)
+            if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                engine.setLanguage(Locale("hi", "IN"))
+            }
+            ttsUtteranceSequence += 1L
+            val utteranceId = "VEER_REPLY_$ttsUtteranceSequence"
+            activeTtsUtteranceId = utteranceId
+            engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    Handler(Looper.getMainLooper()).post {
+                        if (utteranceId == activeTtsUtteranceId) {
+                            activeTtsUtteranceId = null
+                            resumeBackgroundVoiceIfEnabled()
+                        }
                     }
                 }
-            }
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                Handler(Looper.getMainLooper()).post {
-                    if (utteranceId == activeTtsUtteranceId) {
-                        activeTtsUtteranceId = null
-                        resumeBackgroundVoiceIfEnabled()
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) {
+                    Handler(Looper.getMainLooper()).post {
+                        if (utteranceId == activeTtsUtteranceId) {
+                            activeTtsUtteranceId = null
+                            resumeBackgroundVoiceIfEnabled()
+                        }
                     }
                 }
+            })
+            val result = engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            if (result == TextToSpeech.ERROR) {
+                activeTtsUtteranceId = null
+                status = "VOICE OUTPUT ERROR"
+                resumeBackgroundVoiceIfEnabled()
             }
-        })
-        val result = engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-        if (result == TextToSpeech.ERROR) {
+        } catch (error: Exception) {
+            // A disconnected or already-shutdown TTS engine must not leave the
+            // background microphone paused while the service waits for a reply.
             activeTtsUtteranceId = null
             status = "VOICE OUTPUT ERROR"
+            Log.w("VEER", "Text-to-speech request failed", error)
             resumeBackgroundVoiceIfEnabled()
         }
     }
