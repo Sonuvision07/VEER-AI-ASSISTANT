@@ -180,6 +180,7 @@ fun VeerApp() {
     var showClearChatConfirm by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf("") }
+    var pendingMusicUrl by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
     var backgroundVoiceActive by remember { mutableStateOf(false) }
@@ -331,9 +332,14 @@ fun VeerApp() {
                     else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
                 }
                 "music" -> {
-                    val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.youtube.music")
-                    if (launch != null) context.startActivity(launch)
-                    else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com")))
+                    val searchUrl = pendingMusicUrl
+                    if (searchUrl != null) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)))
+                    } else {
+                        val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.youtube.music")
+                        if (launch != null) context.startActivity(launch)
+                        else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com")))
+                    }
                 }
                 "browser" -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")))
                 "calculator" -> context.startActivity(Intent(Intent.ACTION_MAIN).addCategory("android.intent.category.APP_CALCULATOR"))
@@ -353,6 +359,7 @@ fun VeerApp() {
             addReply("Boss, ye action phone par complete nahi ho paaya.")
         }
         pendingAction = ""
+        pendingMusicUrl = null
         showApproval = false
     }
 
@@ -597,11 +604,9 @@ fun VeerApp() {
             text.contains("tarikh") || text.contains("date") || text.contains("aaj kya") -> addReply("Aaj "+SimpleDateFormat("dd MMMM yyyy",Locale("hi","IN")).format(Date()))
             text.contains("gaana chalao") || text.contains("song play") || text.contains("music chalao") || text.contains("play song") -> {
                 val query=clean.replace(Regex("(?i)^(gaana|song|music)\\s*(chalao|play)?\\s*"),"").trim()
-                try {
-                    val musicUrl = if (query.isBlank()) "https://music.youtube.com" else "https://music.youtube.com/search?q=" + Uri.encode(query)
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(musicUrl)))
-                    addReply(if (query.isBlank()) "YouTube Music open kiya." else "YouTube Music par $query search khola. Playback app ke controls par depend karega.")
-                } catch (_: Exception) { addReply("Music link launch nahi hua.") }
+                pendingMusicUrl = if (query.isBlank()) null else "https://music.youtube.com/search?q=" + Uri.encode(query)
+                pendingAction = "music"
+                showApproval = true
             }
             VeerCommandRouter.route(clean) != null -> {
                 val routed = VeerCommandRouter.route(clean)!!
@@ -1009,7 +1014,7 @@ fun VeerApp() {
             else -> "Action chalana"
         }
         AlertDialog(
-            onDismissRequest = { showApproval = false; pendingAction = "" },
+            onDismissRequest = { showApproval = false; pendingAction = ""; pendingMusicUrl = null },
             title = { Text("VEER Permission") },
             text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\n\n$actionLabel") },
             confirmButton = {
@@ -1018,6 +1023,7 @@ fun VeerApp() {
             dismissButton = {
                 TextButton(onClick = {
                     pendingAction = ""
+                    pendingMusicUrl = null
                     showApproval = false
                     addReply("Theek hai Boss, action cancel kar diya.")
                 }) { Text("CANCEL") }
