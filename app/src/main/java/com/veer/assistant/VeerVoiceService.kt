@@ -62,13 +62,13 @@ class VeerVoiceService : Service() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             voicePrefs.edit().putBoolean("background_voice_enabled", false).apply()
             sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Microphone permission required"))
-            stopSelf()
+            stopAfterStartupFailure()
             return START_NOT_STICKY
         }
         if (!startVoiceForeground()) {
             voicePrefs.edit().putBoolean("background_voice_enabled", false).apply()
             sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Background voice could not start"))
-            stopSelf()
+            stopAfterStartupFailure()
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_RESUME) {
@@ -87,6 +87,15 @@ class VeerVoiceService : Service() {
         recognitionLanguageAttempt = 0
         startRecognition()
         return START_NOT_STICKY
+    }
+
+    private fun stopAfterStartupFailure() {
+        stopping = true
+        awaitingReply = false
+        wakeCommandWindow.clear()
+        stopRecognition()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun startVoiceForeground(): Boolean {
