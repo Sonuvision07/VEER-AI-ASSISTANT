@@ -18,10 +18,20 @@ class VeerVoiceRetryPolicyTest {
     }
 
     @Test
-    fun failureCountIsBounded() {
-        assertEquals(1, VeerVoiceRetryPolicy.nextFailureCount(0))
-        assertEquals(6, VeerVoiceRetryPolicy.nextFailureCount(5))
-        assertEquals(6, VeerVoiceRetryPolicy.nextFailureCount(6))
+    fun failureCounterSaturatesButDoesNotRepresentAnAttemptLimit() {
+        var failureCount = 0
+        repeat(20) {
+            failureCount = VeerVoiceRetryPolicy.nextFailureCount(failureCount)
+        }
+        assertEquals(VeerVoiceRetryPolicy.MAX_FAILURE_COUNT, failureCount)
+        assertEquals(7_200L, VeerVoiceRetryPolicy.delayForFailureCount(failureCount))
+
+        // Further failures keep the counter and capped retry delay stable.
+        repeat(5) {
+            failureCount = VeerVoiceRetryPolicy.nextFailureCount(failureCount)
+        }
+        assertEquals(VeerVoiceRetryPolicy.MAX_FAILURE_COUNT, failureCount)
+        assertEquals(7_200L, VeerVoiceRetryPolicy.delayForFailureCount(failureCount))
     }
 
     @Test
