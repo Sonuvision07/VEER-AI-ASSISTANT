@@ -826,6 +826,7 @@ fun VeerApp() {
                     }, 250L)
                     return
                 }
+                Log.w("VEER", "Speech recognition failed with error code $error")
                 val detail = when (error) {
                     SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Hindi/English speech pack phone ke speech service mein available nahi hai. System language fallback bhi try ho chuka hai."
                     SpeechRecognizer.ERROR_AUDIO -> "Microphone audio error."
@@ -833,6 +834,7 @@ fun VeerApp() {
                     SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech service ko network chahiye ho sakta hai."
                     SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Awaaz samajh nahi aayi. Dobara bolkar try karein."
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice service busy hai. Kuch seconds baad try karein."
+                    SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "Android speech service disconnect ho gayi. Internet check karein, Google app/Speech Services by Google update karein, phir mic dobara dabayein."
                     else -> "Voice recognition error ($error). Dobara try karein."
                 }
                 // Terminal errors leave this single-shot recognizer idle; release it now
