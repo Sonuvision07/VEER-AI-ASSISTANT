@@ -23,4 +23,12 @@ internal object VeerWakeWord {
             .replace(Regex("\\s+"), " ")
             .trim { it.isWhitespace() || it in ",.!?:;—-" || it == '।' }
     }
+
+    /** Prefer an alternative containing an actual command over a wake-only match. */
+    fun selectCandidate(phrases: List<String>): Pair<String, String>? {
+        val matches = phrases.mapNotNull { phrase ->
+            extractCommand(phrase)?.let { command -> phrase to command }
+        }
+        return matches.firstOrNull { it.second.isNotBlank() } ?: matches.firstOrNull()
+    }
 }
