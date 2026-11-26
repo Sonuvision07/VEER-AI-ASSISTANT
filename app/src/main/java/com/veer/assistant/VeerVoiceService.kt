@@ -171,8 +171,8 @@ class VeerVoiceService : Service() {
 
     private fun scheduleRecognitionRetry() {
         if (stopping || awaitingReply || retryScheduled) return
-        consecutiveErrors = (consecutiveErrors + 1).coerceAtMost(6)
-        val delayMs = (1200L * consecutiveErrors).coerceAtMost(15000L)
+        consecutiveErrors = VeerVoiceRetryPolicy.nextFailureCount(consecutiveErrors)
+        val delayMs = VeerVoiceRetryPolicy.delayForFailureCount(consecutiveErrors)
         retryScheduled = true
         handler.postDelayed({
             retryScheduled = false
