@@ -26,8 +26,7 @@ class VeerVoiceService : Service() {
     private var consecutiveErrors = 0
     private var retryScheduled = false
     private var recognitionLanguageAttempt = 0
-    private var wakeArmedAtMs = 0L
-    private val WAKE_COMMAND_WINDOW_MS = 8_000L
+    private val wakeCommandWindow = VeerWakeCommandWindow()
 
     override fun onCreate() {
         super.onCreate()
@@ -39,7 +38,7 @@ class VeerVoiceService : Service() {
         if (intent?.action == ACTION_STOP) {
             voicePrefs.edit().putBoolean("background_voice_enabled", false).apply()
             stopping = true
-            wakeArmedAtMs = 0L
+            wakeCommandWindow.clear()
             stopRecognition()
             sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Background voice stopped"))
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -74,7 +73,7 @@ class VeerVoiceService : Service() {
         if (intent?.action == ACTION_RESUME) {
             stopping = false
             awaitingReply = false
-            wakeArmedAtMs = 0L
+            wakeCommandWindow.clear()
             consecutiveErrors = 0
             recognitionLanguageAttempt = 0
             startRecognition()
@@ -83,7 +82,7 @@ class VeerVoiceService : Service() {
         voicePrefs.edit().putBoolean("background_voice_enabled", true).apply()
         stopping = false
         awaitingReply = false
-        wakeArmedAtMs = 0L
+        wakeCommandWindow.clear()
         recognitionLanguageAttempt = 0
         startRecognition()
         return START_NOT_STICKY
@@ -176,34 +175,33 @@ class VeerVoiceService : Service() {
                 val command = wakeMatch?.second
                 when {
                     command != null && command.isNotBlank() -> {
-                        wakeArmedAtMs = 0L
+                        wakeCommandWindow.clear()
                         awaitingReply = true
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", command))
                     }
                     command != null -> {
-                        wakeArmedAtMs = System.currentTimeMillis()
+                        wakeCommandWindow.arm(System.currentTimeMillis())
                         sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "VEER activated. Say your command"))
                     }
-                    phrase.isNotBlank() && wakeArmedAtMs > 0L && System.currentTimeMillis() - wakeArmedAtMs <= WAKE_COMMAND_WINDOW_MS -> {
-                        wakeArmedAtMs = 0L
+                    phrase.isNotBlank() && wakeCommandWindow.isActive(System.currentTimeMillis()) -> {
+                        wakeCommandWindow.clear()
                         awaitingReply = true
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
                     }
                     else -> {
-                        // Empty recognition results must not cancel a still-valid wake command window.
-                        val wakeWindowExpired = wakeArmedAtMs == 0L ||
-                            System.currentTimeMillis() - wakeArmedAtMs > WAKE_COMMAND_WINDOW_MS
-                        if (phrase.isNotBlank() || wakeWindowExpired) {
-                            wakeArmedAtMs = 0L
-                        }
+                        // Preserve an armed window for empty results; expire it on timeout or unrelated speech.
+                        val wakeWindowActive = wakeCommandWindow.expireIfNeeded(
+                            System.currentTimeMillis(),
+                            phrase.isNotBlank()
+                        )
                         sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra(
                             "status",
-                            if (wakeArmedAtMs > 0L) "VEER activated. Say your command" else "Waiting for Hey Veer"
+                            if (wakeWindowActive) "VEER activated. Say your command" else "Waiting for Hey Veer"
                         ))
                     }
                 }
                 if (!stopping && !awaitingReply) {
-                    val delayMs = if (wakeArmedAtMs > 0L) 350L else 700L
+                    val delayMs = if (wakeCommandWindow.isActive(System.currentTimeMillis())) 350L else 700L
                     handler.postDelayed({ startRecognition() }, delayMs)
                 }
             }
@@ -247,7 +245,7 @@ class VeerVoiceService : Service() {
 
     override fun onDestroy() {
         stopping = true
-        wakeArmedAtMs = 0L
+        wakeCommandWindow.clear()
         stopRecognition()
         super.onDestroy()
     }
