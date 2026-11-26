@@ -761,7 +761,12 @@ fun VeerApp() {
             addReply("Boss, is phone par speech recognition service available nahi hai.")
             return
         }
-        recognizer?.destroy()
+        // Invalidate the old listener before teardown so late callbacks cannot be accepted
+        // while a replacement recognizer is being created.
+        val previousRecognizer = recognizer
+        recognizer = null
+        try { previousRecognizer?.cancel() } catch (_: Exception) {}
+        try { previousRecognizer?.destroy() } catch (_: Exception) {}
         val speech = try { VeerSpeechRecognizerFactory.create(context, VeerRecognitionLanguage.useOnDeviceRecognizer(languageAttempt)) } catch (error: Exception) {
             status = "VOICE SETUP ERROR"
             addReply("Boss, voice recognition start nahi ho paayi. Microphone permission aur phone ka speech service check karein.")
