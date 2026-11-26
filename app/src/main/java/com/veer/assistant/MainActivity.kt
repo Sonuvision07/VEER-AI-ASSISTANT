@@ -769,17 +769,31 @@ fun VeerApp() {
         }
         recognizer = speech
         speech.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { status = "LISTENING..." }
-            override fun onBeginningOfSpeech() { status = "HEARING YOUR VOICE" }
+            override fun onReadyForSpeech(params: Bundle?) {
+                if (recognizer !== speech) return
+                status = "LISTENING..."
+            }
+            override fun onBeginningOfSpeech() {
+                if (recognizer !== speech) return
+                status = "HEARING YOUR VOICE"
+            }
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() { status = "PROCESSING..." }
+            override fun onEndOfSpeech() {
+                if (recognizer !== speech) return
+                status = "PROCESSING..."
+            }
             override fun onError(error: Int) {
+                if (recognizer !== speech) return
                 status = "VOICE INPUT ERROR"
                 if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE &&
                     VeerRecognitionLanguage.hasNext(languageAttempt)) {
                     status = "SWITCHING SPEECH LANGUAGE..."
-                    Handler(Looper.getMainLooper()).postDelayed({ listen(VeerRecognitionLanguage.nextAttempt(languageAttempt)) }, 250L)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (recognizer === speech) {
+                            listen(VeerRecognitionLanguage.nextAttempt(languageAttempt))
+                        }
+                    }, 250L)
                     return
                 }
                 val detail = when (error) {
@@ -794,6 +808,7 @@ fun VeerApp() {
                 addReply("Boss, $detail")
             }
             override fun onResults(results: Bundle?) {
+                if (recognizer !== speech) return
                 val words = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!words.isNullOrEmpty()) processCommand(words[0])
                 else addReply("Boss, awaaz clear nahi mili. Mic dabakar phir boliye.")
