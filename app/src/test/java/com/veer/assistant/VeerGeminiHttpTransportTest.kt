@@ -42,8 +42,41 @@ class VeerGeminiHttpTransportTest {
         } catch (error: IllegalStateException) {
             assertTrue(error.message.orEmpty().contains("403"))
             assertFalse(error.message.orEmpty().contains("private provider detail"))
+            assertFalse((error as? AgentProviderException)?.retryable ?: true)
         }
         assertTrue(connection.disconnected)
+    }
+
+    @Test fun marksRateLimitAndServerErrorsAsRetryableButAuthAsPermanent() {
+        val rateLimited = FakeConnection(
+            URL("https://generativelanguage.googleapis.com/test"), 429, "{}"
+        )
+        try {
+            VeerGeminiHttpTransport { rateLimited }.generate("key", AgentTurn("Hello", emptyList(), emptyList()))
+            throw AssertionError("Expected rate limit")
+        } catch (error: AgentProviderException) {
+            assertTrue(error.retryable)
+        }
+
+        val serverError = FakeConnection(
+            URL("https://generativelanguage.googleapis.com/test"), 503, "{}"
+        )
+        try {
+            VeerGeminiHttpTransport { serverError }.generate("key", AgentTurn("Hello", emptyList(), emptyList()))
+            throw AssertionError("Expected server error")
+        } catch (error: AgentProviderException) {
+            assertTrue(error.retryable)
+        }
+
+        val unauthorized = FakeConnection(
+            URL("https://generativelanguage.googleapis.com/test"), 401, "{}"
+        )
+        try {
+            VeerGeminiHttpTransport { unauthorized }.generate("key", AgentTurn("Hello", emptyList(), emptyList()))
+            throw AssertionError("Expected auth error")
+        } catch (error: AgentProviderException) {
+            assertFalse(error.retryable)
+        }
     }
 
     @Test fun rejectsBlankApiKeyBeforeOpeningConnection() {
