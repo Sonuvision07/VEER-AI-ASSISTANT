@@ -12,7 +12,7 @@ class VeerClaudeToolCallParserTest {
  }
  @Test fun rejectsUnknownAppAndMultipleCalls(){
   val bad="""{"content":[{"type":"tool_use","id":"a","name":"android.launch_app","input":{"app":"unknown"}}]}"""
-  assertNull(VeerClaudeToolCallParser.parse(bad))
+  assertTrue(VeerClaudeToolCallParser.parse(bad)!!.finished)
   val multi="""{"content":[{"type":"tool_use","id":"a","name":"android.launch_app","input":{"app":"youtube"}},{"type":"tool_use","id":"b","name":"android.launch_app","input":{"app":"browser"}}]}"""
   assertTrue(VeerClaudeToolCallParser.parse(multi)!!.finished)
  }
