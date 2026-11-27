@@ -1299,7 +1299,7 @@ fun VeerApp() {
                     Text("Ek baar download ke baad text AI isi phone par chalega. Model download ke liye internet aur lagbhag 500 MB free storage chahiye. Model chhota hai, isliye jawab cloud AI jitne advanced nahi honge. Image/document AI abhi local model mein enabled nahi hai.", fontSize = 11.sp, color = Color.Gray)
                     Divider()
                     Text("AI provider keys phone par Android Keystore encryption ke saath save hoti hain; GitHub par upload nahi hoti.", fontSize = 13.sp)
-                    Text("Privacy: chat history aur saved memories app ke private phone storage mein save hoti hain, lekin API keys ki tarah separately encrypted nahi hain. Passwords ya highly sensitive details memory mein save na karein.", fontSize = 11.sp, color = Color.Gray)
+                    Text("Privacy: chat history aur saved memories app ke private phone storage mein Android Keystore AES-GCM se encrypted save hoti hain. Phone ka app data clear ya uninstall hone par ye data recover nahi ho sakta. Passwords ya highly sensitive details memory mein save na karein.", fontSize = 11.sp, color = Color.Gray)
                     Divider()
                     Text("Optional Accessibility Bridge", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text("VEER screen ka text nahi padhta, taps ya typing automate nahi karta. Android Settings mein ise manually enable karne ke baad bhi Back action sirf aapke alag APPROVE confirmation par chalega.", fontSize = 11.sp, color = Color.Gray)
