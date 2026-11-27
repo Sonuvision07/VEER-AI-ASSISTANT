@@ -492,4 +492,27 @@ class VeerAgentBrainTest {
         assertTrue(tools.executed.isEmpty())
     }
 
+    @Test fun approvalContinuationCannotBeResumedByAnotherBrainInstance() {
+        val issuingTools = FakeTools()
+        val otherTools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val issuingBrain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) },
+            issuingTools,
+            FakeApproval(false)
+        )
+        val otherBrain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Unused") },
+            otherTools,
+            FakeApproval(false)
+        )
+
+        val continuation = issuingBrain.run(turn()).continuation!!
+        val result = otherBrain.resumeAfterApproval(continuation, requested)
+
+        assertTrue(result.message.contains("stale", ignoreCase = true))
+        assertTrue(issuingTools.executed.isEmpty())
+        assertTrue(otherTools.executed.isEmpty())
+    }
+
 }
