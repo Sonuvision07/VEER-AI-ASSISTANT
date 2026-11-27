@@ -510,7 +510,7 @@ fun VeerApp() {
             return
         }
         agentApprovalSession.clear()
-            pendingAgentApproval = null
+        pendingAgentApproval = null
         try {
             VeerAndroidAppToolExecutor { action ->
                 if (runApprovedAction(action)) {
@@ -749,7 +749,7 @@ fun VeerApp() {
                 } else pendingAction
                 if (approvedAction.isNullOrBlank()) {
                     agentApprovalSession.clear()
-            pendingAgentApproval = null
+                    pendingAgentApproval = null
                     pendingAction = ""
                     pendingMusicUrl = null
                     showApproval = false
@@ -761,8 +761,8 @@ fun VeerApp() {
                     runApprovedAction(approvedAction)
                 }
             } else {
-                agentApprovalSession.clear()
-            pendingAgentApproval = null
+                pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
+                pendingAgentApproval = null
                 pendingAction = ""
                 pendingMusicUrl = null
                 showApproval = false
@@ -805,7 +805,7 @@ fun VeerApp() {
                 pendingMusicUrl = if (query.isBlank()) null else "https://music.youtube.com/search?q=" + Uri.encode(query)
                 pendingAction = "music"
                 agentApprovalSession.clear()
-            pendingAgentApproval = null
+                pendingAgentApproval = null
                 showApproval = true
             }
             VeerCommandRouter.route(clean) != null -> {
@@ -1321,8 +1321,8 @@ fun VeerApp() {
         AlertDialog(
             onDismissRequest = {
                 showApproval = false
-                agentApprovalSession.clear()
-            pendingAgentApproval = null
+                pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
+                pendingAgentApproval = null
                 pendingAction = ""
                 pendingMusicUrl = null
                 addReply("Permission request cancel kar di.")
@@ -1341,7 +1341,7 @@ fun VeerApp() {
                     } else pendingAction
                     if (approvedAction.isNullOrBlank()) {
                         agentApprovalSession.clear()
-            pendingAgentApproval = null
+                        pendingAgentApproval = null
                         pendingAction = ""
                         pendingMusicUrl = null
                         showApproval = false
@@ -1356,8 +1356,8 @@ fun VeerApp() {
             },
             dismissButton = {
                 TextButton(onClick = {
-                    agentApprovalSession.clear()
-            pendingAgentApproval = null
+                    pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
+                    pendingAgentApproval = null
                     pendingAction = ""
                     pendingMusicUrl = null
                     showApproval = false
