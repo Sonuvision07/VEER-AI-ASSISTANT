@@ -1501,7 +1501,11 @@ fun VeerApp() {
         background = uiBackground,
         surface = uiSurface,
         onSurface = uiText
-    ), typography = Typography(defaultFontFamily = veerFont)) {
+    )) {
+        CompositionLocalProvider(
+            androidx.compose.material3.LocalTextStyle provides
+                androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = veerFont)
+        ) {
         Column(
             Modifier.fillMaxSize().background(uiBackground).imePadding()
         ) {
@@ -1757,6 +1761,7 @@ fun VeerApp() {
                     }
                 }
             }
+        }
         }
     }
 
