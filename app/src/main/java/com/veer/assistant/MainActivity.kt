@@ -1710,9 +1710,23 @@ private fun HologramFace(
         label = "faceExpressionEyes"
     )
     val gazeOffset by animateFloatAsState(
-        targetValue = if (expression == VeerFaceExpression.THINKING) 5f else 0f,
-        animationSpec = tween(220),
-        label = "faceExpressionGaze"
+        targetValue = when (expression) {
+            VeerFaceExpression.THINKING -> 6f
+            VeerFaceExpression.LISTENING -> -2f
+            else -> 0f
+        },
+        animationSpec = tween(260, easing = FastOutSlowInEasing),
+        label = "faceExpressionGazeX"
+    )
+    val gazeVerticalOffset by animateFloatAsState(
+        targetValue = when (expression) {
+            VeerFaceExpression.THINKING -> -3f
+            VeerFaceExpression.LISTENING -> -1f
+            VeerFaceExpression.SPEAKING -> 1f
+            VeerFaceExpression.IDLE -> 0f
+        },
+        animationSpec = tween(260, easing = FastOutSlowInEasing),
+        label = "faceExpressionGazeY"
     )
     val blink by transition.animateFloat(
         initialValue = 1f,
@@ -1776,8 +1790,8 @@ private fun HologramFace(
         val eyeTop = 166f - currentEyeHeight / 2f
         drawOval(cyan.copy(alpha = 0.9f), p(91f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
         drawOval(cyan.copy(alpha = 0.9f), p(201f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
-        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(125f + gazeOffset, 166f))
-        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(235f + gazeOffset, 166f))
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(125f + gazeOffset, 166f + gazeVerticalOffset))
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(235f + gazeOffset, 166f + gazeVerticalOffset))
         // Nose
         drawLine(cyan.copy(alpha = 0.75f), p(180f, 168f), p(173f, 226f), 1.6f*sx)
         drawLine(cyan.copy(alpha = 0.75f), p(173f, 226f), p(180f, 232f), 1.6f*sx)
