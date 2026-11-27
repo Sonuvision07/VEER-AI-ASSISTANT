@@ -10,6 +10,8 @@ internal class VeerAndroidAgentRuntime(
     dispatchApprovedAction: (String) -> String,
     openAiApiKeyProvider: () -> String? = { null },
     claudeApiKeyProvider: () -> String? = { null },
+    llamaApiKeyProvider: () -> String? = { null },
+    grokApiKeyProvider: () -> String? = { null },
     internal val approvalSession: VeerAgentApprovalSession = VeerAgentApprovalSession(),
     transport: VeerGeminiAgentTransport = VeerGeminiHttpTransport(),
     openAiTransport: VeerOpenAiAgentTransport = VeerOpenAiHttpTransport(),
@@ -20,11 +22,19 @@ internal class VeerAndroidAgentRuntime(
             mapOf(
                 AiProvider.GEMINI to VeerGeminiModelGateway(apiKeyProvider, transport),
                 AiProvider.OPENAI to VeerOpenAiModelGateway(openAiApiKeyProvider, openAiTransport),
-                AiProvider.ANTHROPIC to VeerClaudeModelGateway(claudeApiKeyProvider, claudeTransport)
+                AiProvider.ANTHROPIC to VeerClaudeModelGateway(claudeApiKeyProvider, claudeTransport),
+                AiProvider.LLAMA to VeerCompatibleChatAgent(
+                    AiProvider.LLAMA, "https://api.groq.com/openai/v1/chat/completions",
+                    "llama-3.3-70b-versatile", llamaApiKeyProvider
+                ),
+                AiProvider.GROK to VeerCompatibleChatAgent(
+                    AiProvider.GROK, "https://api.x.ai/v1/chat/completions",
+                    "grok-3-mini", grokApiKeyProvider
+                )
             )
         ),
         tools = VeerAndroidAppToolExecutor(dispatchApprovedAction),
         approval = approvalSession,
-        providerOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC)
+        providerOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.LLAMA, AiProvider.GROK)
     )
 }
