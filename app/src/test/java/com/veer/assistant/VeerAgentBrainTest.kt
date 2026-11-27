@@ -777,4 +777,61 @@ class VeerAgentBrainTest {
         )
     }
 
+    @Test fun retriesProviderDecisionWithinConfiguredAttemptLimit() {
+        var attempts = 0
+        val gateway = object : ModelGateway {
+            override fun isAvailable(provider: AiProvider) = true
+            override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
+                attempts += 1
+                if (attempts == 1) error("temporary provider failure")
+                return AgentDecision("Recovered on retry")
+            }
+        }
+        val brain = VeerAgentBrain(
+            gateway, FakeTools(), FakeApproval(false),
+            providerOrder = listOf(AiProvider.GEMINI),
+            maxProviderAttempts = 2
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(2, attempts)
+        assertEquals(AiProvider.GEMINI, result.provider)
+        assertEquals("Recovered on retry", result.message)
+    }
+
+    @Test fun fallsBackAfterProviderRetryBudgetIsExhausted() {
+        val attempts = mutableMapOf<AiProvider, Int>()
+        val gateway = object : ModelGateway {
+            override fun isAvailable(provider: AiProvider) = true
+            override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
+                attempts[provider] = (attempts[provider] ?: 0) + 1
+                if (provider == AiProvider.GEMINI) error("provider unavailable")
+                return AgentDecision("Fallback recovered")
+            }
+        }
+        val brain = VeerAgentBrain(
+            gateway, FakeTools(), FakeApproval(false),
+            providerOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI),
+            maxProviderAttempts = 2
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(2, attempts[AiProvider.GEMINI])
+        assertEquals(1, attempts[AiProvider.OPENAI])
+        assertEquals(AiProvider.OPENAI, result.provider)
+        assertEquals("Fallback recovered", result.message)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveProviderAttemptLimit() {
+        VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("No action") },
+            FakeTools(),
+            FakeApproval(false),
+            maxProviderAttempts = 0
+        )
+    }
+
 }
