@@ -242,6 +242,22 @@ private fun VeerOutlineIcon(kind: String, modifier: Modifier = Modifier, tint: C
                 drawLine(tint, Offset(w * 0.5f, h * 0.17f), Offset(w * 0.5f, h * 0.83f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                 drawLine(tint, Offset(w * 0.17f, h * 0.5f), Offset(w * 0.83f, h * 0.5f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
             }
+            "file" -> {
+                val page = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.28f, h * 0.12f)
+                    lineTo(w * 0.58f, h * 0.12f)
+                    lineTo(w * 0.76f, h * 0.30f)
+                    lineTo(w * 0.76f, h * 0.86f)
+                    lineTo(w * 0.28f, h * 0.86f)
+                    close()
+                    moveTo(w * 0.58f, h * 0.12f)
+                    lineTo(w * 0.58f, h * 0.30f)
+                    lineTo(w * 0.76f, h * 0.30f)
+                }
+                drawPath(page, tint, style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                drawLine(tint, Offset(w * 0.38f, h * 0.49f), Offset(w * 0.66f, h * 0.49f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.38f, h * 0.64f), Offset(w * 0.66f, h * 0.64f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
             "camera" -> {
                 drawRoundRect(tint, Offset(w * 0.10f, h * 0.27f), androidx.compose.ui.geometry.Size(w * 0.80f, h * 0.57f), androidx.compose.ui.geometry.CornerRadius(w * 0.10f), style = Stroke(stroke))
                 drawRoundRect(tint, Offset(w * 0.28f, h * 0.15f), androidx.compose.ui.geometry.Size(w * 0.22f, h * 0.14f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f), style = Stroke(stroke))
@@ -1198,7 +1214,8 @@ fun VeerApp() {
     fun processCommand(command: String) {
         val clean = command.trim()
         if (clean.isEmpty()) return
-        messages.add("BOSS" to clean)
+        val messageWithAttachment = if (!attachedFileName.isNullOrBlank()) "$clean\\nAttachment: $attachedFileName" else clean
+        messages.add("BOSS" to messageWithAttachment)
         loading = false
         addReply(generateDemoReply(clean))
         attachedImageBase64 = null
@@ -1694,7 +1711,7 @@ fun VeerApp() {
                         IconButton(
                             onClick = { documentLauncher.launch("*/*") },
                             modifier = Modifier.size(44.dp)
-                        ) { VeerOutlineIcon("plus", Modifier.size(18.dp), uiMuted) }
+                        ) { VeerOutlineIcon("file", Modifier.size(18.dp), uiMuted) }
                         IconButton(
                             onClick = {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
