@@ -59,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -1691,6 +1693,15 @@ private fun HologramFace(
     speaking: Boolean = false,
     mouthOpenTarget: Float = 0f
 ) {
+    val faceDescription = when (expression) {
+        VeerFaceExpression.IDLE -> "VEER hologram face, idle"
+        VeerFaceExpression.LISTENING -> "VEER hologram face, listening"
+        VeerFaceExpression.THINKING -> "VEER hologram face, thinking"
+        VeerFaceExpression.SPEAKING -> "VEER hologram face, speaking"
+    }
+    val accessibleModifier = modifier.semantics {
+        contentDescription = faceDescription
+    }
     val transition = rememberInfiniteTransition(label = "veer_face")
     val pulse by transition.animateFloat(0.96f, 1.025f,
         animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "facePulse")
@@ -1846,7 +1857,7 @@ private fun HologramFace(
         }
         lines to dots
     }
-    Canvas(modifier = modifier) {
+    Canvas(modifier = accessibleModifier) {
         val sx = size.width / 360f
         val sy = size.height / 390f
         fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
