@@ -13,14 +13,18 @@ import org.junit.Test
 
 class VeerMuseHttpTransportTest {
     @Test fun postsResponsesRequestToMetaWithBearerKeyAndMuseModel() {
+        var requestedEndpoint: String? = null
         val connection = FakeConnection(
             URL(VeerMuseHttpTransport.ENDPOINT), 200,
             """{"output":[{"type":"message","content":[{"type":"output_text","text":"Muse ready"}]}]}"""
         )
-        val response = VeerMuseHttpTransport { connection }
-            .generate("private-muse-key", AgentTurn("Hello", emptyList(), emptyList()))
+        val response = VeerMuseHttpTransport { url ->
+            requestedEndpoint = url.toString()
+            connection
+        }.generate("private-muse-key", AgentTurn("Hello", emptyList(), emptyList()))
 
         assertTrue(response.contains("Muse ready"))
+        assertEquals(VeerMuseHttpTransport.ENDPOINT, requestedEndpoint)
         assertEquals("POST", connection.requestMethod)
         assertEquals("application/json; charset=UTF-8", connection.getRequestProperty("Content-Type"))
         assertEquals("Bearer private-muse-key", connection.getRequestProperty("Authorization"))
