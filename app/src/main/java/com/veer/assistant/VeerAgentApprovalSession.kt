@@ -15,6 +15,7 @@ internal data class VeerAgentApprovalRequest(
 internal class VeerAgentApprovalSession {
     private var nextId = 0L
     private var pending: VeerAgentApprovalRequest? = null
+    private val approvalGate = VeerAgentApprovalGate()
 
     fun request(call: AgentToolCall): VeerAgentApprovalRequest? {
         if (pending != null) return null
@@ -29,6 +30,12 @@ internal class VeerAgentApprovalSession {
     fun approve(requestId: Long): AgentToolCall? {
         val current = pending ?: return null
         if (current.id != requestId) return null
+        // Bridge the existing Compose approval dialog to the shared one-shot
+        // gate. Consent is issued and consumed for this exact immutable call.
+        if (!approvalGate.approve(current.call) || !approvalGate.approved(current.call)) {
+            approvalGate.clear()
+            return null
+        }
         pending = null
         return current.call
     }
@@ -36,10 +43,12 @@ internal class VeerAgentApprovalSession {
     fun cancel(requestId: Long): Boolean {
         if (pending?.id != requestId) return false
         pending = null
+        approvalGate.clear()
         return true
     }
 
     fun clear() {
         pending = null
+        approvalGate.clear()
     }
 }
