@@ -26,7 +26,7 @@ class VeerMuseHttpTransportTest {
         assertEquals("Bearer private-muse-key", connection.getRequestProperty("Authorization"))
         val body = org.json.JSONObject(connection.sentBody.toString(Charsets.UTF_8.name()))
         assertEquals("muse-spark-1.3", body.getString("model"))
-        assertEquals(false, body.getBoolean("store"))
+        assertFalse(body.has("store"))
         assertTrue(body.getJSONArray("tools").length() > 0)
         assertTrue(connection.disconnected)
     }
