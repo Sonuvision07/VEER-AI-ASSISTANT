@@ -1221,12 +1221,16 @@ fun VeerApp() {
                         if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
                         else if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
                         else if (apiKey.isNotBlank()) askGemini(clean, image)
+                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
+                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
                         else addReply("Boss, Claude ke liye API key chahiye. Image request ke liye Gemini ya OpenAI key add karein.")
                     }
                     "OPENAI" -> {
                         if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
                         else if (apiKey.isNotBlank()) askGemini(clean, image)
                         else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
+                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
+                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
                         else addReply("Boss, selected provider ki API key Settings mein add karein.")
                     }
                     "GEMINI" -> {
@@ -1237,8 +1241,18 @@ fun VeerApp() {
                         else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
                         else addReply("Boss, selected provider ki API key Settings mein add karein.")
                     }
-                    "LLAMA" -> { if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image) else if (image != null && apiKey.isNotBlank()) askGemini(clean, image) else askMetaLlama(clean) }
-                    "GROK" -> { if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image) else if (image != null && apiKey.isNotBlank()) askGemini(clean, image) else askGrok(clean) }
+                    "LLAMA" -> {
+                        if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
+                        else if (image != null && apiKey.isNotBlank()) askGemini(clean, image)
+                        else if (image != null) addReply("Boss, Meta Llama image input is not enabled here. Gemini ya OpenAI key add karein.")
+                        else askMetaLlama(clean)
+                    }
+                    "GROK" -> {
+                        if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
+                        else if (image != null && apiKey.isNotBlank()) askGemini(clean, image)
+                        else if (image != null) addReply("Boss, Grok image input is not enabled here. Gemini ya OpenAI key add karein.")
+                        else askGrok(clean)
+                    }
                     else -> {
                         if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
                         else if (apiKey.isNotBlank()) askGemini(clean, image)
