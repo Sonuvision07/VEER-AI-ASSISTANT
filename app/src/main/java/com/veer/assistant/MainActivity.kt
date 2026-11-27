@@ -1795,6 +1795,15 @@ private fun HologramFace(
         ),
         label = "faceHologramScan"
     )
+    val scanLineGlow by transition.animateFloat(
+        initialValue = 0.32f,
+        targetValue = 0.78f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "faceHologramScanGlow"
+    )
     Canvas(modifier = modifier) {
         val sx = size.width / 360f
         val sy = size.height / 390f
@@ -1840,8 +1849,8 @@ private fun HologramFace(
         val scanHalfWidth = 115f * kotlin.math.sqrt((1f - scanT * scanT).coerceAtLeast(0.08f))
         val scanStart = p(180f - scanHalfWidth, scanLineY)
         val scanEnd = p(180f + scanHalfWidth, scanLineY)
-        drawLine(cyan.copy(alpha = 0.12f), scanStart, scanEnd, strokeWidth = 5f * sy)
-        drawLine(cyan.copy(alpha = 0.58f), scanStart, scanEnd, strokeWidth = 0.8f * sy)
+        drawLine(cyan.copy(alpha = 0.10f + scanLineGlow * 0.12f), scanStart, scanEnd, strokeWidth = 7f * sy)
+        drawLine(cyan.copy(alpha = scanLineGlow), scanStart, scanEnd, strokeWidth = 0.8f * sy)
         // Fine luminous mesh gives the face its digital hologram appearance.
         for (row in 0..17) {
             val y = 42f + row * 17f
