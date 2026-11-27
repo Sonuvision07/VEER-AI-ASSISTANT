@@ -40,7 +40,7 @@ class VeerOpenAiAgentRequestTest {
         val prior = JSONArray().put(JSONObject()
             .put("type", "function_call")
             .put("name", "android.launch_app")
-            .put("arguments", "{\\\"app\\\":\\\"youtube\\\"}")
+            .put("arguments", JSONObject().put("app", "youtube").toString())
             .put("call_id", "call_123"))
         val request = VeerOpenAiAgentRequest.build(
             AgentTurn(
