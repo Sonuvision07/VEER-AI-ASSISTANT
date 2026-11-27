@@ -86,6 +86,12 @@ class VeerPcAgentClientTest {
         assertThrows(IOException::class.java) {
             VeerPcAgentClient.parseWorkspaceResponse(JSONObject("""{"ok":true,"items":[{"name":"folder","type":"folder","size":2}]}"""))
         }
+        assertThrows(IOException::class.java) {
+            VeerPcAgentClient.parseWorkspaceResponse(JSONObject("""{"ok":true,"items":[{"name":"..","type":"folder","size":null}]}"""))
+        }
+        assertThrows(IOException::class.java) {
+            VeerPcAgentClient.parseWorkspaceResponse(JSONObject("""{"ok":true,"items":[{"name":"fraction.txt","type":"file","size":1.5}]}"""))
+        }
         val tooMany = JSONObject().put("ok", true).put("items", org.json.JSONArray().also { array ->
             repeat(201) { array.put(JSONObject().put("name", "f$it").put("type", "file").put("size", 0)) }
         })
