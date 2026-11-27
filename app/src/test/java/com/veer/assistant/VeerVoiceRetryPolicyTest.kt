@@ -35,6 +35,15 @@ class VeerVoiceRetryPolicyTest {
     }
 
     @Test
+    fun failureCounterHandlesIntegerBoundariesWithoutOverflow() {
+        assertEquals(1, VeerVoiceRetryPolicy.nextFailureCount(-10))
+        assertEquals(VeerVoiceRetryPolicy.MAX_FAILURE_COUNT,
+            VeerVoiceRetryPolicy.nextFailureCount(Int.MAX_VALUE))
+        assertEquals(VeerVoiceRetryPolicy.MAX_FAILURE_COUNT,
+            VeerVoiceRetryPolicy.nextFailureCount(VeerVoiceRetryPolicy.MAX_FAILURE_COUNT))
+    }
+
+    @Test
     fun invalidFailureCountUsesSafeMinimum() {
         assertEquals(1_200L, VeerVoiceRetryPolicy.delayForFailureCount(0))
         assertEquals(1_200L, VeerVoiceRetryPolicy.delayForFailureCount(-10))
