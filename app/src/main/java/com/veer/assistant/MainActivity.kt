@@ -743,6 +743,7 @@ fun VeerApp() {
         val approvalPhrase = VeerApprovalPhrase.parse(clean)
         if (showApproval && approvalPhrase != VeerApprovalPhrase.Decision.NONE) {
             if (approvalPhrase == VeerApprovalPhrase.Decision.APPROVE) {
+                approvalGeneration += 1L
                 val agentRequest = pendingAgentApproval
                 val agentCall = agentRequest?.let { request ->
                     agentApprovalSession.approve(request.id)?.takeIf { it == request.call }
