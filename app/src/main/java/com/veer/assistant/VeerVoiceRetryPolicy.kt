@@ -12,8 +12,11 @@ object VeerVoiceRetryPolicy {
     const val MAX_DELAY_MS = 7_200L
     const val MAX_FAILURE_COUNT = 6
 
-    fun nextFailureCount(current: Int): Int =
-        (current + 1).coerceIn(1, MAX_FAILURE_COUNT)
+    fun nextFailureCount(current: Int): Int {
+        // Clamp before incrementing so Int.MAX_VALUE cannot overflow to a low count.
+        val safeCurrent = current.coerceIn(0, MAX_FAILURE_COUNT)
+        return if (safeCurrent == MAX_FAILURE_COUNT) MAX_FAILURE_COUNT else safeCurrent + 1
+    }
 
     fun delayForFailureCount(failureCount: Int): Long {
         val safeCount = failureCount.coerceIn(1, MAX_FAILURE_COUNT)
