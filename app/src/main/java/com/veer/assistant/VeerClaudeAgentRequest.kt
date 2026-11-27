@@ -25,6 +25,11 @@ internal object VeerClaudeAgentRequest {
             require(!turn.providerContext.isNullOrBlank() && !turn.previousToolCallId.isNullOrBlank() && !turn.previousToolResult.isNullOrBlank())
             val replay = JSONArray(turn.providerContext)
             require(replay.length() > 0 && turn.providerContext.length <= MAX_REPLAY_CHARS)
+            val toolUseBlocks = (0 until replay.length()).mapNotNull { index ->
+                replay.optJSONObject(index)?.takeIf { it.optString("type") == "tool_use" }
+            }
+            require(toolUseBlocks.size == 1)
+            require(toolUseBlocks.single().optString("id") == turn.previousToolCallId)
             messages.put(JSONObject().put("role","user").put("content",prompt.toString()))
             messages.put(JSONObject().put("role","assistant").put("content",replay))
             messages.put(JSONObject().put("role","user").put("content",JSONArray().put(
