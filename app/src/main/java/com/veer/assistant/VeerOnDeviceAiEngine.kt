@@ -7,6 +7,8 @@ import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 /**
@@ -20,6 +22,7 @@ class VeerOnDeviceAiEngine private constructor(
 ) : AutoCloseable {
     private var engine: Engine? = null
     private var conversation: Conversation? = null
+    private val generationMutex = Mutex()
 
     val isModelInstalled: Boolean
         get() = modelFile.isFile && modelFile.length() > MIN_MODEL_BYTES
@@ -51,7 +54,7 @@ class VeerOnDeviceAiEngine private constructor(
         }
     }
 
-    suspend fun generateReply(prompt: String): String {
+    suspend fun generateReply(prompt: String): String = generationMutex.withLock {
         require(prompt.isNotBlank()) { "Message khaali nahi ho sakta." }
         val activeConversation = checkNotNull(conversation) {
             "VEER offline AI model initialize nahi hua."
@@ -60,7 +63,7 @@ class VeerOnDeviceAiEngine private constructor(
         activeConversation.sendMessageAsync(prompt).collect { message ->
             answer.append(message.contents.contents.filterIsInstance<com.google.ai.edge.litertlm.Content.Text>().joinToString("") { it.text })
         }
-        return answer.toString().trim()
+        answer.toString().trim()
     }
 
     override fun close() {
