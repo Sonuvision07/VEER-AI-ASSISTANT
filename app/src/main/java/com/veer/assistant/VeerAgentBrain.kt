@@ -215,8 +215,6 @@ class VeerAgentBrain(
                 continuation.provider, continuation.completedSteps
             )
         }
-        continuation.consumed = true
-
         val action = continuation.call
         val invalid = action.name.isBlank() ||
             action.name != action.name.trim() ||
@@ -240,6 +238,26 @@ class VeerAgentBrain(
                 continuation.provider, continuation.completedSteps
             )
         }
+
+        // The exact-call match is not proof of user consent. Re-check the
+        // approval gate at resume time; keep the continuation retryable if
+        // approval is still pending or the approval service fails.
+        val explicitlyApproved = try {
+            approval.approved(action)
+        } catch (_: Exception) {
+            false
+        }
+        if (!explicitlyApproved) {
+            return AgentRunResult(
+                "Is exact action ko execute karne se pehle aapki explicit approval zaroori hai.",
+                continuation.provider,
+                continuation.completedSteps,
+                stoppedForApproval = true,
+                pendingApproval = action,
+                continuation = continuation
+            )
+        }
+        continuation.consumed = true
 
         val raw = try {
             tools.execute(action)
