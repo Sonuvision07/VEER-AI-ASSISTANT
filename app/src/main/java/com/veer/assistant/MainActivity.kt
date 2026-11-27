@@ -576,6 +576,8 @@ fun VeerApp() {
             apiKeyProvider = { apiKey },
             openAiApiKeyProvider = { openAiApiKey },
             claudeApiKeyProvider = { claudeApiKey },
+            llamaApiKeyProvider = { llamaApiKey },
+            grokApiKeyProvider = { grokApiKey },
             dispatchApprovedAction = { action ->
                 val completed = java.util.concurrent.CountDownLatch(1)
                 val outcome = java.util.concurrent.atomic.AtomicReference<String>()
