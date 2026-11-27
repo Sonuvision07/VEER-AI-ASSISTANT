@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import webbrowser
+import unicodedata
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,6 +16,14 @@ from urllib.parse import parse_qs, urlparse
 
 MAX_BODY = 64 * 1024
 TOKEN_MIN_LENGTH = 40
+
+
+def valid_token(token: str) -> bool:
+    return (
+        isinstance(token, str)
+        and len(token) >= TOKEN_MIN_LENGTH
+        and not any(char.isspace() or unicodedata.category(char) == "Cc" for char in token)
+    )
 
 
 def default_app_dir() -> Path:
@@ -29,7 +38,7 @@ def load_token(app_dir: Path | None = None) -> str:
 
     if token_file.exists():
         token = token_file.read_text(encoding="utf-8").strip()
-        if len(token) >= TOKEN_MIN_LENGTH:
+        if valid_token(token):
             return token
         raise RuntimeError("Existing VEER token is invalid. Back it up and remove it before restarting.")
 
@@ -38,7 +47,7 @@ def load_token(app_dir: Path | None = None) -> str:
         descriptor = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
         existing = token_file.read_text(encoding="utf-8").strip()
-        if len(existing) >= TOKEN_MIN_LENGTH:
+        if valid_token(existing):
             return existing
         raise RuntimeError("VEER token creation raced with an invalid token file.")
 
@@ -235,8 +244,8 @@ def create_server(
     if workspace != workspace_candidate:
         raise ValueError("VEER workspace cannot be a symlink or junction")
     active_token = token if token is not None else load_token(root)
-    if len(active_token) < TOKEN_MIN_LENGTH:
-        raise ValueError("VEER bearer token must be at least 40 characters")
+    if not valid_token(active_token):
+        raise ValueError("VEER bearer token must be at least 40 characters and contain no whitespace or control characters")
     server = VeerHTTPServer((host, port), _handler_for(workspace, active_token))
     server.veer_workspace = workspace
     server.veer_token_file = root / "agent.token"
