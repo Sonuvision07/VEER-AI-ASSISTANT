@@ -6,57 +6,17 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** OpenAI-compatible chat-completions adapter used by Groq-hosted Meta Llama and xAI Grok. */
-internal class VeerCompatibleChatAgent(
-    private val provider: AiProvider,
-    private val endpoint: String,
-    private val model: String,
-    private val apiKeyProvider: () -> String?,
+internal fun interface VeerCompatibleChatAgentTransport {
+    fun generate(endpoint: String, model: String, apiKey: String, requestBody: String): String
+}
+
+internal class VeerCompatibleChatAgentHttpTransport(
     private val connectionFactory: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }
-) : ModelGateway {
-    init {
-        require(provider == AiProvider.LLAMA || provider == AiProvider.GROK)
-        require(endpoint.startsWith("https://"))
-        require(model.isNotBlank())
-    }
-
-    override fun isAvailable(provider: AiProvider): Boolean =
-        provider == this.provider && try { !apiKeyProvider().isNullOrBlank() } catch (_: Exception) { false }
-
-    override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
-        require(provider == this.provider) { "Chat adapter cannot serve a different provider." }
-        val key = apiKeyProvider()?.trim()?.takeIf { it.isNotEmpty() }
-            ?: throw IllegalStateException("Provider API key unavailable.")
-        val messages = buildMessages(turn)
-        val body = JSONObject()
-            .put("model", model)
-            .put("messages", messages)
-            .put("tools", functionTools())
-            .put("tool_choice", "auto")
-        val connection = connectionFactory(URL(endpoint))
-        try {
-            connection.requestMethod = "POST"
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 25_000
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            connection.setRequestProperty("Authorization", "Bearer $key")
-            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val raw = stream?.use { VeerBoundedHttpBody.readUtf8(it) }.orEmpty()
-            if (code !in 200..299) throw AgentProviderException(
-                "AI provider request failed (HTTP $code).",
-                retryable = code == 408 || code == 429 || code in 500..599
-            )
-            if (raw.isBlank()) throw IllegalStateException("AI provider returned an empty response.")
-            return parseResponse(raw, turn)
-                ?: throw IllegalStateException("AI provider returned an invalid agent response.")
-        } catch (failure: IOException) {
-            throw AgentProviderException("AI provider network request failed.", retryable = true)
-        } finally {
-            connection.disconnect()
-        }
+) : VeerCompatibleChatAgentTransport {
+    override fun generate(endpoint: String, model: String, apiKey: String, requestBody: String): String {
+        val raw = transport.generate(endpoint, model, key, body.toString())
+        return parseResponse(raw, turn)
+            ?: throw IllegalStateException("AI provider returned an invalid agent response.")
     }
 
     private fun buildMessages(turn: AgentTurn): JSONArray {
@@ -109,7 +69,7 @@ internal class VeerCompatibleChatAgent(
         return tools
     }
 
-    private fun parseResponse(raw: String, turn: AgentTurn): AgentDecision? {
+    internal fun parseResponse(raw: String, turn: AgentTurn = AgentTurn("", emptyList(), emptyList())): AgentDecision? {
         val root = JSONObject(raw)
         val choices = root.optJSONArray("choices") ?: return null
         val message = choices.optJSONObject(0)?.optJSONObject("message") ?: return null
