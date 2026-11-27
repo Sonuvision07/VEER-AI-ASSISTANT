@@ -1867,6 +1867,12 @@ private fun HologramFace(
         ),
         label = "faceHologramScan"
     )
+    val orbitRotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(18000, easing = androidx.compose.animation.core.LinearEasing), RepeatMode.Restart),
+        label = "faceOrbitRotation"
+    )
     val scanLineGlow by transition.animateFloat(
         initialValue = 0.32f,
         targetValue = 0.78f,
@@ -1953,6 +1959,13 @@ private fun HologramFace(
         withTransform({ scale(sx, sy, pivot = Offset.Zero) }) {
             drawPath(cachedHead, cyan.copy(alpha = 0.12f), style = Stroke(width = 2f))
         }
+        // Light orbital arcs reinforce the hologram effect without heavy geometry.
+        drawArc(cyan.copy(alpha = 0.14f), orbitRotation, 72f, false,
+            Offset(28f * sx, 32f * sy), androidx.compose.ui.geometry.Size(304f * sx, 304f * sy),
+            style = Stroke(1f * sx))
+        drawArc(Color.White.copy(alpha = 0.10f), -orbitRotation * 0.55f, 38f, false,
+            Offset(38f * sx, 42f * sy), androidx.compose.ui.geometry.Size(284f * sx, 284f * sy),
+            style = Stroke(0.8f * sx))
         val scanT = ((scanLineY - 194f) / 174f).coerceIn(-0.98f, 0.98f)
         val scanHalfWidth = 115f * kotlin.math.sqrt((1f - scanT * scanT).coerceAtLeast(0.08f))
         val scanStart = p(180f - scanHalfWidth, scanLineY)
