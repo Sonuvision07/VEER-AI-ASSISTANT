@@ -15,8 +15,8 @@ class VeerClaudeAgentRequestTest {
         assertFalse(tools.getJSONObject(0).has("parameters"))
     }
     @Test fun continuationPairsAssistantToolUseWithToolResult(){
-        val context=JSONObject().put("type","tool_use").put("id","call-1").put("name",VeerAgentToolPolicy.ANDROID_LAUNCH_APP).put("input",JSONObject().put("app","youtube"))
-        val turn=AgentTurn("open youtube",emptyList(),emptyList(),"opened",JSONArray(context).toString(),"call-1",AiProvider.ANTHROPIC)
+        val context="""[{"type":"tool_use","id":"call-1","name":"android.launch_app","input":{"app":"youtube"}}]""
+        val turn=AgentTurn("open youtube",emptyList(),emptyList(),"opened",context,"call-1",AiProvider.ANTHROPIC)
         val messages=VeerClaudeAgentRequest.build(turn).getJSONArray("messages")
         assertEquals("assistant",messages.getJSONObject(1).getString("role"))
         assertEquals("user",messages.getJSONObject(2).getString("role"))
