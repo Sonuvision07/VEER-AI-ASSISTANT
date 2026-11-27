@@ -1400,7 +1400,8 @@ fun VeerApp() {
                             pcAgentToken = ""
                             pcAgentTokenDraft = ""
                             pcAgentStatus = "Not configured"
-                        }
+                        },
+                        enabled = !pcAgentChecking
                     ) { Text("REMOVE PC CONNECTION") }
                     Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Box {
