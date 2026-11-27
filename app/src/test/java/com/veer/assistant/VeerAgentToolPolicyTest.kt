@@ -37,4 +37,15 @@ class VeerAgentToolPolicyTest {
         assertFalse(VeerAgentToolPolicy.isValid(call(arguments = emptyMap())))
         assertFalse(VeerAgentToolPolicy.isValid(call(arguments = mapOf("app" to "youtube", "confirm" to "true"))))
     }
+
+    @Test fun convertsOnlyValidatedCallToExistingPendingAction() {
+        assertTrue(
+            VeerAgentToolPolicy.toPendingAppAction(call()) == "youtube"
+        )
+        assertFalse(
+            VeerAgentToolPolicy.toPendingAppAction(
+                call(arguments = mapOf("app" to "youtube", "url" to "https://evil.example"))
+            ) != null
+        )
+    }
 }
