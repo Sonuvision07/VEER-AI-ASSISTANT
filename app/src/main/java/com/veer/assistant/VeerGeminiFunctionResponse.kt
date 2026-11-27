@@ -53,7 +53,7 @@ internal object VeerGeminiFunctionResponse {
         }
 
         return JSONArray()
-            .put(JSONObject(modelContent.toString())
+            .put(JSONObject(modelContent.toString()))
             .put(
                 JSONObject()
                     .put("role", "user")
