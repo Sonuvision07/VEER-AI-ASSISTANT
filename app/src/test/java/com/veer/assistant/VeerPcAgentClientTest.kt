@@ -3,6 +3,8 @@ package com.veer.assistant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import org.json.JSONObject
+import java.io.IOException
 
 class VeerPcAgentClientTest {
     @Test
