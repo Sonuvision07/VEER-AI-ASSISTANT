@@ -1964,6 +1964,22 @@ private fun HologramFace(
         val sy = size.height / 390f
         fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
 
+        // HUD tick marks around the face perimeter.
+        val hudRadius = size.minDimension * 0.49f
+        val hudCenter = p(180f, 190f)
+        for (tick in 0 until 48) {
+            val angle = tick * (6.28318f / 48f)
+            val outer = hudRadius
+            val inner = hudRadius - if (tick % 4 == 0) 9f * sx else 4f * sx
+            val start = Offset(hudCenter.x + kotlin.math.cos(angle) * inner, hudCenter.y + kotlin.math.sin(angle) * inner)
+            val end = Offset(hudCenter.x + kotlin.math.cos(angle) * outer, hudCenter.y + kotlin.math.sin(angle) * outer)
+            drawLine(
+                cyan.copy(alpha = if (tick % 4 == 0) 0.38f else 0.12f),
+                start,
+                end,
+                strokeWidth = if (tick % 4 == 0) 1.3f * sx else 0.65f * sx
+            )
+        }
         // Reactive outer energy aura intensifies while VEER listens or speaks.
         drawCircle(
             brush = Brush.radialGradient(
