@@ -890,7 +890,7 @@ fun VeerApp() {
     }
 
 
-    fun askMeta Llama(question: String) { val key=llamaApiKey.trim(); if(key.isEmpty()){addReply("Meta Llama API key Settings mein add karein.");showSettings=true;return}; loading=true;status="CONNECTING TO LLAMA...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\\n"){it.first+": "+it.second}+"\\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.groq.com/openai/v1/chat/completions",key,"llama-small-latest",prompt)}catch(e:Exception){answer="Meta Llama error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Meta Llama error:")&&providerFallback?.invoke("LLAMA",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
+    fun askMetaLlama(question: String) { val key=llamaApiKey.trim(); if(key.isEmpty()){addReply("Meta Llama API key Settings mein add karein.");showSettings=true;return}; loading=true;status="CONNECTING TO LLAMA...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\\n"){it.first+": "+it.second}+"\\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.groq.com/openai/v1/chat/completions",key,"llama-3.3-70b-versatile",prompt)}catch(e:Exception){answer="Meta Llama error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Meta Llama error:")&&providerFallback?.invoke("LLAMA",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
     fun askGrok(question: String) { val key=grokApiKey.trim(); if(key.isEmpty()){addReply("Grok (xAI) API key Settings mein add karein.");showSettings=true;return};loading=true;status="CONNECTING TO GROK...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\\n"){it.first+": "+it.second}+"\\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.x.ai/v1/chat/completions",key,"grok-3-mini",prompt)}catch(e:Exception){answer="Grok error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Grok error:")&&providerFallback?.invoke("GROK",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
 
     fun askGemini(question: String, imageBase64: String? = null) {
@@ -1096,7 +1096,7 @@ fun VeerApp() {
                 "OPENAI" -> askOpenAI(question, image)
                 "GEMINI" -> askGemini(question, image)
                 "CLAUDE" -> askClaude(question)
-                "LLAMA" -> askMeta Llama(question)
+                "LLAMA" -> askMetaLlama(question)
                 "GROK" -> askGrok(question)
             }
             true
