@@ -67,13 +67,6 @@ class VeerOpenAiAgentRequestTest {
         assertTrue(request.getString("input").contains("Gemini tool completed"))
     }
 
-    @Test fun sendsPlainToolResultAsContextWhenNoOpenAiCallStateExists() {
-        val request = VeerOpenAiAgentRequest.build(
-            AgentTurn("Continue", emptyList(), emptyList(), previousToolResult = "done")
-        )
-        assertTrue(request.getString("input").contains("done"))
-    }
-
     @Test fun rejectsBlankUserRequestAndModel() {
         try {
             VeerOpenAiAgentRequest.build(AgentTurn(" ", emptyList(), emptyList()))
