@@ -14,8 +14,60 @@ internal class VeerCompatibleChatAgentHttpTransport(
     private val connectionFactory: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }
 ) : VeerCompatibleChatAgentTransport {
     override fun generate(endpoint: String, model: String, apiKey: String, requestBody: String): String {
+        val connection = connectionFactory(URL(endpoint))
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 25_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.outputStream.use { it.write(requestBody.toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val raw = stream?.use { VeerBoundedHttpBody.readUtf8(it) }.orEmpty()
+            if (code !in 200..299) throw AgentProviderException(
+                "AI provider request failed (HTTP $code).",
+                retryable = code == 408 || code == 429 || code in 500..599
+            )
+            if (raw.isBlank()) throw IllegalStateException("AI provider returned an empty response.")
+            return raw
+        } catch (failure: IOException) {
+            throw AgentProviderException("AI provider network request failed.", retryable = true)
+        } finally {
+            connection.disconnect()
+        }
+    }
+}
+
+/** Structured OpenAI-compatible chat adapter for Groq-hosted Meta Llama and xAI Grok. */
+internal class VeerCompatibleChatAgent(
+    private val provider: AiProvider,
+    private val endpoint: String,
+    private val model: String,
+    private val apiKeyProvider: () -> String?,
+    private val transport: VeerCompatibleChatAgentTransport = VeerCompatibleChatAgentHttpTransport()
+) : ModelGateway {
+    init {
+        require(provider == AiProvider.LLAMA || provider == AiProvider.GROK)
+        require(endpoint.startsWith("https://"))
+        require(model.isNotBlank())
+    }
+
+    override fun isAvailable(provider: AiProvider): Boolean =
+        provider == this.provider && try { !apiKeyProvider().isNullOrBlank() } catch (_: Exception) { false }
+
+    override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
+        require(provider == this.provider) { "Chat adapter cannot serve a different provider." }
+        val key = apiKeyProvider()?.trim()?.takeIf { it.isNotEmpty() }
+            ?: throw IllegalStateException("Provider API key unavailable.")
+        val body = JSONObject()
+            .put("model", model)
+            .put("messages", buildMessages(turn))
+            .put("tools", functionTools())
+            .put("tool_choice", "auto")
         val raw = transport.generate(endpoint, model, key, body.toString())
-        return parseResponse(raw, turn)
+        return parseResponse(raw)
             ?: throw IllegalStateException("AI provider returned an invalid agent response.")
     }
 
@@ -69,43 +121,47 @@ internal class VeerCompatibleChatAgentHttpTransport(
         return tools
     }
 
-    internal fun parseResponse(raw: String, turn: AgentTurn = AgentTurn("", emptyList(), emptyList())): AgentDecision? {
-        val root = JSONObject(raw)
-        val choices = root.optJSONArray("choices") ?: return null
-        val message = choices.optJSONObject(0)?.optJSONObject("message") ?: return null
-        val calls = message.optJSONArray("tool_calls")
-        if (calls == null || calls.length() == 0) {
-            val text = message.optString("content").trim()
-            return text.takeIf { it.isNotEmpty() }?.let { AgentDecision(it) }
+    internal fun parseResponse(raw: String): AgentDecision? {
+        return try {
+            val root = JSONObject(raw)
+            val choices = root.optJSONArray("choices") ?: return null
+            val message = choices.optJSONObject(0)?.optJSONObject("message") ?: return null
+            val calls = message.optJSONArray("tool_calls")
+            if (calls == null || calls.length() == 0) {
+                val text = message.optString("content").trim()
+                return text.takeIf { it.isNotEmpty() }?.let { AgentDecision(it) }
+            }
+            if (calls.length() != 1) return AgentDecision("VEER ne ek se zyada tool calls receive kiye; safety ke liye sab block kar diye.")
+            val item = calls.optJSONObject(0) ?: return null
+            val id = item.optString("id").takeIf { it.isNotBlank() }
+                ?: return AgentDecision("VEER ko tool call ID nahi mila; action block kar diya.")
+            val function = item.optJSONObject("function") ?: return null
+            val name = function.optString("name").takeIf { it.isNotBlank() } ?: return null
+            val risk = VeerAgentToolPolicy.riskFor(name)
+                ?: return AgentDecision("VEER ne unsupported tool action block kar diya: $name.")
+            val rawArgs = function.optString("arguments").takeIf { it.isNotBlank() } ?: return null
+            val json = JSONObject(rawArgs)
+            val args = linkedMapOf<String, String>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val value = json.opt(key)
+                if (value !is String) return AgentDecision("VEER ko tool argument ka type invalid mila; action block kar diya.")
+                args[key] = value
+            }
+            val call = AgentToolCall(name, args, risk)
+            if (!VeerAgentToolPolicy.isValid(call)) return AgentDecision("VEER ne tool request ko trusted allowlist se verify nahi kiya; action block kar diya.")
+            val replay = JSONArray().put(message)
+            if (replay.toString().length > 40_000) return null
+            AgentDecision(
+                message = "Boss, " + args["app"] + " open karne ke liye aapki permission chahiye.",
+                toolCall = call,
+                finished = false,
+                providerContext = replay.toString(),
+                providerCallId = id
+            )
+        } catch (_: Exception) {
+            null
         }
-        if (calls.length() != 1) return AgentDecision("VEER ne ek se zyada tool calls receive kiye; safety ke liye sab block kar diye.")
-        val item = calls.optJSONObject(0) ?: return null
-        val id = item.optString("id").takeIf { it.isNotBlank() }
-            ?: return AgentDecision("VEER ko tool call ID nahi mila; action block kar diya.")
-        val function = item.optJSONObject("function") ?: return null
-        val name = function.optString("name").takeIf { it.isNotBlank() } ?: return null
-        val risk = VeerAgentToolPolicy.riskFor(name)
-            ?: return AgentDecision("VEER ne unsupported tool action block kar diya: $name.")
-        val rawArgs = function.optString("arguments").takeIf { it.isNotBlank() } ?: return null
-        val json = JSONObject(rawArgs)
-        val args = linkedMapOf<String, String>()
-        val keys = json.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val value = json.opt(key)
-            if (value !is String) return AgentDecision("VEER ko tool argument ka type invalid mila; action block kar diya.")
-            args[key] = value
-        }
-        val call = AgentToolCall(name, args, risk)
-        if (!VeerAgentToolPolicy.isValid(call)) return AgentDecision("VEER ne tool request ko trusted allowlist se verify nahi kiya; action block kar diya.")
-        val replay = JSONArray().put(message)
-        if (replay.toString().length > 40_000) return null
-        return AgentDecision(
-            message = "Boss, " + args["app"] + " open karne ke liye aapki permission chahiye.",
-            toolCall = call,
-            finished = false,
-            providerContext = replay.toString(),
-            providerCallId = id
-        )
     }
 }
