@@ -134,4 +134,12 @@ class VeerCompatibleChatAgentTest {
         assertTrue(messages.getJSONObject(1).getString("content").contains("The approved action succeeded"))
     }
 
+    @Test fun selectedProviderIsFirstInStructuredFallbackOrder() {
+        assertEquals(AiProvider.LLAMA, VeerAndroidAgentRuntime.providerOrderForSelection("LLAMA").first())
+        assertEquals(AiProvider.GROK, VeerAndroidAgentRuntime.providerOrderForSelection("GROK").first())
+        assertEquals(AiProvider.ANTHROPIC, VeerAndroidAgentRuntime.providerOrderForSelection("CLAUDE").first())
+        assertEquals(AiProvider.OPENAI, VeerAndroidAgentRuntime.providerOrderForSelection("OPENAI").first())
+        assertEquals(AiProvider.GEMINI, VeerAndroidAgentRuntime.providerOrderForSelection("GEMINI").first())
+    }
+
 }
