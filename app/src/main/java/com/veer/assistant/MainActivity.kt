@@ -229,6 +229,12 @@ fun VeerApp() {
     val agentApprovalSession = remember { VeerAgentApprovalSession() }
     var pendingAgentApproval by remember { mutableStateOf<VeerAgentApprovalRequest?>(null) }
     var pendingMusicUrl by remember { mutableStateOf<String?>(null) }
+    var pendingGeminiContents by remember { mutableStateOf<String?>(null) }
+    var pendingGeminiModelContent by remember { mutableStateOf<String?>(null) }
+    var pendingGeminiFunctionName by remember { mutableStateOf<String?>(null) }
+    var pendingGeminiModel by remember { mutableStateOf<String?>(null) }
+    var pendingGeminiApiKey by remember { mutableStateOf<String?>(null) }
+    var pendingGeminiToolSteps by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
     var backgroundVoiceActive by remember { mutableStateOf(prefs.getBoolean("background_voice_enabled", false)) }
@@ -557,6 +563,133 @@ fun VeerApp() {
         }
     }
 
+    fun continueGeminiAfterApprovedTool(call: AgentToolCall, toolResult: String) {
+        val savedContents = pendingGeminiContents
+        val savedModelContent = pendingGeminiModelContent
+        val functionName = pendingGeminiFunctionName
+        val model = pendingGeminiModel
+        val key = pendingGeminiApiKey
+        val completedSteps = pendingGeminiToolSteps
+        pendingGeminiContents = null
+        pendingGeminiModelContent = null
+        pendingGeminiFunctionName = null
+        pendingGeminiModel = null
+        pendingGeminiApiKey = null
+
+        if (savedContents.isNullOrBlank() || savedModelContent.isNullOrBlank() ||
+            functionName.isNullOrBlank() || model.isNullOrBlank() || key.isNullOrBlank() ||
+            functionName != call.name
+        ) {
+            pendingGeminiToolSteps = 0
+            addReply("Boss, Gemini continuation verify nahi hui. Approved action ke baad AI response safely rok diya.")
+            return
+        }
+
+        val nextContents = try {
+            VeerGeminiFunctionResponse.appendToConversation(
+                org.json.JSONArray(savedContents),
+                JSONObject(savedModelContent),
+                functionName,
+                toolResult
+            )
+        } catch (_: Exception) { null }
+        if (nextContents == null) {
+            pendingGeminiToolSteps = 0
+            addReply("Boss, tool result conversation mein safely add nahi ho paaya.")
+            return
+        }
+
+        loading = true
+        status = "SENDING TOOL RESULT TO GEMINI..."
+        Thread {
+            var answer = ""
+            try {
+                val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                val systemText = "You are VEER, a fast, accurate personal AI assistant. Reply in natural Hindi/Hinglish matching the user. Be concise by default. Never invent facts or claim actions you did not perform. Android actions require fresh explicit user approval."
+                val generation = JSONObject().put("maxOutputTokens", 900)
+                if (model == "gemini-3.8-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "LOW"))
+                val body = JSONObject()
+                    .put("systemInstruction", JSONObject().put("parts", org.json.JSONArray().put(JSONObject().put("text", systemText))))
+                    .put("contents", nextContents)
+                    .put("generationConfig", generation)
+                    .put("tools", org.json.JSONArray().put(JSONObject().put("functionDeclarations", VeerGeminiToolSchema.functionDeclarations())))
+                val connection = (endpoint.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10000
+                    readTimeout = 25000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    setRequestProperty("x-goog-api-key", key)
+                }
+                val code: Int
+                val raw: String
+                try {
+                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    code = connection.responseCode
+                    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                    raw = stream?.use { VeerBoundedHttpBody.readUtf8(it) } ?: ""
+                } finally { connection.disconnect() }
+
+                if (code !in 200..299) {
+                    val detail = try { JSONObject(raw).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
+                    answer = "Boss, action ka result Gemini ko bheja gaya, lekin follow-up response nahi mila ($code). " + (detail ?: "Dobara pooch sakte hain.")
+                } else {
+                    val decision = VeerGeminiToolCallParser.parse(raw)
+                    if (decision?.toolCall != null) {
+                        val nextCall = decision.toolCall
+                        val nextModelContent = JSONObject(raw).optJSONArray("candidates")
+                            ?.optJSONObject(0)?.optJSONObject("content")
+                        if (completedSteps >= 5 || nextModelContent == null) {
+                            answer = "Boss, VEER ki safe tool-step limit poori ho gayi ya next request verify nahi hui. Aage koi action nahi chalaya."
+                        } else {
+                            Handler(Looper.getMainLooper()).post {
+                                val request = agentApprovalSession.request(nextCall)
+                                if (request == null) {
+                                    pendingGeminiToolSteps = 0
+                                    loading = false
+                                    addReply("Boss, next approval request verify nahi hui. Koi extra action run nahi kiya.")
+                                } else {
+                                    pendingGeminiContents = nextContents.toString()
+                                    pendingGeminiModelContent = nextModelContent.toString()
+                                    pendingGeminiFunctionName = nextCall.name
+                                    pendingGeminiModel = model
+                                    pendingGeminiApiKey = key
+                                    pendingGeminiToolSteps = completedSteps + 1
+                                    pendingAgentApproval = request
+                                    pendingAction = request.action
+                                    approvalGeneration += 1L
+                                    showApproval = true
+                                    loading = false
+                                    addReply(decision.message)
+                                }
+                            }
+                            return@Thread
+                        }
+                    } else if (decision != null) {
+                        answer = decision.message
+                    } else {
+                        val parts = JSONObject(raw).optJSONArray("candidates")
+                            ?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
+                        val result = StringBuilder()
+                        if (parts != null) for (index in 0 until parts.length()) {
+                            result.append(parts.optJSONObject(index)?.optString("text", "") ?: "")
+                        }
+                        answer = result.toString().trim().ifBlank {
+                            "Boss, tool result Gemini tak pahunch gaya, lekin final text response khaali tha."
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                answer = "Boss, approved action ka result Gemini ko bhejte waqt connection issue aaya."
+            }
+            Handler(Looper.getMainLooper()).post {
+                pendingGeminiToolSteps = 0
+                loading = false
+                addReply(answer)
+            }
+        }.start()
+    }
+
     fun runApprovedAgentTool(call: AgentToolCall) {
         val validatedAction = VeerAgentToolPolicy.toPendingAppAction(call)
         if (validatedAction == null || validatedAction != pendingAction) {
@@ -572,13 +705,14 @@ fun VeerApp() {
         agentApprovalSession.clear()
         pendingAgentApproval = null
         try {
-            VeerAndroidAppToolExecutor { action ->
+            val toolResult = VeerAndroidAppToolExecutor { action ->
                 if (runApprovedAction(action)) {
                     "Approved Android action launched successfully."
                 } else {
                     "Approved action could not be launched on this phone."
                 }
             }.execute(call)
+            continueGeminiAfterApprovedTool(call, toolResult)
         } catch (_: Exception) {
             approvalGeneration += 1L
             agentApprovalSession.clear()
@@ -736,12 +870,29 @@ fun VeerApp() {
                             answer = toolDecision.message
                             val requestedCall = toolDecision.toolCall
                             if (requestedCall != null) {
+                                val candidateContent = try {
+                                    JSONObject(raw).optJSONArray("candidates")
+                                        ?.optJSONObject(0)?.optJSONObject("content")
+                                } catch (_: Exception) { null }
+                                if (candidateContent == null) {
+                                    Handler(Looper.getMainLooper()).post {
+                                        loading = false
+                                        addReply("Boss, Gemini function request ka original content verify nahi hua; action block kar diya.")
+                                    }
+                                    return@Thread
+                                }
                                 Handler(Looper.getMainLooper()).post {
                                     val request = agentApprovalSession.request(requestedCall)
                                     if (request == null) {
                                         loading = false
                                         addReply("Boss, ek approval pehle se pending hai ya tool request safety check mein fail hui.")
                                     } else {
+                                        pendingGeminiContents = body.optJSONArray("contents")?.toString()
+                                        pendingGeminiModelContent = candidateContent.toString()
+                                        pendingGeminiFunctionName = requestedCall.name
+                                        pendingGeminiModel = model
+                                        pendingGeminiApiKey = key
+                                        pendingGeminiToolSteps = 1
                                         pendingAgentApproval = request
                                         pendingAction = request.action
                                         approvalGeneration += 1L
@@ -1437,6 +1588,12 @@ fun VeerApp() {
                 pendingAgentApproval = null
                 pendingAction = ""
                 pendingMusicUrl = null
+                pendingGeminiContents = null
+                pendingGeminiModelContent = null
+                pendingGeminiFunctionName = null
+                pendingGeminiModel = null
+                pendingGeminiApiKey = null
+                pendingGeminiToolSteps = 0
                 addReply("Permission request cancel kar di.")
             },
             title = { Text("VEER Permission") },
@@ -1477,6 +1634,12 @@ fun VeerApp() {
                     pendingAgentApproval = null
                     pendingAction = ""
                     pendingMusicUrl = null
+                    pendingGeminiContents = null
+                    pendingGeminiModelContent = null
+                    pendingGeminiFunctionName = null
+                    pendingGeminiModel = null
+                    pendingGeminiApiKey = null
+                    pendingGeminiToolSteps = 0
                     showApproval = false
                     addReply("Theek hai Boss, action cancel kar diya.")
                 }) { Text("CANCEL") }
