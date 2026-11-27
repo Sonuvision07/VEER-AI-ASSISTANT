@@ -783,7 +783,7 @@ class VeerAgentBrainTest {
             override fun isAvailable(provider: AiProvider) = true
             override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
                 attempts += 1
-                if (attempts == 1) error("temporary provider failure")
+                if (attempts == 1) throw AgentProviderException("temporary provider failure", retryable = true)
                 return AgentDecision("Recovered on retry")
             }
         }
@@ -798,6 +798,28 @@ class VeerAgentBrainTest {
         assertEquals(2, attempts)
         assertEquals(AiProvider.GEMINI, result.provider)
         assertEquals("Recovered on retry", result.message)
+    }
+
+    @Test fun doesNotRetryPermanentProviderFailure() {
+        var attempts = 0
+        val gateway = object : ModelGateway {
+            override fun isAvailable(provider: AiProvider) = true
+            override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
+                attempts += 1
+                throw AgentProviderException("invalid API key", retryable = false)
+            }
+        }
+        val brain = VeerAgentBrain(
+            gateway, FakeTools(), FakeApproval(false),
+            providerOrder = listOf(AiProvider.GEMINI),
+            maxProviderAttempts = 3
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(1, attempts)
+        assertEquals(null, result.provider)
+        assertTrue(result.message.contains("AI engine"))
     }
 
     @Test fun fallsBackAfterProviderRetryBudgetIsExhausted() {
