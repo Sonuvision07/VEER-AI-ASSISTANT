@@ -84,10 +84,7 @@ object VeerModelInstaller {
             // Install the verified file with a same-directory rename. Never
             // stream-copy over the destination: a failed copy could leave a
             // partially written model that looks installed to the UI.
-            check(temporary.renameTo(destination)) {
-                "Verified model ko safely install nahi kar paye. Storage check karke dobara try karein."
-            }
-            destination
+            VeerModelFilePromotion.promote(temporary, destination)
         } catch (error: Throwable) {
             temporary.delete()
             throw error
