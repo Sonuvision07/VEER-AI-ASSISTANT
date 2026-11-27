@@ -17,13 +17,13 @@ internal object VeerGeminiAgentRequest {
     fun build(turn: AgentTurn): JSONObject {
         require(turn.userRequest.isNotBlank()) { "User request must not be blank." }
         val prompt = StringBuilder()
-        prompt.append("User request:\n").append(turn.userRequest.take(MAX_REQUEST_CONTEXT_CHARS))
-        appendSection(prompt, "Saved context", turn.memory)
-        appendSection(prompt, "Recent conversation", turn.recentConversation)
+        prompt.append("User request:\n").append(turn.userRequest.take(4_000))
+        appendSection(prompt, "Saved context", turn.memory, 3_000)
+        appendSection(prompt, "Recent conversation", turn.recentConversation, 3_000)
         turn.previousToolResult?.takeIf { it.isNotBlank() }?.let {
-            prompt.append("\n\nPrevious tool result:\n").append(it.take(4_000))
+            prompt.append("\n\nPrevious tool result:\n").append(it.take(2_000))
         }
-        require(prompt.length <= MAX_REQUEST_CONTEXT_CHARS + 8_000) {
+        require(prompt.length <= MAX_REQUEST_CONTEXT_CHARS) {
             "Agent context exceeded VEER's request limit."
         }
         val contents = JSONArray().put(
@@ -39,10 +39,10 @@ internal object VeerGeminiAgentRequest {
         ) ?: throw IllegalStateException("Could not build a valid Gemini agent request.")
     }
 
-    private fun appendSection(target: StringBuilder, title: String, values: List<String>) {
+    private fun appendSection(target: StringBuilder, title: String, values: List<String>, maxChars: Int) {
         if (values.isEmpty()) return
         target.append("\n\n").append(title).append(":\n")
-        var remaining = MAX_REQUEST_CONTEXT_CHARS / 2
+        var remaining = maxChars
         values.asReversed().forEach { value ->
             if (remaining <= 0) return@forEach
             val safe = value.take(remaining)
