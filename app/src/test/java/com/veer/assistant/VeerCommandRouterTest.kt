@@ -34,6 +34,9 @@ class VeerCommandRouterTest {
         val cases = mapOf(
             "Hey Veer, YouTube app khol do please" to "youtube",
             "please open the Instagram app" to "instagram",
+            "open the Instagram app" to "instagram",
+            "launch the YouTube" to "youtube",
+            "start the calculator" to "calculator",
             "Veer WhatsApp chalao" to "whatsapp",
             "could you launch Telegram please" to "telegram",
             "Chrome kholna" to "browser",
