@@ -440,7 +440,7 @@ fun VeerApp() {
         else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)))
     }
 
-    fun runApprovedAction(action: String) {
+    fun runApprovedAction(action: String): Boolean {
         val allowedActions = setOf(
             "settings", "youtube", "music", "browser", "calculator", "camera", "maps",
             "dialer", "instagram", "facebook", "whatsapp", "x", "telegram",
@@ -450,7 +450,7 @@ fun VeerApp() {
             pendingAction = ""
             showApproval = false
             addReply("Boss, ye action supported ya approved list mein nahi hai. Maine ise run nahi kiya.")
-            return
+            return false
         }
         try {
             when (action) {
@@ -484,13 +484,16 @@ fun VeerApp() {
                 "gmail" -> launchSocialApp("com.google.android.gm", "https://mail.google.com")
             }
             addReply("Boss, aapki permission se action complete kar diya.")
+            true
         } catch (_: Exception) {
             addReply("Boss, ye action phone par complete nahi ho paaya.")
+            false
+        } finally {
+            pendingAction = ""
+            pendingAgentToolCall = null
+            pendingMusicUrl = null
+            showApproval = false
         }
-        pendingAction = ""
-        pendingAgentToolCall = null
-        pendingMusicUrl = null
-        showApproval = false
     }
 
     fun runApprovedAgentTool(call: AgentToolCall) {
@@ -506,8 +509,11 @@ fun VeerApp() {
         pendingAgentToolCall = null
         try {
             VeerAndroidAppToolExecutor { action ->
-                runApprovedAction(action)
-                "Approved Android action dispatched."
+                if (runApprovedAction(action)) {
+                    "Approved Android action launched successfully."
+                } else {
+                    "Approved action could not be launched on this phone."
+                }
             }.execute(call)
         } catch (_: Exception) {
             pendingAction = ""
