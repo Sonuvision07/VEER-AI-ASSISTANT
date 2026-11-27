@@ -24,14 +24,20 @@ data class AgentToolCall(
 data class AgentDecision(
     val message: String,
     val toolCall: AgentToolCall? = null,
-    val finished: Boolean = true
+    val finished: Boolean = true,
+    /** Opaque provider-owned state required to continue a structured tool call. */
+    val providerContext: String? = null,
+    /** Provider call identifier that must be paired with the next tool result. */
+    val providerCallId: String? = null
 )
 
 data class AgentTurn(
     val userRequest: String,
     val memory: List<String>,
     val recentConversation: List<String>,
-    val previousToolResult: String? = null
+    val previousToolResult: String? = null,
+    val providerContext: String? = null,
+    val previousToolCallId: String? = null
 )
 
 /** Cooperative cancellation checked between provider and tool operations. */
