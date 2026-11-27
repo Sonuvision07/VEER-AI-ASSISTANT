@@ -79,7 +79,7 @@ class VeerGeminiFunctionResponseTest {
             .getJSONArray("parts").getJSONObject(0)
             .getJSONObject("functionResponse").getJSONObject("response").getString("result")
 
-        assertTrue(returned.length() < VeerGeminiFunctionResponse.MAX_RESULT_CHARS + 100)
+        assertTrue(returned.length < VeerGeminiFunctionResponse.MAX_RESULT_CHARS + 100)
         assertTrue(returned.endsWith("[Tool result truncated by VEER]"))
     }
 
