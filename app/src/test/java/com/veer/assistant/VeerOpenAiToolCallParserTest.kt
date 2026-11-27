@@ -43,13 +43,11 @@ class VeerOpenAiToolCallParserTest {
         assertTrue(blocked?.message?.contains("call ID") == true)
     }
 
-    @Test fun addsPreviousFunctionOutputToReplayHistory() {
+    @Test fun addsPreviousFunctionOutputToReplayHistoryBeforeNextToolCall() {
         val prior = response(functionCall("youtube"))
         val decision = VeerOpenAiToolCallParser.parse(
-            response(JSONObject().put("type", "message").put(
-                "content", JSONArray().put(JSONObject().put("type", "output_text").put("text", "Done"))
-            )),
-            previousContext = JSONArray(JSONObject(prior).getJSONArray("output").toString()).toString(),
+            response(functionCall("camera")),
+            previousContext = JSONObject(prior).getJSONArray("output").toString(),
             previousCallId = "call_1",
             previousToolResult = "App opened"
         )
@@ -58,7 +56,8 @@ class VeerOpenAiToolCallParserTest {
         assertEquals("function_call_output", replay.getJSONObject(1).getString("type"))
         assertEquals("call_1", replay.getJSONObject(1).getString("call_id"))
         assertEquals("App opened", replay.getJSONObject(1).getString("output"))
-        assertEquals("message", replay.getJSONObject(2).getString("type"))
+        assertEquals("function_call", replay.getJSONObject(2).getString("type"))
+        assertEquals("call_1", decision.providerCallId)
     }
 
     @Test fun rejectsUnknownAppAndUnsupportedTool() {
