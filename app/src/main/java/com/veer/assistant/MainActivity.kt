@@ -152,6 +152,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun generateDemoReply(question: String): String =
+    "Ye VEER ka demo jawab hai. Aapne poochha: $question"
+
 @Composable
 private fun VeerActionGlyph(kind: String, modifier: Modifier = Modifier, tint: Color = Color.White) {
     Canvas(modifier) {
@@ -183,6 +186,53 @@ private fun VeerBrandMark(modifier: Modifier = Modifier) {
         drawPath(path, Brush.linearGradient(listOf(Color(0xFF83F4FF), Color(0xFF28A8FF), Color(0xFF9B7BFF))), style = Stroke(width = w * 0.12f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
         drawCircle(Color(0xFF8CEFFF), radius = w * 0.055f, center = Offset(w * 0.50f, h * 0.10f))
         drawCircle(Color(0xFF27C8FF).copy(alpha = 0.22f), radius = w * 0.46f, style = Stroke(width = w * 0.025f))
+    }
+}
+
+@Composable
+private fun VeerOutlineIcon(kind: String, modifier: Modifier = Modifier, tint: Color = Color(0xFF17181A)) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = size.minDimension * 0.085f
+        val start = Offset(w * 0.14f, h * 0.5f)
+        when (kind) {
+            "menu" -> {
+                for (y in listOf(0.25f, 0.5f, 0.75f)) {
+                    drawLine(tint, Offset(w * 0.16f, h * y), Offset(w * 0.84f, h * y), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                }
+            }
+            "new" -> {
+                drawRoundRect(tint, Offset(w * 0.13f, h * 0.13f), androidx.compose.ui.geometry.Size(w * 0.74f, h * 0.74f), androidx.compose.ui.geometry.CornerRadius(w * 0.12f), style = Stroke(stroke))
+                drawLine(tint, Offset(w * 0.5f, h * 0.31f), Offset(w * 0.5f, h * 0.69f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.31f, h * 0.5f), Offset(w * 0.69f, h * 0.5f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            "plus" -> {
+                drawLine(tint, Offset(w * 0.5f, h * 0.17f), Offset(w * 0.5f, h * 0.83f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.17f, h * 0.5f), Offset(w * 0.83f, h * 0.5f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            "camera" -> {
+                drawRoundRect(tint, Offset(w * 0.10f, h * 0.27f), androidx.compose.ui.geometry.Size(w * 0.80f, h * 0.57f), androidx.compose.ui.geometry.CornerRadius(w * 0.10f), style = Stroke(stroke))
+                drawRoundRect(tint, Offset(w * 0.28f, h * 0.15f), androidx.compose.ui.geometry.Size(w * 0.22f, h * 0.14f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f), style = Stroke(stroke))
+                drawCircle(tint, w * 0.15f, Offset(w * 0.52f, h * 0.55f), style = Stroke(stroke))
+            }
+            "mic" -> {
+                drawRoundRect(tint, Offset(w * 0.38f, h * 0.08f), androidx.compose.ui.geometry.Size(w * 0.24f, h * 0.55f), androidx.compose.ui.geometry.CornerRadius(w * 0.12f), style = Stroke(stroke))
+                drawArc(tint, 0f, 180f, false, Offset(w * 0.20f, h * 0.25f), androidx.compose.ui.geometry.Size(w * 0.60f, h * 0.52f), style = Stroke(stroke))
+                drawLine(tint, Offset(w * 0.50f, h * 0.76f), Offset(w * 0.50f, h * 0.91f), stroke)
+                drawLine(tint, Offset(w * 0.34f, h * 0.92f), Offset(w * 0.66f, h * 0.92f), stroke)
+            }
+            "send" -> {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.18f, h * 0.50f)
+                    lineTo(w * 0.82f, h * 0.50f)
+                    moveTo(w * 0.56f, h * 0.23f)
+                    lineTo(w * 0.83f, h * 0.50f)
+                    lineTo(w * 0.56f, h * 0.77f)
+                }
+                drawPath(path, tint, style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
     }
 }
 
@@ -306,8 +356,7 @@ fun VeerApp() {
             }
         } catch (_: Exception) {}
         mutableStateListOf<Pair<String, String>>().apply {
-            if (restored.isEmpty()) add("VEER" to "Namaste Boss! Main VEER hoon. Aap text ya voice se baat kar sakte hain.")
-            else addAll(restored.takeLast(100))
+            addAll(restored.takeLast(100))
         }
     }
 
@@ -1118,6 +1167,12 @@ fun VeerApp() {
         val clean = command.trim()
         if (clean.isEmpty()) return
         messages.add("BOSS" to clean)
+        addReply(generateDemoReply(clean))
+        attachedImageBase64 = null
+        attachedText = null
+        attachedFileName = null
+        attachedMimeType = "image/jpeg"
+        return
         val approvalPhrase = VeerApprovalPhrase.parse(clean)
         if (showApproval && approvalPhrase != VeerApprovalPhrase.Decision.NONE) {
             if (approvalPhrase == VeerApprovalPhrase.Decision.APPROVE) {
@@ -1458,6 +1513,14 @@ fun VeerApp() {
         status = if (bitmap != null) "CAMERA IMAGE ATTACHED" else "CAMERA CANCELLED"
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) cameraLauncher.launch(null)
+        else {
+            status = "CAMERA PERMISSION DENIED"
+            addReply("Camera permission nahi mili. Photo lene ke liye Android Settings mein VEER ko Camera permission dein.")
+        }
+    }
+
     val documentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             status = "READING FILE..."
@@ -1515,6 +1578,7 @@ fun VeerApp() {
         } else {
             pendingBackgroundVoicePermission = false
             status = "MICROPHONE PERMISSION DENIED"
+            addReply("Microphone permission nahi mili. Voice input ke liye Android Settings mein VEER ko Microphone permission dein.")
         }
     }
 
@@ -1533,7 +1597,7 @@ fun VeerApp() {
                     VeerVoiceService.ACTION_TRANSCRIPT -> {
                         val phrase = intent.getStringExtra("text").orEmpty()
                         if (phrase.isNotBlank()) {
-                            voiceMode = true
+                            voiceMode = false
                             processCommand(phrase)
                         }
                     }
