@@ -23,7 +23,7 @@ class VeerVoiceService : Service() {
     private var recognizer: SpeechRecognizer? = null
     private val handler = Handler(Looper.getMainLooper())
     private var stopping = false
-    private var awaitingReply = false
+    private val replyGate = VeerVoiceReplyGate()
     private var consecutiveErrors = 0
     private var retryScheduled = false
     private var recognitionLanguageAttempt = 0
@@ -73,7 +73,7 @@ class VeerVoiceService : Service() {
         }
         if (intent?.action == ACTION_RESUME) {
             stopping = false
-            awaitingReply = false
+            replyGate.resumeAfterReply()
             wakeCommandWindow.clear()
             consecutiveErrors = 0
             recognitionLanguageAttempt = 0
@@ -82,7 +82,7 @@ class VeerVoiceService : Service() {
         }
         voicePrefs.edit().putBoolean("background_voice_enabled", true).apply()
         stopping = false
-        awaitingReply = false
+        replyGate.resumeAfterReply()
         wakeCommandWindow.clear()
         recognitionLanguageAttempt = 0
         startRecognition()
@@ -91,7 +91,7 @@ class VeerVoiceService : Service() {
 
     private fun stopAfterStartupFailure() {
         stopping = true
-        awaitingReply = false
+        replyGate.resumeAfterReply()
         wakeCommandWindow.clear()
         stopRecognition()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -134,7 +134,7 @@ class VeerVoiceService : Service() {
     }
 
     private fun startRecognition() {
-        if (stopping || awaitingReply) return
+        if (!replyGate.canStartRecognition(stopping)) return
         // Tear down any previous session before checking availability. If the
         // platform temporarily reports speech unavailable during RESUME, an old
         // recognizer must not remain active alongside the scheduled retry.
@@ -166,7 +166,7 @@ class VeerVoiceService : Service() {
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
-                if (recognizer !== speech || stopping || awaitingReply) return
+                if (recognizer !== speech || !replyGate.canStartRecognition(stopping)) return
                 Log.w("VEER", "Background speech recognition failed with error code $error")
                 if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE &&
                     VeerRecognitionLanguage.hasNext(recognitionLanguageAttempt)) {
@@ -199,7 +199,7 @@ class VeerVoiceService : Service() {
                 scheduleRecognitionRetry()
             }
             override fun onResults(results: Bundle?) {
-                if (recognizer !== speech || stopping || awaitingReply) return
+                if (recognizer !== speech || !replyGate.canStartRecognition(stopping)) return
                 // Results finish this recognition session. Release it before command
                 // handling and before the delayed next listening session is scheduled.
                 recognizer = null
@@ -218,7 +218,7 @@ class VeerVoiceService : Service() {
                 when {
                     command != null && command.isNotBlank() -> {
                         wakeCommandWindow.clear()
-                        awaitingReply = true
+                        replyGate.beginReply()
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", command))
                     }
                     command != null -> {
@@ -227,7 +227,7 @@ class VeerVoiceService : Service() {
                     }
                     phrase.isNotBlank() && wakeCommandWindow.isActive(SystemClock.elapsedRealtime()) -> {
                         wakeCommandWindow.clear()
-                        awaitingReply = true
+                        replyGate.beginReply()
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
                     }
                     else -> {
@@ -242,7 +242,7 @@ class VeerVoiceService : Service() {
                         ))
                     }
                 }
-                if (!stopping && !awaitingReply) {
+                if (replyGate.canStartRecognition(stopping)) {
                     val delayMs = if (wakeCommandWindow.isActive(SystemClock.elapsedRealtime())) 350L else 700L
                     handler.postDelayed({ startRecognition() }, delayMs)
                 }
@@ -275,13 +275,13 @@ class VeerVoiceService : Service() {
     }
 
     private fun scheduleRecognitionRetry() {
-        if (stopping || awaitingReply || retryScheduled) return
+        if (!replyGate.canStartRecognition(stopping) || retryScheduled) return
         consecutiveErrors = VeerVoiceRetryPolicy.nextFailureCount(consecutiveErrors)
         val delayMs = VeerVoiceRetryPolicy.delayForFailureCount(consecutiveErrors)
         retryScheduled = true
         handler.postDelayed({
             retryScheduled = false
-            if (!stopping && !awaitingReply) startRecognition()
+            if (replyGate.canStartRecognition(stopping)) startRecognition()
         }, delayMs)
     }
 
