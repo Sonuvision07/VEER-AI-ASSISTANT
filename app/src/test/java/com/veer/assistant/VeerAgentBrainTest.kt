@@ -513,7 +513,7 @@ class VeerAgentBrainTest {
         val tools = FakeTools()
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
         val approval = FakeApproval(false)
-        val brain = VeerAgentBrain(FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) }, tools, approval)
+        val brain = VeerAgentBrain(FakeGateway { _, nextTurn -> if (nextTurn.previousToolResult == null) AgentDecision("Please approve", requested, finished = false) else AgentDecision("Task completed") }, tools, approval)
         val pending = brain.run(turn())
         val continuation = pending.continuation!!
         approval.result = true
@@ -564,13 +564,13 @@ class VeerAgentBrainTest {
         assertTrue(denied.stoppedForApproval)
         assertEquals(requested, denied.pendingApproval)
         assertTrue(tools.executed.isEmpty())
-        assertEquals(1, approval.checked.size)
+        assertEquals(2, approval.checked.size)
 
         approval.result = true
         val resumed = brain.resumeAfterApproval(continuation, requested)
 
         assertEquals(1, tools.executed.size)
-        assertEquals(2, approval.checked.size)
+        assertEquals(3, approval.checked.size)
         assertEquals(1, resumed.steps)
     }
 
