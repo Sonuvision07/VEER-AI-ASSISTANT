@@ -2036,6 +2036,14 @@ private fun HologramFace(
             size = androidx.compose.ui.geometry.Size(316f * sx, 316f * sy),
             style = Stroke(width = 3.6f * sx)
         )
+        // A bright endpoint marks the radar sweep's current position.
+        val sweepRadians = Math.toRadians(hudSweepRotation.toDouble())
+        val sweepHead = Offset(
+            p(180f, 190f).x + kotlin.math.cos(sweepRadians).toFloat() * 158f * sx,
+            p(180f, 190f).y + kotlin.math.sin(sweepRadians).toFloat() * 158f * sy
+        )
+        drawCircle(cyan.copy(alpha = 0.22f), 7f * sx, sweepHead)
+        drawCircle(cyan.copy(alpha = 0.88f), 2.5f * sx, sweepHead)
         // The radar sweep has a soft halo and a crisp leading edge.
         drawArc(
             cyan.copy(alpha = 0.12f + hudSweepGlow * 0.12f),
