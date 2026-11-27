@@ -571,7 +571,7 @@ fun VeerApp() {
     }
 
     // Agent tools may run on a worker; Activity launches must execute on Android's main thread.
-    val agentRuntime = remember {
+    val agentRuntime = remember(selectedProvider) {
         VeerAndroidAgentRuntime(
             apiKeyProvider = { apiKey },
             openAiApiKeyProvider = { openAiApiKey },
@@ -592,7 +592,8 @@ fun VeerApp() {
                 }
                 outcome.get()
             },
-            approvalSession = agentApprovalSession
+            approvalSession = agentApprovalSession,
+            providerOrder = VeerAndroidAgentRuntime.providerOrderForSelection(selectedProvider)
         )
     }
 
@@ -805,7 +806,28 @@ fun VeerApp() {
 
     var providerFallback: ((String, String, String?) -> Boolean)? = null
 
+    fun askAgentBrain(question: String) {
+        val turn = AgentTurn(userRequest = question, memory = memories.takeLast(12).toList(), recentConversation = messages.dropLast(1).takeLast(8).map { "${it.first}: ${it.second}" })
+        val cancellationToken = AgentCancellationToken()
+        activeBrainCancellationToken = cancellationToken
+        loading = true
+        status = "VEER AGENT THINKING..."
+        Thread {
+            val result = try { agentRuntime.brain.run(turn, cancellationToken) } catch (_: Exception) { AgentRunResult("Boss, VEER agent request safely fail ho gayi. Dobara try karein.", null, 0) }
+            Handler(Looper.getMainLooper()).post {
+                if (activeBrainCancellationToken !== cancellationToken) return@post
+                loading = false
+                if (result.stoppedForApproval && result.pendingApproval != null && result.continuation != null) {
+                    val request = agentApprovalSession.request(result.pendingApproval)
+                    if (request == null) { activeBrainCancellationToken = null; pendingBrainContinuation = null; addReply("Boss, agent approval request register nahi hui. Koi action execute nahi hua.") }
+                    else { pendingBrainContinuation = result.continuation; pendingAgentApproval = request; pendingAction = request.action; approvalGeneration += 1L; showApproval = true; addReply(result.message.ifBlank { "Is action ke liye approval chahiye." }) }
+                } else { pendingBrainContinuation = null; activeBrainCancellationToken = null; addReply(result.message) }
+            }
+        }.start()
+    }
+
     fun askOpenAI(question: String, imageBase64: String? = null) {
+        if (imageBase64 == null && attachedText.isNullOrBlank()) { askAgentBrain(question); return }
         val key = openAiApiKey.trim()
         if (key.isEmpty()) { addReply("Boss, OpenAI API key Settings mein add karein."); showSettings = true; return }
         val prompt = buildString {
@@ -869,6 +891,7 @@ fun VeerApp() {
     }
 
     fun askClaude(question: String) {
+        if (attachedText.isNullOrBlank()) { askAgentBrain(question); return }
         val key = claudeApiKey.trim()
         if (key.isEmpty()) { addReply("Boss, Claude API key Settings mein add karein."); showSettings = true; return }
         val prompt = buildString {
@@ -892,8 +915,8 @@ fun VeerApp() {
     }
 
 
-    fun askMetaLlama(question: String) { val key=llamaApiKey.trim(); if(key.isEmpty()){addReply("Meta Llama API key Settings mein add karein.");showSettings=true;return}; loading=true;status="CONNECTING TO LLAMA...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\n"){it.first+": "+it.second}+"\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.groq.com/openai/v1/chat/completions",key,"llama-3.3-70b-versatile",prompt)}catch(e:Exception){answer="Meta Llama error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Meta Llama error:")&&providerFallback?.invoke("LLAMA",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
-    fun askGrok(question: String) { val key=grokApiKey.trim(); if(key.isEmpty()){addReply("Grok (xAI) API key Settings mein add karein.");showSettings=true;return};loading=true;status="CONNECTING TO GROK...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\n"){it.first+": "+it.second}+"\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.x.ai/v1/chat/completions",key,"grok-3-mini",prompt)}catch(e:Exception){answer="Grok error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Grok error:")&&providerFallback?.invoke("GROK",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
+    fun askMetaLlama(question: String) { if (attachedText.isNullOrBlank()) { askAgentBrain(question); return }; val key=llamaApiKey.trim(); if(key.isEmpty()){addReply("Meta Llama API key Settings mein add karein.");showSettings=true;return}; loading=true;status="CONNECTING TO LLAMA...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\n"){it.first+": "+it.second}+"\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.groq.com/openai/v1/chat/completions",key,"llama-3.3-70b-versatile",prompt)}catch(e:Exception){answer="Meta Llama error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Meta Llama error:")&&providerFallback?.invoke("LLAMA",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
+    fun askGrok(question: String) { if (attachedText.isNullOrBlank()) { askAgentBrain(question); return }; val key=grokApiKey.trim(); if(key.isEmpty()){addReply("Grok (xAI) API key Settings mein add karein.");showSettings=true;return};loading=true;status="CONNECTING TO GROK...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\n"){it.first+": "+it.second}+"\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.x.ai/v1/chat/completions",key,"grok-3-mini",prompt)}catch(e:Exception){answer="Grok error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Grok error:")&&providerFallback?.invoke("GROK",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
 
     fun askGemini(question: String, imageBase64: String? = null) {
         val key = apiKey.trim()
@@ -912,53 +935,7 @@ fun VeerApp() {
             if (!attachedText.isNullOrBlank()) append("\n\nAttached document text:\n").append(attachedText)
             append("\nCurrent request: ").append(question)
         }
-        // Text-only Gemini requests use VEER's provider-neutral Agent Brain.
-        // Multimodal requests keep the existing Gemini path until those adapters are ready.
-        if (shouldUseAgentBrainForGeminiRequest(imageBase64, attachedText)) {
-            val turn = AgentTurn(
-                userRequest = question,
-                memory = memories.takeLast(12).toList(),
-                recentConversation = messages.dropLast(1).takeLast(8).map { "${it.first}: ${it.second}" }
-            )
-            val cancellationToken = AgentCancellationToken()
-            activeBrainCancellationToken = cancellationToken
-            loading = true
-            status = "VEER AGENT THINKING..."
-            Thread {
-                val result = try {
-                    agentRuntime.brain.run(turn, cancellationToken)
-                } catch (_: Exception) {
-                    AgentRunResult("Boss, VEER agent request safely fail ho gayi. Dobara try karein.", null, 0)
-                }
-                Handler(Looper.getMainLooper()).post {
-                    if (activeBrainCancellationToken !== cancellationToken) return@post
-                    loading = false
-                    if (result.stoppedForApproval && result.pendingApproval != null && result.continuation != null) {
-                        val request = agentApprovalSession.request(result.pendingApproval)
-                        if (request == null) {
-                            activeBrainCancellationToken = null
-                            pendingBrainContinuation = null
-                            addReply("Boss, agent approval request register nahi hui. Koi action execute nahi hua.")
-                        } else {
-                            pendingBrainContinuation = result.continuation
-                            pendingAgentApproval = request
-                            pendingAction = request.action
-                            approvalGeneration += 1L
-                            showApproval = true
-                            addReply(result.message.ifBlank { "Is action ke liye approval chahiye." })
-                        }
-                    } else {
-                        pendingBrainContinuation = null
-                        activeBrainCancellationToken = null
-                        addReply(result.message)
-                    }
-                    if (result.stoppedForApproval && result.continuation == null) {
-                        activeBrainCancellationToken = null
-                    }
-                }
-            }.start()
-            return
-        }
+        if (shouldUseAgentBrainForGeminiRequest(imageBase64, attachedText)) { askAgentBrain(question); return }
         loading = true
         status = "CONNECTING TO AI..."
         Thread {
@@ -1232,7 +1209,7 @@ fun VeerApp() {
                     attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg"
                     return
                 }
-                if (!localAiReady && apiKey.isBlank() && openAiApiKey.isBlank() && claudeApiKey.isBlank()) {
+                if (!localAiReady && apiKey.isBlank() && openAiApiKey.isBlank() && claudeApiKey.isBlank() && llamaApiKey.isBlank() && grokApiKey.isBlank()) {
                     addReply(if (localModelInstalled) "Offline AI model phone mein hai, lekin activate nahi hua. Settings kholkar ACTIVATE OFFLINE AI dabayein." else "VEER ka apna offline AI model abhi install nahi hai. Settings mein 347 MB model download karein; iske liye API key nahi chahiye.")
                     showSettings = true
                     return
@@ -1255,12 +1232,18 @@ fun VeerApp() {
                         if (apiKey.isNotBlank()) askGemini(clean, image)
                         else if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
                         else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
+                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
+                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
                         else addReply("Boss, selected provider ki API key Settings mein add karein.")
                     }
+                    "LLAMA" -> { if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image) else if (image != null && apiKey.isNotBlank()) askGemini(clean, image) else askMetaLlama(clean) }
+                    "GROK" -> { if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image) else if (image != null && apiKey.isNotBlank()) askGemini(clean, image) else askGrok(clean) }
                     else -> {
                         if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
                         else if (apiKey.isNotBlank()) askGemini(clean, image)
                         else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
+                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
+                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
                         else { addReply("Boss, pehle Settings mein kam se kam ek AI provider ki API key add karein."); showSettings = true }
                     }
                 }
