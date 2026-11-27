@@ -544,6 +544,37 @@ class VeerAgentBrainTest {
         assertEquals(1, tools.executed.size)
     }
 
+    @Test fun approvedOpenAiContinuationRetainsCallIdAndReplayContext() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val approval = FakeApproval(false)
+        var resumedTurn: AgentTurn? = null
+        val brain = VeerAgentBrain(
+            FakeGateway { _, nextTurn ->
+                if (nextTurn.previousToolResult == null) {
+                    AgentDecision(
+                        "Please approve", requested, finished = false,
+                        providerContext = "[{}]", providerCallId = "call_approved"
+                    )
+                } else {
+                    resumedTurn = nextTurn
+                    AgentDecision("Completed")
+                }
+            },
+            tools,
+            approval,
+            providerOrder = listOf(AiProvider.OPENAI)
+        )
+        val pending = brain.run(turn())
+        approval.result = true
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
+        assertEquals("done", resumedTurn?.previousToolResult)
+        assertEquals("[{}]", resumedTurn?.providerContext)
+        assertEquals("call_approved", resumedTurn?.previousToolCallId)
+        assertEquals(AiProvider.OPENAI, resumedTurn?.providerContextProvider)
+        assertEquals("Completed", resumed.message)
+    }
+
     @Test fun approvalResumeStillHonorsTheGlobalToolStepLimit() {
         val tools = FakeTools()
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
