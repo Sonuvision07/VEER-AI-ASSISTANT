@@ -603,4 +603,94 @@ class VeerAgentBrainTest {
         assertTrue(otherTools.executed.isEmpty())
     }
 
+
+    @Test fun cancelledTaskDoesNotRequestAProviderDecision() {
+        var decisions = 0
+        val token = AgentCancellationToken().apply { cancel() }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisions += 1
+                AgentDecision("Should not run")
+            },
+            FakeTools(),
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn(), token)
+
+        assertTrue(result.message.contains("cancel", ignoreCase = true))
+        assertEquals(0, decisions)
+        assertEquals(0, result.steps)
+    }
+
+    @Test fun cancellationDuringModelRequestPreventsToolDispatch() {
+        val token = AgentCancellationToken()
+        val tools = FakeTools()
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                token.cancel()
+                AgentDecision("Run tool", call("read", AgentRisk.READ_ONLY), finished = false)
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn(), token)
+
+        assertTrue(result.message.contains("cancel", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+        assertEquals(0, result.steps)
+    }
+
+    @Test fun cancellationAfterToolExecutionPreventsNextModelRequest() {
+        val token = AgentCancellationToken()
+        var decisions = 0
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun riskFor(name: String): AgentRisk? = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall): String {
+                token.cancel()
+                return "completed"
+            }
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisions += 1
+                AgentDecision("Read", call("read", AgentRisk.READ_ONLY), finished = false)
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn(), token)
+
+        assertTrue(result.message.contains("cancel", ignoreCase = true))
+        assertEquals(1, decisions)
+        assertEquals(1, result.steps)
+    }
+
+    @Test fun cancelledApprovalContinuationCannotDispatchApprovedAction() {
+        val token = AgentCancellationToken()
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val approval = FakeApproval(false)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                AgentDecision("Please approve", requested, finished = false)
+            },
+            tools,
+            approval
+        )
+
+        val pending = brain.run(turn(), token)
+        assertTrue(pending.stoppedForApproval)
+        token.cancel()
+        approval.result = true
+
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertTrue(resumed.message.contains("cancel", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+    }
+
 }
