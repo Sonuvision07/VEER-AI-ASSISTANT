@@ -77,6 +77,26 @@ private fun safelyReleaseSpeechRecognizer(speech: SpeechRecognizer?) {
 
 private const val VEER_KEY_ALIAS = "veer_gemini_api_key"
 private const val VEER_PC_TOKEN_ALIAS = "veer_pc_agent_token"
+private const val VEER_CHAT_ALIAS = "veer_chat_history"
+private const val VEER_MEMORY_ALIAS = "veer_saved_memories"
+private const val VEER_ENCRYPTED_PREFIX = "enc:v1:"
+
+private fun readPrivateStore(prefs: android.content.SharedPreferences, key: String, alias: String): String? {
+    val stored = prefs.getString(key, null) ?: return "[]"
+    if (stored.startsWith(VEER_ENCRYPTED_PREFIX)) {
+        val plain = decryptSecret(stored.removePrefix(VEER_ENCRYPTED_PREFIX), alias)
+        return plain.takeIf { it.isNotBlank() }
+    }
+    // Migrate legacy plaintext in place. If encryption fails, retain the old value.
+    val encrypted = encryptSecret(stored, alias) ?: return stored
+    prefs.edit().putString(key, VEER_ENCRYPTED_PREFIX + encrypted).commit()
+    return stored
+}
+
+private fun writePrivateStore(prefs: android.content.SharedPreferences, key: String, alias: String, value: String): Boolean {
+    val encrypted = encryptSecret(value, alias) ?: return false
+    return prefs.edit().putString(key, VEER_ENCRYPTED_PREFIX + encrypted).commit()
+}
 
 private fun encryptSecret(value: String, alias: String): String? {
     return try {
@@ -210,8 +230,13 @@ fun VeerApp() {
     var activeTtsUtteranceId by remember { mutableStateOf<String?>(null) }
     var ttsUtteranceSequence by remember { mutableLongStateOf(0L) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    val memoriesStorageReadable = remember {
+        val stored = prefs.getString("veer_memories", null)
+        stored == null || !stored.startsWith(VEER_ENCRYPTED_PREFIX) ||
+            decryptSecret(stored.removePrefix(VEER_ENCRYPTED_PREFIX), VEER_MEMORY_ALIAS).isNotBlank()
+    }
     val memories = remember {
-        val saved = prefs.getString("veer_memories", null)
+        val saved = readPrivateStore(prefs, "veer_memories", VEER_MEMORY_ALIAS)
         val restored = mutableListOf<String>()
         try {
             if (!saved.isNullOrBlank()) {
@@ -228,11 +253,16 @@ fun VeerApp() {
     LaunchedEffect(memories.size) {
         val saved = org.json.JSONArray()
         memories.takeLast(100).forEach { saved.put(it) }
-        prefs.edit().putString("veer_memories", saved.toString()).apply()
+        if (memoriesStorageReadable) writePrivateStore(prefs, "veer_memories", VEER_MEMORY_ALIAS, saved.toString())
     }
 
+    val messagesStorageReadable = remember {
+        val stored = prefs.getString("chat_history", null)
+        stored == null || !stored.startsWith(VEER_ENCRYPTED_PREFIX) ||
+            decryptSecret(stored.removePrefix(VEER_ENCRYPTED_PREFIX), VEER_CHAT_ALIAS).isNotBlank()
+    }
     val messages = remember {
-        val saved = prefs.getString("chat_history", null)
+        val saved = readPrivateStore(prefs, "chat_history", VEER_CHAT_ALIAS)
         val restored = mutableListOf<Pair<String, String>>()
         try {
             if (!saved.isNullOrBlank()) {
@@ -256,7 +286,7 @@ fun VeerApp() {
         messages.takeLast(100).forEach { item ->
             history.put(JSONObject().put("role", item.first).put("message", item.second))
         }
-        prefs.edit().putString("chat_history", history.toString()).apply()
+        if (messagesStorageReadable) writePrivateStore(prefs, "chat_history", VEER_CHAT_ALIAS, history.toString())
     }
 
     LaunchedEffect(localAiEngine) {
