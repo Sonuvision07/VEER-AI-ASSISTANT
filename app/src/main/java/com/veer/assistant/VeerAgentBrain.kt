@@ -8,7 +8,7 @@ package com.veer.assistant
  * capabilities implement AgentToolExecutor. Keep secrets inside provider
  * adapters and never place API keys in prompts, logs, or tool arguments.
  */
-enum class AiProvider { GEMINI, OPENAI, ANTHROPIC, LLAMA, GROK }
+enum class AiProvider { GEMINI, OPENAI, ANTHROPIC, MUSE, LLAMA, GROK }
 
 enum class AgentRisk { READ_ONLY, DEVICE_CHANGE, EXTERNAL_SIDE_EFFECT, DESTRUCTIVE }
 
