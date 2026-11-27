@@ -153,7 +153,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun generateDemoReply(question: String): String =
-    "Main Veer hoon. Aapka message mil gaya: $question\\n\\nAbhi main demo mode mein hoon. Asli AI connection agle update mein jodega."
+    "Main Veer hoon. Aapka message mil gaya: $question\n\nAbhi main demo mode mein hoon. Asli AI connection agle update mein jodega."
 
 @Composable
 private fun VeerVoiceOrb(modifier: Modifier = Modifier) {
