@@ -133,7 +133,7 @@ internal class VeerCompatibleChatAgent(
             val message = choice.optJSONObject("message") ?: return null
             val calls = message.optJSONArray("tool_calls")
             if (calls == null || calls.length() == 0) {
-                val text = message.optString("content").trim()
+                val text = (message.opt("content") as? String).orEmpty().trim()
                 return text.takeIf { it.isNotEmpty() }?.let { AgentDecision(it) }
             }
             if (choice.optString("finish_reason") != "tool_calls") return AgentDecision("VEER ne incomplete tool response receive kiya; action block kar diya.")
