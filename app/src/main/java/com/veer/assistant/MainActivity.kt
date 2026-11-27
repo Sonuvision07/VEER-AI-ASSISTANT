@@ -1964,6 +1964,22 @@ private fun HologramFace(
         val sy = size.height / 390f
         fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
 
+        // Four subtle corner brackets frame the hologram HUD.
+        val bracketAlpha = 0.38f + scanLineGlow * 0.22f
+        val bracketLength = 13f
+        val bracketStroke = 1.35f * sx
+        val bracketCorners = listOf(
+            Triple(38f, 42f, 1f), Triple(322f, 42f, -1f),
+            Triple(38f, 338f, 1f), Triple(322f, 338f, -1f)
+        )
+        bracketCorners.forEach { (x, y, horizontalDirection) ->
+            val verticalDirection = if (y < 190f) 1f else -1f
+            val corner = p(x, y)
+            drawLine(cyan.copy(alpha = bracketAlpha), corner,
+                p(x + bracketLength * horizontalDirection, y), bracketStroke)
+            drawLine(cyan.copy(alpha = bracketAlpha), corner,
+                p(x, y + bracketLength * verticalDirection), bracketStroke)
+        }
         // HUD tick marks around the face perimeter.
         val hudRadius = size.minDimension * 0.49f
         val hudCenter = p(180f, 190f)
