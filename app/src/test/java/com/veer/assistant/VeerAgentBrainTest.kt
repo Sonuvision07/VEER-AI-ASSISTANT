@@ -552,7 +552,13 @@ class VeerAgentBrainTest {
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
         val approval = FakeApproval(false)
         val brain = VeerAgentBrain(
-            FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) },
+            FakeGateway { _, nextTurn ->
+                if (nextTurn.previousToolResult == null) {
+                    AgentDecision("Please approve", requested, finished = false)
+                } else {
+                    AgentDecision("Task completed")
+                }
+            },
             tools,
             approval
         )
