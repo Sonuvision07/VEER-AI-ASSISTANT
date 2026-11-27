@@ -31,6 +31,7 @@ class VeerMuseHttpTransportTest {
         val body = org.json.JSONObject(connection.sentBody.toString(Charsets.UTF_8.name()))
         assertEquals("muse-spark-1.3", body.getString("model"))
         assertFalse(body.has("store"))
+        assertFalse(body.getBoolean("parallel_tool_calls"))
         assertTrue(body.getJSONArray("tools").length() > 0)
         assertTrue(connection.disconnected)
     }
