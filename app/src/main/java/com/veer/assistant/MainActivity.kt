@@ -1241,24 +1241,8 @@ fun VeerApp() {
     }
 
     if (showApproval) {
-        val actionLabel = when (pendingAction) {
-            "settings" -> "Phone Settings kholna"
-            "youtube" -> "YouTube kholna"
-            "music" -> "YouTube Music kholna"
-            "browser" -> "Browser kholna"
-            "calculator" -> "Calculator kholna"
-            "camera" -> "Camera kholna"
-            "maps" -> "Maps kholna"
-            "instagram" -> "Instagram kholna"
-            "facebook" -> "Facebook kholna"
-            "whatsapp" -> "WhatsApp kholna"
-            "x" -> "X kholna"
-            "telegram" -> "Telegram kholna"
-            "youtube_studio" -> "YouTube Studio kholna"
-            "gmail" -> "Gmail kholna"
-            "dialer" -> "Phone dialer kholna (call nahi lagegi)"
-            else -> "Action chalana"
-        }
+        val actionLabel = VeerAgentApprovalPresentation.actionLabel(pendingAction)
+            ?: "Action chalana"
         AlertDialog(
             onDismissRequest = {
                 showApproval = false
