@@ -1877,6 +1877,15 @@ private fun HologramFace(
         animationSpec = tween(420, easing = FastOutSlowInEasing),
         label = "faceExpressionGlow"
     )
+    val particlePhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3200, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "faceParticlePhase"
+    )
     val scanLineY by transition.animateFloat(
         initialValue = 48f,
         targetValue = 330f,
@@ -1942,6 +1951,14 @@ private fun HologramFace(
         }
         lines to dots
     }
+    val particlePoints = remember {
+        listOf(
+            Offset(76f, 96f), Offset(284f, 112f), Offset(54f, 228f),
+            Offset(306f, 244f), Offset(92f, 318f), Offset(268f, 326f),
+            Offset(140f, 72f), Offset(224f, 86f), Offset(66f, 286f),
+            Offset(294f, 296f), Offset(180f, 52f), Offset(180f, 350f)
+        )
+    }
     Canvas(modifier = accessibleModifier) {
         val sx = size.width / 360f
         val sy = size.height / 390f
@@ -1991,6 +2008,17 @@ private fun HologramFace(
         )
         withTransform({ scale(sx, sy, pivot = Offset.Zero) }) {
             drawPath(cachedHead, cyan.copy(alpha = 0.12f), style = Stroke(width = 2f))
+        }
+        // Subtle particles drift slowly around the hologram face.
+        particlePoints.forEachIndexed { index, point ->
+            val phase = (particlePhase + index / particlePoints.size.toFloat()) % 1f
+            val drift = (phase - 0.5f) * 10f
+            val alpha = (0.25f + 0.55f * (0.5f + 0.5f * kotlin.math.sin(phase * 6.28318f))).coerceIn(0f, 0.8f)
+            drawCircle(
+                cyan.copy(alpha = alpha),
+                radius = (1.1f + (index % 3) * 0.45f) * sx,
+                center = p(point.x, point.y + drift)
+            )
         }
         // Light orbital arcs reinforce the hologram effect without heavy geometry.
         drawArc(cyan.copy(alpha = 0.14f), orbitRotation, 72f, false,
