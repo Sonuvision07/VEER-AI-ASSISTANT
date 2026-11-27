@@ -15,7 +15,9 @@ internal class VeerAndroidAgentRuntime(
     internal val approvalSession: VeerAgentApprovalSession = VeerAgentApprovalSession(),
     transport: VeerGeminiAgentTransport = VeerGeminiHttpTransport(),
     openAiTransport: VeerOpenAiAgentTransport = VeerOpenAiHttpTransport(),
-    claudeTransport: VeerClaudeAgentTransport = VeerClaudeHttpTransport()
+    claudeTransport: VeerClaudeAgentTransport = VeerClaudeHttpTransport(),
+    llamaTransport: VeerCompatibleChatAgentTransport = VeerCompatibleChatAgentHttpTransport(),
+    grokTransport: VeerCompatibleChatAgentTransport = VeerCompatibleChatAgentHttpTransport()
 ) {
     internal val brain = VeerAgentBrain(
         gateway = VeerMultiProviderModelGateway(
@@ -25,11 +27,11 @@ internal class VeerAndroidAgentRuntime(
                 AiProvider.ANTHROPIC to VeerClaudeModelGateway(claudeApiKeyProvider, claudeTransport),
                 AiProvider.LLAMA to VeerCompatibleChatAgent(
                     AiProvider.LLAMA, "https://api.groq.com/openai/v1/chat/completions",
-                    "llama-3.3-70b-versatile", llamaApiKeyProvider
+                    "llama-3.3-70b-versatile", llamaApiKeyProvider, llamaTransport
                 ),
                 AiProvider.GROK to VeerCompatibleChatAgent(
                     AiProvider.GROK, "https://api.x.ai/v1/chat/completions",
-                    "grok-3-mini", grokApiKeyProvider
+                    "grok-3-mini", grokApiKeyProvider, grokTransport
                 )
             )
         ),
