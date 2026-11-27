@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -1693,14 +1694,15 @@ private fun HologramFace(
     speaking: Boolean = false,
     mouthOpenTarget: Float = 0f
 ) {
-    val faceDescription = when (expression) {
-        VeerFaceExpression.IDLE -> "VEER hologram face, idle"
-        VeerFaceExpression.LISTENING -> "VEER hologram face, listening"
-        VeerFaceExpression.THINKING -> "VEER hologram face, thinking"
-        VeerFaceExpression.SPEAKING -> "VEER hologram face, speaking"
+    val faceStateDescription = when (expression) {
+        VeerFaceExpression.IDLE -> "Idle"
+        VeerFaceExpression.LISTENING -> "Listening"
+        VeerFaceExpression.THINKING -> "Thinking"
+        VeerFaceExpression.SPEAKING -> "Speaking"
     }
     val accessibleModifier = modifier.semantics {
-        contentDescription = faceDescription
+        contentDescription = "VEER hologram assistant face"
+        stateDescription = faceStateDescription
     }
     val transition = rememberInfiniteTransition(label = "veer_face")
     val pulse by transition.animateFloat(0.96f, 1.025f,
