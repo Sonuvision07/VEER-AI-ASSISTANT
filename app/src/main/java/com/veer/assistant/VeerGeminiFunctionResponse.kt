@@ -11,6 +11,24 @@ import org.json.JSONObject
 internal object VeerGeminiFunctionResponse {
     const val MAX_RESULT_CHARS = 4_000
 
+    fun appendToConversation(
+        existingContents: JSONArray,
+        modelContent: JSONObject,
+        executedFunctionName: String,
+        toolResult: String
+    ): JSONArray? {
+        val followUpTurns = buildContents(modelContent, executedFunctionName, toolResult) ?: return null
+        val combined = JSONArray()
+        for (index in 0 until existingContents.length()) {
+            val turn = existingContents.optJSONObject(index) ?: return null
+            combined.put(JSONObject(turn.toString()))
+        }
+        for (index in 0 until followUpTurns.length()) {
+            combined.put(JSONObject(followUpTurns.getJSONObject(index).toString()))
+        }
+        return combined
+    }
+
     fun buildContents(
         modelContent: JSONObject,
         executedFunctionName: String,
@@ -35,7 +53,7 @@ internal object VeerGeminiFunctionResponse {
         }
 
         return JSONArray()
-            .put(JSONObject(modelContent.toString()) )
+            .put(JSONObject(modelContent.toString())
             .put(
                 JSONObject()
                     .put("role", "user")
