@@ -2,7 +2,7 @@
 
 ## Product decision
 
-VEER owns the agent loop and tool policy. Gemini, OpenAI, and Anthropic are model providers behind adapters; they are not the agent itself. VEER does not contain a newly trained foundation model.
+VEER owns the agent loop and tool policy. Gemini, OpenAI, Anthropic (Claude), Meta Llama (through Groq-hosted Llama), and xAI Grok are model providers behind adapters; they are not the agent itself. VEER does not contain a newly trained foundation model.
 
 ## Runtime flow
 
