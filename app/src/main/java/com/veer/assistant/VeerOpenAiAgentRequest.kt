@@ -7,6 +7,7 @@ import org.json.JSONObject
 internal object VeerOpenAiAgentRequest {
     const val DEFAULT_MODEL = "gpt-6.2-astra"
     const val MAX_REQUEST_CONTEXT_CHARS = 12_000
+    const val MAX_REPLAY_CONTEXT_CHARS = 40_000
 
     private const val INSTRUCTIONS =
         "You are VEER, a personal AI assistant. Reply naturally in Hindi/Hinglish. " +
