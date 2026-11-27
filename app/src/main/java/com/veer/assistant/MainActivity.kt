@@ -1644,6 +1644,7 @@ fun VeerApp() {
                             Button(onClick = { val q = typedCommand.trim().ifBlank { "Please analyse the attached file and explain its important details." }; if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) { typedCommand = ""; processCommand(q) } },
                                 enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDAE9FF), contentColor = Color(0xFF071326))) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
+                        }
                     }
                 }
             }
