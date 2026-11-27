@@ -34,6 +34,39 @@ class VeerOpenAiAgentRequestTest {
         assertEquals("app", parameters.getJSONArray("required").getString(0))
     }
 
+    @Test fun sendsMatchingFunctionCallOutputAndReplaysPriorResponsesWhenContinuing() {
+        val prior = JSONArray().put(JSONObject()
+            .put("type", "function_call")
+            .put("name", "android.launch_app")
+            .put("arguments", "{\\\"app\\\":\\\"youtube\\\"}")
+            .put("call_id", "call_123"))
+        val request = VeerOpenAiAgentRequest.build(
+            AgentTurn(
+                "Open YouTube", emptyList(), emptyList(),
+                previousToolResult = "App opened",
+                providerContext = prior.toString(),
+                previousToolCallId = "call_123"
+            )
+        )
+        val input = request.getJSONArray("input")
+        assertEquals("message", input.getJSONObject(0).getString("type"))
+        assertEquals("function_call", input.getJSONObject(1).getString("type"))
+        val output = input.getJSONObject(2)
+        assertEquals("function_call_output", output.getString("type"))
+        assertEquals("call_123", output.getString("call_id"))
+        assertEquals("App opened", output.getString("output"))
+        assertFalse(request.getBoolean("store"))
+    }
+
+    @Test fun rejectsIncompleteOpenAiContinuationState() {
+        try {
+            VeerOpenAiAgentRequest.build(AgentTurn(
+                "Continue", emptyList(), emptyList(), previousToolResult = "done"
+            ))
+            throw AssertionError("Missing call ID and replay context must be rejected")
+        } catch (_: IllegalArgumentException) { }
+    }
+
     @Test fun rejectsBlankUserRequestAndModel() {
         try {
             VeerOpenAiAgentRequest.build(AgentTurn(" ", emptyList(), emptyList()))
