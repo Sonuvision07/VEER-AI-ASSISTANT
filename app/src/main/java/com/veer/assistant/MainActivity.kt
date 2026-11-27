@@ -234,6 +234,7 @@ fun VeerApp() {
     var pendingGeminiFunctionName by remember { mutableStateOf<String?>(null) }
     var pendingGeminiModel by remember { mutableStateOf<String?>(null) }
     var pendingGeminiApiKey by remember { mutableStateOf<String?>(null) }
+    var pendingGeminiSystemText by remember { mutableStateOf<String?>(null) }
     var pendingGeminiToolSteps by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
@@ -569,15 +570,17 @@ fun VeerApp() {
         val functionName = pendingGeminiFunctionName
         val model = pendingGeminiModel
         val key = pendingGeminiApiKey
+        val systemText = pendingGeminiSystemText
         val completedSteps = pendingGeminiToolSteps
         pendingGeminiContents = null
         pendingGeminiModelContent = null
         pendingGeminiFunctionName = null
         pendingGeminiModel = null
         pendingGeminiApiKey = null
+        pendingGeminiSystemText = null
 
         if (savedContents.isNullOrBlank() || savedModelContent.isNullOrBlank() ||
-            functionName.isNullOrBlank() || model.isNullOrBlank() || key.isNullOrBlank() ||
+            functionName.isNullOrBlank() || model.isNullOrBlank() || key.isNullOrBlank() || systemText.isNullOrBlank() ||
             functionName != call.name
         ) {
             pendingGeminiToolSteps = 0
@@ -605,7 +608,6 @@ fun VeerApp() {
             var answer = ""
             try {
                 val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
-                val systemText = "You are VEER, a fast, accurate personal AI assistant. Reply in natural Hindi/Hinglish matching the user. Be concise by default. Never invent facts or claim actions you did not perform. Android actions require fresh explicit user approval."
                 val generation = JSONObject().put("maxOutputTokens", 900)
                 if (model == "gemini-3.8-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "LOW"))
                 val body = JSONObject()
@@ -654,6 +656,7 @@ fun VeerApp() {
                                     pendingGeminiFunctionName = nextCall.name
                                     pendingGeminiModel = model
                                     pendingGeminiApiKey = key
+                                    pendingGeminiSystemText = systemText
                                     pendingGeminiToolSteps = completedSteps + 1
                                     pendingAgentApproval = request
                                     pendingAction = request.action
@@ -698,6 +701,13 @@ fun VeerApp() {
             pendingAgentApproval = null
             pendingAction = ""
             pendingMusicUrl = null
+            pendingGeminiContents = null
+            pendingGeminiModelContent = null
+            pendingGeminiFunctionName = null
+            pendingGeminiModel = null
+            pendingGeminiApiKey = null
+            pendingGeminiSystemText = null
+            pendingGeminiToolSteps = 0
             showApproval = false
             addReply("Boss, pending agent action verify nahi hua. Maine ise run nahi kiya.")
             return
@@ -892,6 +902,7 @@ fun VeerApp() {
                                         pendingGeminiFunctionName = requestedCall.name
                                         pendingGeminiModel = model
                                         pendingGeminiApiKey = key
+                                        pendingGeminiSystemText = systemText
                                         pendingGeminiToolSteps = 1
                                         pendingAgentApproval = request
                                         pendingAction = request.action
@@ -1528,6 +1539,13 @@ fun VeerApp() {
                 pendingAgentApproval = null
                 pendingMusicUrl = null
                 pendingAction = ""
+                pendingGeminiContents = null
+                pendingGeminiModelContent = null
+                pendingGeminiFunctionName = null
+                pendingGeminiModel = null
+                pendingGeminiApiKey = null
+                pendingGeminiSystemText = null
+                pendingGeminiToolSteps = 0
                 showApproval = false
                 addReply("Boss, permission request 60 seconds mein expire ho gayi. Zarurat ho to command dobara dein.")
             }
@@ -1593,6 +1611,7 @@ fun VeerApp() {
                 pendingGeminiFunctionName = null
                 pendingGeminiModel = null
                 pendingGeminiApiKey = null
+                pendingGeminiSystemText = null
                 pendingGeminiToolSteps = 0
                 addReply("Permission request cancel kar di.")
             },
@@ -1639,6 +1658,7 @@ fun VeerApp() {
                     pendingGeminiFunctionName = null
                     pendingGeminiModel = null
                     pendingGeminiApiKey = null
+                    pendingGeminiSystemText = null
                     pendingGeminiToolSteps = 0
                     showApproval = false
                     addReply("Theek hai Boss, action cancel kar diya.")
