@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -1703,6 +1704,7 @@ private fun HologramFace(
     val accessibleModifier = modifier.semantics {
         contentDescription = "VEER hologram assistant face"
         stateDescription = faceStateDescription
+        role = Role.Image
     }
     val transition = rememberInfiniteTransition(label = "veer_face")
     val pulse by transition.animateFloat(0.96f, 1.025f,
