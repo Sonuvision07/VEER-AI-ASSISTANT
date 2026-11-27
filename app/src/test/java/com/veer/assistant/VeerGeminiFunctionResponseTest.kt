@@ -73,6 +73,34 @@ class VeerGeminiFunctionResponseTest {
         )
     }
 
+
+    @Test fun rejectsConversationHistoryWithUnsupportedRoleOrMissingParts() {
+        val invalidRole = org.json.JSONArray().put(
+            JSONObject().put("role", "function").put("parts", org.json.JSONArray())
+        )
+        val missingParts = org.json.JSONArray().put(JSONObject().put("role", "user"))
+
+        assertNull(VeerGeminiFunctionResponse.appendToConversation(
+            invalidRole, modelContent(), "android.launch_app", "opened"
+        ))
+        assertNull(VeerGeminiFunctionResponse.appendToConversation(
+            missingParts, modelContent(), "android.launch_app", "opened"
+        ))
+    }
+
+    @Test fun appendedConversationDoesNotShareMutableHistoryObjects() {
+        val historyTurn = JSONObject().put(
+            "role", "user"
+        ).put("parts", org.json.JSONArray().put(JSONObject().put("text", "Open YouTube")))
+        val history = org.json.JSONArray().put(historyTurn)
+        val combined = VeerGeminiFunctionResponse.appendToConversation(
+            history, modelContent(), "android.launch_app", "opened"
+        )!!
+
+        historyTurn.put("role", "attacker")
+        assertEquals("user", combined.getJSONObject(0).getString("role"))
+    }
+
     @Test fun rejectsFunctionNameThatDoesNotMatchOriginalCall() {
         assertNull(
             VeerGeminiFunctionResponse.buildContents(
