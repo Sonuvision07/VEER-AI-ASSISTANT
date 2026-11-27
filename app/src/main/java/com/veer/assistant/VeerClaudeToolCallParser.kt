@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /** Parses Anthropic text and one strictly validated tool-use block. */
 internal object VeerClaudeToolCallParser {
-    fun parse(responseBody:String, previousContext:String?=null, previousCallId:String?=null, previousToolResult:String?=null):AgentDecision? = try {
+    fun parse(responseBody:String, previousContext:String?=null, previousCallId:String?=null, previousToolResult:String?=null):AgentDecision? {\n        return try {
         val root=JSONObject(responseBody); val blocks=root.optJSONArray("content")?:return null
         val calls=(0 until blocks.length()).mapNotNull { blocks.optJSONObject(it)?.takeIf { b->b.optString("type")=="tool_use" } }
         if(calls.isEmpty()){
