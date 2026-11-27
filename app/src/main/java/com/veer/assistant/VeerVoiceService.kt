@@ -25,7 +25,7 @@ class VeerVoiceService : Service() {
     private var stopping = false
     private val replyGate = VeerVoiceReplyGate()
     private var consecutiveErrors = 0
-    private var retryScheduled = false
+    private val retryGate = VeerVoiceRetryGate()
     private var recognitionLanguageAttempt = 0
     private val wakeCommandWindow = VeerWakeCommandWindow()
 
@@ -275,19 +275,19 @@ class VeerVoiceService : Service() {
     }
 
     private fun scheduleRecognitionRetry() {
-        if (!replyGate.canStartRecognition(stopping) || retryScheduled) return
+        if (!retryGate.trySchedule(stopping, replyGate.isReplyInProgress())) return
         consecutiveErrors = VeerVoiceRetryPolicy.nextFailureCount(consecutiveErrors)
         val delayMs = VeerVoiceRetryPolicy.delayForFailureCount(consecutiveErrors)
-        retryScheduled = true
         handler.postDelayed({
-            retryScheduled = false
-            if (replyGate.canStartRecognition(stopping)) startRecognition()
+            if (retryGate.onRetryFired() && replyGate.canStartRecognition(stopping)) {
+                startRecognition()
+            }
         }, delayMs)
     }
 
     private fun stopRecognition() {
         handler.removeCallbacksAndMessages(null)
-        retryScheduled = false
+        retryGate.cancel()
         // Invalidate callbacks before touching the recognizer: cancel/destroy may
         // synchronously trigger listener activity on some speech-service versions.
         val previousRecognizer = recognizer
