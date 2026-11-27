@@ -149,9 +149,22 @@ class VeerPcAgentTests(unittest.TestCase):
         token_dir = self.app_dir / "token-test"
         first = veer_pc_agent.load_token(token_dir)
         second = veer_pc_agent.load_token(token_dir)
-        self.assertGreaterEqual(len(first), veer_pc_agent.TOKEN_MIN_LENGTH)
+        self.assertTrue(veer_pc_agent.valid_token(first))
         self.assertEqual(first, second)
         self.assertTrue((token_dir / "agent.token").is_file())
+
+    def test_existing_token_with_whitespace_or_control_characters_is_rejected(self):
+        for invalid in ("x" * 20 + " " + "y" * 20, "x" * 20 + "\\n" + "y" * 20, "x" * 20 + "\\x1b" + "y" * 20):
+            with self.subTest(invalid=repr(invalid)):
+                token_dir = self.app_dir / ("invalid-" + str(len(list(self.app_dir.iterdir()))))
+                token_dir.mkdir()
+                (token_dir / "agent.token").write_text(invalid, encoding="utf-8")
+                with self.assertRaises(RuntimeError):
+                    veer_pc_agent.load_token(token_dir)
+
+    def test_server_rejects_explicit_token_with_whitespace(self):
+        with self.assertRaises(ValueError):
+            veer_pc_agent.create_server(port=0, app_dir=self.app_dir, token="x" * 20 + " " + "y" * 20)
 
 
 if __name__ == "__main__":
