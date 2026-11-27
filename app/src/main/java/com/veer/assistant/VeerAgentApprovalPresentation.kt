@@ -4,7 +4,11 @@ package com.veer.assistant
 internal object VeerAgentApprovalPresentation {
     fun actionLabel(call: AgentToolCall): String? {
         val app = VeerAgentToolPolicy.toPendingAppAction(call) ?: return null
-        return when (app) {
+        return actionLabel(app)
+    }
+
+    fun actionLabel(app: String): String? =
+        when (app) {
             "settings" -> "Phone Settings kholna"
             "youtube" -> "YouTube kholna"
             "music" -> "YouTube Music kholna"
@@ -22,5 +26,4 @@ internal object VeerAgentApprovalPresentation {
             "dialer" -> "Phone dialer kholna (call nahi lagegi)"
             else -> null
         }
-    }
 }
