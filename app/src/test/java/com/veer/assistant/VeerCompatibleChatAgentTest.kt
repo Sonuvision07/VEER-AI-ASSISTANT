@@ -48,7 +48,7 @@ class VeerCompatibleChatAgentTest {
                 model = m
                 val request = JSONObject(body)
                 assertEquals("auto", request.getString("tool_choice"))
-                """{"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_grok_1","type":"function","function":{"name":"android.launch_app","arguments":"{\"app\":\"youtube\"}"}}]}}]}"""
+                """{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_grok_1","type":"function","function":{"name":"android.launch_app","arguments":"{\"app\":\"youtube\"}"}}]}}]}"""
             }
         )
 
