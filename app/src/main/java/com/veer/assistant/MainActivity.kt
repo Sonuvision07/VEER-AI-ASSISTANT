@@ -924,6 +924,8 @@ fun VeerApp() {
                     if (result.stoppedForApproval && result.pendingApproval != null && result.continuation != null) {
                         val request = agentApprovalSession.request(result.pendingApproval)
                         if (request == null) {
+                            activeBrainCancellationToken = null
+                            pendingBrainContinuation = null
                             addReply("Boss, agent approval request register nahi hui. Koi action execute nahi hua.")
                         } else {
                             pendingBrainContinuation = result.continuation
