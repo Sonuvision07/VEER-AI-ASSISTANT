@@ -4,6 +4,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONArray
+import org.json.JSONObject
 
 internal fun interface VeerMuseAgentTransport {
     fun generate(apiKey: String, turn: AgentTurn): String
@@ -18,10 +19,20 @@ internal class VeerMuseHttpTransport(
 ) : VeerMuseAgentTransport {
     override fun generate(apiKey: String, turn: AgentTurn): String {
         require(apiKey.isNotBlank()) { "Meta Muse API key unavailable." }
-        val body = VeerOpenAiAgentRequest.build(turn, model)
+        val request = VeerOpenAiAgentRequest.build(turn, model)
             .put("store", false)
             .put("include", JSONArray().put("reasoning.encrypted_content"))
-            .toString()
+        // Meta's Responses API requires typed content blocks in manually replayed input arrays.
+        request.optJSONArray("input")?.optJSONObject(0)?.let { userMessage ->
+            val prompt = userMessage.opt("content") as? String
+            if (prompt != null) {
+                userMessage.put(
+                    "content",
+                    JSONArray().put(JSONObject().put("type", "input_text").put("text", prompt))
+                )
+            }
+        }
+        val body = request.toString()
         val connection = connectionFactory(URL(ENDPOINT))
         try {
             connection.requestMethod = "POST"
