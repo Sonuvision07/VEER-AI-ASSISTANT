@@ -28,11 +28,14 @@ class VeerOpenAiToolCallParserTest {
 
     @Test fun preservesResponseOutputAndRequiresCallIdForContinuation() {
         val output = JSONObject().put("type", "reasoning").put("id", "rs_1")
+            .put("encrypted_content", "opaque-encrypted-state")
         val parsed = VeerOpenAiToolCallParser.parse(response(functionCall("youtube"), output))
         val replay = JSONArray(parsed!!.providerContext)
         assertEquals(2, replay.length())
         assertEquals("call_1", parsed.providerCallId)
         assertEquals("reasoning", replay.getJSONObject(1).getString("type"))
+        assertEquals("opaque-encrypted-state", replay.getJSONObject(1).getString("encrypted_content"))
+        assertEquals(0, replay.getJSONObject(1).getJSONArray("summary").length())
 
         val missingId = JSONObject()
             .put("type", "function_call")
@@ -41,6 +44,10 @@ class VeerOpenAiToolCallParserTest {
         val blocked = VeerOpenAiToolCallParser.parse(response(missingId))
         assertNull(blocked?.toolCall)
         assertTrue(blocked?.message?.contains("call ID") == true)
+        val oversizedId = functionCall("youtube").put("call_id", "x".repeat(65))
+        val invalidId = VeerOpenAiToolCallParser.parse(response(oversizedId))
+        assertNull(invalidId?.toolCall)
+        assertTrue(invalidId?.message?.contains("valid tool call ID") == true)
     }
 
     @Test fun addsPreviousFunctionOutputToReplayHistoryBeforeNextToolCall() {
@@ -58,6 +65,24 @@ class VeerOpenAiToolCallParserTest {
         assertEquals("App opened", replay.getJSONObject(1).getString("output"))
         assertEquals("function_call", replay.getJSONObject(2).getString("type"))
         assertEquals("call_1", decision.providerCallId)
+    }
+
+    @Test fun rejectsIncompleteTopLevelResponsesBeforeReturningPartialText() {
+        val partialMessage = JSONObject().put("type", "message").put(
+            "content", JSONArray().put(JSONObject().put("type", "output_text").put("text", "partial answer"))
+        )
+        val body = JSONObject()
+            .put("status", "incomplete")
+            .put("output", JSONArray().put(partialMessage))
+            .toString()
+        val decision = VeerOpenAiToolCallParser.parse(body)
+        assertNull(decision)
+    }
+
+    @Test fun rejectsIncompleteResponsesApiFunctionCall() {
+        val incomplete = functionCall("youtube").put("status", "incomplete")
+        val decision = VeerOpenAiToolCallParser.parse(response(incomplete))
+        assertNull(decision)
     }
 
     @Test fun rejectsUnknownAppAndUnsupportedTool() {

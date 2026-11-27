@@ -137,6 +137,7 @@ class VeerCompatibleChatAgentTest {
     @Test fun selectedProviderIsFirstInStructuredFallbackOrder() {
         assertEquals(AiProvider.LLAMA, VeerAndroidAgentRuntime.providerOrderForSelection("LLAMA").first())
         assertEquals(AiProvider.GROK, VeerAndroidAgentRuntime.providerOrderForSelection("GROK").first())
+        assertEquals(AiProvider.MUSE, VeerAndroidAgentRuntime.providerOrderForSelection("MUSE").first())
         assertEquals(AiProvider.ANTHROPIC, VeerAndroidAgentRuntime.providerOrderForSelection("CLAUDE").first())
         assertEquals(AiProvider.OPENAI, VeerAndroidAgentRuntime.providerOrderForSelection("OPENAI").first())
         assertEquals(AiProvider.GEMINI, VeerAndroidAgentRuntime.providerOrderForSelection("GEMINI").first())

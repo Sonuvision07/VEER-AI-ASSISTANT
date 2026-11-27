@@ -14,6 +14,7 @@ class VeerOpenAiAgentRequestTest {
         )
         assertEquals("gpt-6.2-astra", request.getString("model"))
         assertFalse(request.getBoolean("store"))
+        assertFalse(request.getBoolean("parallel_tool_calls"))
         assertEquals("auto", request.getString("tool_choice"))
         assertTrue(request.getString("instructions").contains("Hindi/Hinglish"))
         assertTrue(request.getString("input").contains("Open YouTube"))
@@ -58,6 +59,7 @@ class VeerOpenAiAgentRequestTest {
         assertEquals("call_123", output.getString("call_id"))
         assertEquals("App opened", output.getString("output"))
         assertFalse(request.getBoolean("store"))
+        assertFalse(request.getBoolean("parallel_tool_calls"))
     }
 
     @Test fun sendsPlainToolResultAsContextWhenNoOpenAiCallStateExists() {

@@ -54,6 +54,8 @@ internal object VeerOpenAiAgentRequest {
             .put("instructions", INSTRUCTIONS)
             .put("input", input)
             .put("tools", functionTools())
+            // VEER validates and executes one tool call per bounded agent step.
+            .put("parallel_tool_calls", false)
             .put("tool_choice", "auto")
     }
 

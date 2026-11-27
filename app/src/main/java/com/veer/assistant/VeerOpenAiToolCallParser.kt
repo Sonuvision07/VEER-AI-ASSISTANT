@@ -13,6 +13,8 @@ internal object VeerOpenAiToolCallParser {
     ): AgentDecision? {
         return try {
             val root = JSONObject(responseBody)
+            val responseStatus = root.optString("status")
+            if (responseStatus.isNotBlank() && responseStatus != "completed") return null
             val output = root.optJSONArray("output") ?: return null
             val replay = JSONArray(previousContext ?: "[]")
             if (previousCallId != null || previousToolResult != null) {
@@ -22,7 +24,13 @@ internal object VeerOpenAiToolCallParser {
                     .put("call_id", previousCallId)
                     .put("output", previousToolResult.take(4_000)))
             }
-            for (index in 0 until output.length()) replay.put(output.get(index))
+            for (index in 0 until output.length()) {
+                val item = output.optJSONObject(index)
+                if (item?.optString("type") == "reasoning" && item.optJSONArray("summary") == null) {
+                    item.put("summary", JSONArray())
+                }
+                replay.put(output.get(index))
+            }
             if (replay.toString().length > VeerOpenAiAgentRequest.MAX_REPLAY_CONTEXT_CHARS) return null
             val calls = (0 until output.length()).mapNotNull { index ->
                 output.optJSONObject(index)?.takeIf { it.optString("type") == "function_call" }
@@ -45,8 +53,11 @@ internal object VeerOpenAiToolCallParser {
                 return AgentDecision("VEER ne ek se zyada tool calls receive kiye; safety ke liye sab block kar diye.")
             }
             val functionCall = calls.single()
-            val callId = functionCall.optString("call_id").takeIf { it.isNotBlank() }
-                ?: return AgentDecision("VEER ko tool call ID nahi mila; action block kar diya.")
+            val callStatus = functionCall.optString("status")
+            if (callStatus.isNotBlank() && callStatus != "completed") return null
+            val callId = functionCall.optString("call_id").takeIf {
+                it.length in 1..64 && it.none { character -> character.isISOControl() }
+            } ?: return AgentDecision("VEER ko valid tool call ID nahi mila; action block kar diya.")
             val name = functionCall.optString("name").takeIf { it.isNotBlank() }
                 ?: return AgentDecision("VEER ko invalid tool name mila; action block kar diya.")
             val risk = VeerAgentToolPolicy.riskFor(name)

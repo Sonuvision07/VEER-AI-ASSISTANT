@@ -4,11 +4,11 @@ package com.veer.assistant
  * VEER's agent orchestration core.
  *
  * This is the decision/orchestration layer, not a foundation model. Concrete
- * Gemini/OpenAI/Claude adapters implement ModelGateway; Android/Windows/cloud
+ * Gemini/OpenAI/Claude/Muse/Llama/Grok adapters implement ModelGateway; Android/Windows/cloud
  * capabilities implement AgentToolExecutor. Keep secrets inside provider
  * adapters and never place API keys in prompts, logs, or tool arguments.
  */
-enum class AiProvider { GEMINI, OPENAI, ANTHROPIC, LLAMA, GROK }
+enum class AiProvider { GEMINI, OPENAI, ANTHROPIC, MUSE, LLAMA, GROK }
 
 enum class AgentRisk { READ_ONLY, DEVICE_CHANGE, EXTERNAL_SIDE_EFFECT, DESTRUCTIVE }
 
