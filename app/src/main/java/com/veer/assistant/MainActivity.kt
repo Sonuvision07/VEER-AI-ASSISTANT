@@ -209,6 +209,9 @@ fun VeerApp() {
     var pcAgentTokenDraft by remember { mutableStateOf(pcAgentToken) }
     var pcAgentStatus by remember { mutableStateOf(if (pcAgentUrl.isNotBlank() && pcAgentToken.isNotBlank()) "Saved; connection not checked" else "Not configured") }
     var pcAgentChecking by remember { mutableStateOf(false) }
+    var pcWorkspacePreview by remember { mutableStateOf<List<VeerPcAgentFileEntry>?>(null) }
+    var pcWorkspaceLoading by remember { mutableStateOf(false) }
+    var pcWorkspaceStatus by remember { mutableStateOf("") }
     var showProviderMenu by remember { mutableStateOf(false) }
     val fallbackAttempted = remember { mutableStateListOf<String>() }
     var keyDraft by remember { mutableStateOf(apiKey) }
@@ -1512,7 +1515,7 @@ fun VeerApp() {
                     TextButton(onClick = { showSettings = false; showBackConfirm = true }) { Text("TEST APPROVED BACK ACTION") }
                     Divider()
                     Text("WINDOWS PC COMPANION", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
-                    Text("Tailscale Serve ka HTTPS address aur Windows agent token daalein. VEER sirf connection health test karega; abhi PC par koi command execute nahi hogi.", fontSize = 11.sp, color = Color.Gray)
+                    Text("Tailscale Serve ka HTTPS address aur Windows agent token daalein. Health test ke baad ek alag read-only button se sirf VEER workspace ke file names aur sizes dekhe ja sakte hain; file content read nahi hota.", fontSize = 11.sp, color = Color.Gray)
                     OutlinedTextField(
                         value = pcAgentUrlDraft,
                         onValueChange = { pcAgentUrlDraft = it },
@@ -1569,6 +1572,45 @@ fun VeerApp() {
                         enabled = !pcAgentChecking && pcAgentUrlDraft.isNotBlank() && pcAgentTokenDraft.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (pcAgentChecking) "CONNECTING..." else "TEST & SAVE PC CONNECTION") }
+                    Button(
+                        onClick = {
+                            pcWorkspaceLoading = true
+                            pcWorkspacePreview = null
+                            pcWorkspaceStatus = "Reading workspace directory names only..."
+                            localAiScope.launch {
+                                try {
+                                    val entries = withContext(Dispatchers.IO) {
+                                        VeerPcAgentClient(pcAgentUrl, pcAgentToken).listWorkspace(".")
+                                    }
+                                    pcWorkspacePreview = entries
+                                    pcWorkspaceStatus = "Listed ${entries.size} item(s). File contents were not opened."
+                                } catch (error: Exception) {
+                                    pcWorkspaceStatus = "Workspace listing failed: " + (error.message ?: "Check connection")
+                                } finally {
+                                    pcWorkspaceLoading = false
+                                }
+                            }
+                        },
+                        enabled = !pcAgentChecking && !pcWorkspaceLoading && pcAgentStatus.startsWith("Connected") && pcAgentUrl.isNotBlank() && pcAgentToken.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (pcWorkspaceLoading) "READING..." else "READ-ONLY: LIST VEER WORKSPACE") }
+                    if (pcWorkspaceStatus.isNotBlank()) {
+                        Text(pcWorkspaceStatus, fontSize = 11.sp, color = Color.Gray)
+                    }
+                    pcWorkspacePreview?.let { entries ->
+                        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
+                            if (entries.isEmpty()) Text("Workspace is empty.", fontSize = 12.sp)
+                            entries.forEach { entry ->
+                                Text(
+                                    (if (entry.type == "folder") "[DIR] " else if (entry.type == "link") "[LINK] " else "[FILE] ") +
+                                        entry.name + (entry.sizeBytes?.let { " — $it bytes" } ?: ""),
+                                    fontSize = 12.sp,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        TextButton(onClick = { pcWorkspacePreview = null; pcWorkspaceStatus = "" }) { Text("CLEAR WORKSPACE PREVIEW") }
+                    }
                     TextButton(
                         onClick = {
                             prefs.edit().remove("pc_agent_url").remove("pc_agent_token").apply()
@@ -1577,6 +1619,8 @@ fun VeerApp() {
                             pcAgentToken = ""
                             pcAgentTokenDraft = ""
                             pcAgentStatus = "Not configured"
+                            pcWorkspacePreview = null
+                            pcWorkspaceStatus = ""
                         },
                         enabled = !pcAgentChecking
                     ) { Text("REMOVE PC CONNECTION") }
