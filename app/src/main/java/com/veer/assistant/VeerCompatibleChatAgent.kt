@@ -84,7 +84,7 @@ internal class VeerCompatibleChatAgent(
                 if (turn.memory.isNotEmpty()) append("\n\nContext:\n").append(turn.memory.takeLast(8).joinToString("\n").take(2_500))
                 if (turn.recentConversation.isNotEmpty()) append("\n\nRecent conversation:\n").append(turn.recentConversation.takeLast(8).joinToString("\n").take(2_500))
                 if (turn.providerContext == null && !turn.previousToolResult.isNullOrBlank()) {
-                    append("\\n\\nPrevious tool result from another provider:\\n")
+                    append("\n\nPrevious tool result from another provider:\n")
                     append(turn.previousToolResult.take(4_000))
                 }
             }))
