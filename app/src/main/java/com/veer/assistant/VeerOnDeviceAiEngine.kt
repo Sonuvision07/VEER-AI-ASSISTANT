@@ -38,18 +38,24 @@ class VeerOnDeviceAiEngine private constructor(
                 cacheDir = modelFile.parentFile?.resolve("cache")?.absolutePath
             )
         )
+        var loadedConversation: Conversation? = null
         try {
             loadedEngine.initialize()
-            engine = loadedEngine
-            conversation = loadedEngine.createConversation(
+            loadedConversation = loadedEngine.createConversation(
                 ConversationConfig(
                     systemInstruction = Contents.of(
                         "You are VEER, a helpful personal assistant. Reply naturally in Hindi or Hinglish matching the user. Be accurate, practical and concise. Never claim you performed an action unless the app confirms it."
                     )
                 )
             )
+            // Publish the engine only after both initialization stages succeed.
+            engine = loadedEngine
+            conversation = loadedConversation
         } catch (error: Throwable) {
-            loadedEngine.close()
+            runCatching { loadedConversation?.close() }
+            runCatching { loadedEngine.close() }
+            engine = null
+            conversation = null
             throw error
         }
     }
@@ -67,10 +73,14 @@ class VeerOnDeviceAiEngine private constructor(
     }
 
     override fun close() {
-        conversation?.close()
+        // Clear references first so a cleanup exception cannot leave a closed
+        // native object published as the active engine/conversation.
+        val previousConversation = conversation
+        val previousEngine = engine
         conversation = null
-        engine?.close()
         engine = null
+        runCatching { previousConversation?.close() }
+        runCatching { previousEngine?.close() }
     }
 
     companion object {
