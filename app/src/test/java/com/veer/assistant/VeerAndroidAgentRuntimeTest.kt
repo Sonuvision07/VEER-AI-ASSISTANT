@@ -48,6 +48,32 @@ class VeerAndroidAgentRuntimeTest {
         assertFalse(resumed.stoppedForApproval)
         assertFalse(runtime.approvalSession.approved(call))
     }
+
+    @Test fun fallsBackToOpenAiStructuredAdapterWhenGeminiHasTransientFailure() {
+        var geminiAttempts = 0
+        var openAiKey: String? = null
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { "gemini-key" },
+            openAiApiKeyProvider = { " openai-key " },
+            dispatchApprovedAction = { "unused: $it" },
+            transport = VeerGeminiAgentTransport { _, _ ->
+                geminiAttempts += 1
+                throw AgentProviderException("temporary Gemini outage", retryable = true)
+            },
+            openAiTransport = VeerOpenAiAgentTransport { key, _ ->
+                openAiKey = key
+                """{"output":[{"type":"message","content":[{"type":"output_text","text":"OpenAI fallback ready"}]}]}"""
+            }
+        )
+
+        val result = runtime.brain.run(AgentTurn("hello", emptyList(), emptyList()))
+
+        assertEquals(2, geminiAttempts)
+        assertEquals("openai-key", openAiKey)
+        assertEquals(AiProvider.OPENAI, result.provider)
+        assertEquals("OpenAI fallback ready", result.message)
+    }
+
     @Test fun cancellingApprovalPreventsAndroidDispatch() {
         val response = """{"candidates":[{"content":{"parts":[{"functionCall":{"name":"android.launch_app","args":{"app":"youtube"}}}]}}]}"""
         val dispatched = mutableListOf<String>()
