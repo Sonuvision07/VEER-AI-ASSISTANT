@@ -748,7 +748,7 @@ fun VeerApp() {
                         ?.takeIf { it == pendingAction }
                 } else pendingAction
                 if (approvedAction.isNullOrBlank()) {
-                    agentApprovalSession.clear()
+                    agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
                     pendingAgentApproval = null
                     pendingAction = ""
                     pendingMusicUrl = null
@@ -1341,7 +1341,7 @@ fun VeerApp() {
                             ?.takeIf { it == pendingAction }
                     } else pendingAction
                     if (approvedAction.isNullOrBlank()) {
-                        agentApprovalSession.clear()
+                        currentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
                         pendingAgentApproval = null
                         pendingAction = ""
                         pendingMusicUrl = null
