@@ -62,4 +62,50 @@ class VeerCompatibleChatAgentTest {
         assertEquals("youtube", result.pendingApproval?.arguments?.get("app"))
         assertFalse(result.pendingApproval == null)
     }
+
+    @Test fun llamaContinuationPairsToolResultWithOriginalCallId() {
+        val requests = mutableListOf<JSONObject>()
+        val responses = ArrayDeque(listOf(
+            """{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_llama_1","type":"function","function":{"name":"android.launch_app","arguments":"{\\"app\\":\\"youtube\\"}"}}]}}]}""",
+            """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"YouTube launch request complete."}}]}"""
+        ))
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { null },
+            llamaApiKeyProvider = { "llama-test-key" },
+            dispatchApprovedAction = { "launched $it" },
+            llamaTransport = VeerCompatibleChatAgentTransport { _, _, _, body ->
+                requests += JSONObject(body)
+                responses.removeFirst()
+            }
+        )
+        val pending = runtime.brain.run(AgentTurn("Open YouTube", emptyList(), emptyList()))
+        val call = pending.pendingApproval!!
+        val continuation = pending.continuation!!
+        val approval = runtime.approvalSession.request(call)!!
+        val approved = runtime.approvalSession.approve(approval.id)!!
+
+        val completed = runtime.brain.resumeAfterApproval(continuation, approved)
+
+        assertEquals("YouTube launch request complete.", completed.message)
+        assertEquals(1, completed.steps)
+        val followUpMessages = requests[1].getJSONArray("messages")
+        assertEquals("assistant", followUpMessages.getJSONObject(2).getString("role"))
+        assertEquals("tool", followUpMessages.getJSONObject(3).getString("role"))
+        assertEquals("call_llama_1", followUpMessages.getJSONObject(3).getString("tool_call_id"))
+        assertEquals("launched youtube", followUpMessages.getJSONObject(3).getString("content"))
+    }
+
+    @Test fun grokRejectsToolCallsWithoutToolCallsFinishReason() {
+        val adapter = VeerCompatibleChatAgent(
+            AiProvider.GROK, "https://api.x.ai/v1/chat/completions", "grok-3-mini",
+            { "test-key" }, VeerCompatibleChatAgentTransport { _, _, _, _ -> "" }
+        )
+        val result = adapter.parseResponse(
+            """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","tool_calls":[{"id":"call_bad","type":"function","function":{"name":"android.launch_app","arguments":"{\\"app\\":\\"youtube\\"}"}}]}}]}"""
+        )
+        assertEquals(null, result?.toolCall)
+        assertTrue(result?.finished ?: false)
+        assertTrue(result?.message?.contains("incomplete", ignoreCase = true) == true)
+    }
+
 }
