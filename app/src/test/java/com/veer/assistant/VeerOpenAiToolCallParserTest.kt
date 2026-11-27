@@ -67,6 +67,18 @@ class VeerOpenAiToolCallParserTest {
         assertEquals("call_1", decision.providerCallId)
     }
 
+    @Test fun rejectsIncompleteTopLevelResponsesBeforeReturningPartialText() {
+        val partialMessage = JSONObject().put("type", "message").put(
+            "content", JSONArray().put(JSONObject().put("type", "output_text").put("text", "partial answer"))
+        )
+        val body = JSONObject()
+            .put("status", "incomplete")
+            .put("output", JSONArray().put(partialMessage))
+            .toString()
+        val decision = VeerOpenAiToolCallParser.parse(body)
+        assertTrue(decision?.message?.contains("incomplete provider response") == true)
+    }
+
     @Test fun rejectsIncompleteResponsesApiFunctionCall() {
         val incomplete = functionCall("youtube").put("status", "incomplete")
         val decision = VeerOpenAiToolCallParser.parse(response(incomplete))
