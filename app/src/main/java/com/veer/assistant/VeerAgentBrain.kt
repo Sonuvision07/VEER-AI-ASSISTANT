@@ -99,6 +99,7 @@ class VeerAgentBrain(
     private val maxToolArgumentChars: Int = 8_000,
     private val maxToolNameChars: Int = 128,
     private val taskTimeoutMillis: Long = 90_000,
+    private val maxProviderAttempts: Int = 2,
     private val nanoTime: () -> Long = System::nanoTime
 ) {
     private val continuationOwnerToken = Any()
@@ -109,6 +110,7 @@ class VeerAgentBrain(
         require(maxToolArgumentChars > 0) { "maxToolArgumentChars must be positive" }
         require(maxToolNameChars > 0) { "maxToolNameChars must be positive" }
         require(taskTimeoutMillis > 0) { "taskTimeoutMillis must be positive" }
+        require(maxProviderAttempts > 0) { "maxProviderAttempts must be positive" }
     }
     fun run(
         initialTurn: AgentTurn,
@@ -337,15 +339,20 @@ class VeerAgentBrain(
     ): Pair<AiProvider, AgentDecision>? {
         for (provider in providerOrder) {
             if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
-            try {
-                if (!gateway.isAvailable(provider)) continue
+            val available = try { gateway.isAvailable(provider) } catch (_: Exception) { false }
+            if (!available) continue
+            // Provider generation is safe to retry before any tool dispatch.
+            // Side-effecting tools are never retried.
+            repeat(maxProviderAttempts) {
                 if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
-                val decision = gateway.decide(provider, turn)
-                if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
-                return provider to decision
-            } catch (_: Exception) {
-                // Availability checks and requests can both fail; try the next provider.
-                // Do not expose provider secrets/errors.
+                try {
+                    val decision = gateway.decide(provider, turn)
+                    if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
+                    return provider to decision
+                } catch (_: Exception) {
+                    // Retry within the task deadline, then fall back to next provider.
+                    // Never expose provider errors or secrets.
+                }
             }
         }
         return null
