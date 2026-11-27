@@ -2029,7 +2029,7 @@ fun VeerApp() {
                         TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; "LLAMA" -> "Meta Llama"; "GROK" -> "Grok"; "MUSE" -> "Meta Muse Spark"; else -> "AUTO (fallback order)" }) }
                         DropdownMenu(expanded = showProviderMenu, onDismissRequest = { showProviderMenu = false }) {
                             listOf("AUTO", "GEMINI", "OPENAI", "CLAUDE", "MUSE", "LLAMA", "GROK").forEach { provider ->
-                                DropdownMenuItem(text = { Text(when (provider) { "AUTO" -> "AUTO (available keys)"; else -> provider }) }, onClick = { selectedProvider = provider; showProviderMenu = false })
+                                DropdownMenuItem(text = { Text(when (provider) { "AUTO" -> "AUTO (available keys)"; "MUSE" -> "Meta Muse Spark"; "LLAMA" -> "Meta Llama (Groq)"; "GROK" -> "Grok (xAI)"; else -> provider }) }, onClick = { selectedProvider = provider; showProviderMenu = false })
                             }
                         }
                     }
@@ -2074,7 +2074,7 @@ fun VeerApp() {
                     if (candidate.isEmpty()) {
                         apiKey = ""
                         prefs.edit().remove("gemini_api_key").apply()
-                        messages.add("VEER" to "API key hata di gayi hai.")
+                        messages.add("VEER" to "AI provider settings save ho gayi. Gemini key blank thi, isliye remove hui.")
                         showSettings = false
                     } else {
                         val encrypted = encryptApiKey(candidate)
