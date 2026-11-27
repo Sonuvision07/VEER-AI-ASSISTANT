@@ -456,6 +456,55 @@ class VeerAgentBrainTest {
         assertTrue(result.message.contains("1 tool steps"))
     }
 
+    @Test fun approvedToolResultIsFedBackIntoTheSameAgentTask() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        var receivedToolResult: String? = null
+        val brain = VeerAgentBrain(
+            FakeGateway { _, nextTurn ->
+                if (nextTurn.previousToolResult == null) {
+                    AgentDecision("Please approve", requested, finished = false)
+                } else {
+                    receivedToolResult = nextTurn.previousToolResult
+                    AgentDecision("Task completed after tool result")
+                }
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val pending = brain.run(turn())
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertEquals("done", receivedToolResult)
+        assertEquals("Task completed after tool result", resumed.message)
+        assertEquals(1, resumed.steps)
+        assertEquals(1, tools.executed.size)
+    }
+
+    @Test fun approvalResumeStillHonorsTheGlobalToolStepLimit() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        var decisionCalls = 0
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisionCalls += 1
+                AgentDecision("Please approve", requested, finished = false)
+            },
+            tools,
+            FakeApproval(false),
+            maxToolSteps = 1
+        )
+
+        val pending = brain.run(turn())
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertEquals(1, decisionCalls)
+        assertEquals(1, tools.executed.size)
+        assertEquals(1, resumed.steps)
+        assertTrue(resumed.message.contains("1 tool steps"))
+    }
+
     @Test fun approvalContinuationExecutesOnlyExactCallOnce() {
         val tools = FakeTools()
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
