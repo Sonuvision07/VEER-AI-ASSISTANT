@@ -44,6 +44,8 @@ internal object VeerOpenAiToolCallParser {
                 return AgentDecision("VEER ne ek se zyada tool calls receive kiye; safety ke liye sab block kar diye.")
             }
             val functionCall = calls.single()
+            val callId = functionCall.optString("call_id").takeIf { it.isNotBlank() }
+                ?: return AgentDecision("VEER ko tool call ID nahi mila; action block kar diya.")
             val name = functionCall.optString("name").takeIf { it.isNotBlank() }
                 ?: return AgentDecision("VEER ko invalid tool name mila; action block kar diya.")
             val risk = VeerAgentToolPolicy.riskFor(name)
