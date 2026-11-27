@@ -260,4 +260,39 @@ class VeerAndroidAgentRuntimeTest {
         assertEquals("Llama fallback ready", result.message)
     }
 
+    @Test fun MuseToolApprovalAndResponsesContinuationKeepOriginalCallId() {
+        val responses = ArrayDeque(listOf(
+            """{"output":[{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"youtube\"}","call_id":"muse_call_1"}]}""",
+            """{"output":[{"type":"message","content":[{"type":"output_text","text":"Muse confirmed YouTube launch."}]}]}"""
+        ))
+        val dispatched = mutableListOf<String>()
+        val turns = mutableListOf<AgentTurn>()
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { null },
+            museApiKeyProvider = { "muse-key" },
+            dispatchApprovedAction = { action -> dispatched += action; "YouTube launched" },
+            museTransport = VeerMuseAgentTransport { _, turn ->
+                turns += turn
+                responses.removeFirst()
+            },
+            providerOrder = listOf(AiProvider.MUSE)
+        )
+
+        val pending = runtime.brain.run(AgentTurn("Open YouTube", emptyList(), emptyList()))
+        assertTrue(pending.stoppedForApproval)
+        val call = pending.pendingApproval!!
+        val continuation = pending.continuation!!
+        val approval = runtime.approvalSession.request(call)!!
+        val approved = runtime.approvalSession.approve(approval.id)!!
+        val completed = runtime.brain.resumeAfterApproval(continuation, approved)
+
+        assertEquals(listOf("youtube"), dispatched)
+        assertEquals("Muse confirmed YouTube launch.", completed.message)
+        assertEquals(1, completed.steps)
+        assertEquals("muse_call_1", turns[1].previousToolCallId)
+        assertTrue(turns[1].providerContext.orEmpty().contains("muse_call_1"))
+        assertEquals("YouTube launched", turns[1].previousToolResult)
+        assertEquals(AiProvider.MUSE, turns[1].providerContextProvider)
+    }
+
 }
