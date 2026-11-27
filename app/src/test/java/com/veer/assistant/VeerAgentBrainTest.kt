@@ -66,6 +66,7 @@ class VeerAgentBrainTest {
         val result = brain.run(turn())
 
         assertTrue(result.stoppedForApproval)
+        assertEquals(call("write", AgentRisk.DEVICE_CHANGE), result.pendingApproval)
         assertTrue(tools.executed.isEmpty())
         assertEquals(1, approval.checked.size)
     }
@@ -199,6 +200,7 @@ class VeerAgentBrainTest {
         val result = brain.run(turn())
 
         assertTrue(result.stoppedForApproval)
+        assertEquals(call("write", AgentRisk.DEVICE_CHANGE), result.pendingApproval)
         assertTrue(tools.executed.isEmpty())
         assertEquals(0, result.steps)
     }
