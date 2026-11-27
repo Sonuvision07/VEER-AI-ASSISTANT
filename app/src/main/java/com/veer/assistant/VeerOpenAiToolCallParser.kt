@@ -45,6 +45,10 @@ internal object VeerOpenAiToolCallParser {
                 return AgentDecision("VEER ne ek se zyada tool calls receive kiye; safety ke liye sab block kar diye.")
             }
             val functionCall = calls.single()
+            val callStatus = functionCall.optString("status")
+            if (callStatus.isNotBlank() && callStatus != "completed") {
+                return AgentDecision("VEER ne incomplete tool call receive ki; action block kar diya.")
+            }
             val callId = functionCall.optString("call_id").takeIf {
                 it.length in 1..64 && it.none { character -> character.isISOControl() }
             } ?: return AgentDecision("VEER ko valid tool call ID nahi mila; action block kar diya.")
