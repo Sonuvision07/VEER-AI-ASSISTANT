@@ -71,7 +71,9 @@ internal object VeerOpenAiToolCallParser {
             AgentDecision(
                 message = "Boss, " + arguments["app"] + " open karne ke liye aapki permission chahiye.",
                 toolCall = call,
-                finished = false
+                finished = false,
+                providerContext = replay.toString(),
+                providerCallId = callId
             )
         } catch (_: Exception) {
             null
