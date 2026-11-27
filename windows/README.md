@@ -46,4 +46,4 @@ GitHub Actions runs the same tests on windows-latest whenever the Windows agent 
 
 ## Integration status
 
-The Android app now includes a Tailscale HTTPS pairing screen and an authenticated health check; the token is encrypted with Android Keystore. It does not yet expose remote file operations or browser actions in the Android UI, and the cloud worker is not provisioned. Do not claim end-to-end PC or cloud control until those actions are separately approved, implemented, and tested.
+The Android app now includes a Tailscale HTTPS pairing screen, authenticated health check, and an explicit read-only workspace directory preview. After a successful health check, the user must tap READ-ONLY: LIST VEER WORKSPACE; the app shows names/types/sizes for the workspace root only (up to 200 entries), not file contents. It does not yet open/read files or invoke the PC browser from Android. The cloud worker is not provisioned. Do not claim end-to-end PC or cloud control until those actions are separately approved, implemented, and tested.
