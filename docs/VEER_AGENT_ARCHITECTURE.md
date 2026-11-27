@@ -17,7 +17,7 @@ VEER owns the agent loop and tool policy. Gemini, OpenAI, Anthropic (Claude), Me
 ## Provider strategy
 
 - The Android runtime has structured-tool adapters for Gemini, OpenAI Responses API, Anthropic Messages API, Meta Muse Spark through Meta Model API Responses API, Meta Llama through Groq's OpenAI-compatible Chat Completions API, and xAI Grok through its OpenAI-compatible Chat Completions API.
-- Muse Spark uses Meta's `https://api.meta.ai/v1/responses` endpoint and `muse-spark-1.3` model. Its API key is stored separately from the Meta Llama/Groq key and uses the same bounded VEER tool policy.
+- Muse Spark uses Meta's `https://api.meta.ai/v1/responses` endpoint and `muse-spark-1.3` model. Its API key is stored separately from the Meta Llama/Groq key; stateless continuation requests `store: false` and encrypted reasoning replay, preserves provider output items/call IDs, and follows the same bounded VEER tool policy.
 - Provider fallback uses only adapters with configured credentials. The brain retries only explicitly transient provider failures (bounded attempts); permanent and unknown failures move to the next configured provider without retrying the failed request.
 - When continuing a provider-specific tool call, the original provider's opaque continuation context and call ID are preserved only for that provider. A cross-provider fallback receives the bounded tool result as ordinary context instead of replaying incompatible provider state.
 - Do not silently switch models for an action that requires a different data-sharing permission.
