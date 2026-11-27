@@ -1804,6 +1804,37 @@ private fun HologramFace(
         ),
         label = "faceHologramScanGlow"
     )
+
+    // The face mesh never changes shape. Build its paths once instead of
+    // recalculating hundreds of points and line segments on every animation frame.
+    val cachedMesh = remember {
+        val lines = androidx.compose.ui.graphics.Path()
+        val dots = androidx.compose.ui.graphics.Path()
+        for (row in 0..17) {
+            val y = 42f + row * 17f
+            val t = (y - 194f) / 174f
+            val half = 115f * kotlin.math.sqrt((1f - t * t).coerceAtLeast(0.08f))
+            for (col in 0..12) {
+                val x = 180f - half + (2f * half * col / 12f)
+                val yy = y + kotlin.math.sin((col + row) * 0.7f) * 2.2f
+                if (col < 12) {
+                    val nx = 180f - half + (2f * half * (col + 1) / 12f)
+                    lines.moveTo(x, yy)
+                    lines.lineTo(nx, yy + 2f)
+                }
+                if (row < 17) {
+                    lines.moveTo(x, yy)
+                    lines.lineTo(x + 1f, y + 17f)
+                }
+                dots.addOval(
+                    androidx.compose.ui.geometry.Rect(
+                        x - 1.05f, yy - 1.05f, x + 1.05f, yy + 1.05f
+                    )
+                )
+            }
+        }
+        lines to dots
+    }
     Canvas(modifier = modifier) {
         val sx = size.width / 360f
         val sy = size.height / 390f
@@ -1851,21 +1882,10 @@ private fun HologramFace(
         val scanEnd = p(180f + scanHalfWidth, scanLineY)
         drawLine(cyan.copy(alpha = 0.10f + scanLineGlow * 0.12f), scanStart, scanEnd, strokeWidth = 7f * sy)
         drawLine(cyan.copy(alpha = scanLineGlow), scanStart, scanEnd, strokeWidth = 0.8f * sy)
-        // Fine luminous mesh gives the face its digital hologram appearance.
-        for (row in 0..17) {
-            val y = 42f + row * 17f
-            val t = ((y - 194f) / 174f)
-            val half = 115f * kotlin.math.sqrt((1f - t*t).coerceAtLeast(0.08f))
-            for (col in 0..12) {
-                val x = 180f - half + (2f * half * col / 12f)
-                val yy = y + kotlin.math.sin((col + row) * 0.7f) * 2.2f
-                if (col < 12) {
-                    val nx = 180f - half + (2f * half * (col + 1) / 12f)
-                    drawLine(cyan.copy(alpha = 0.25f), p(x, yy), p(nx, yy + 2f), 0.75f*sx)
-                }
-                if (row < 17) drawLine(cyan.copy(alpha = 0.17f), p(x, yy), p(x + 1f, y + 17f), 0.65f*sx)
-                drawCircle(cyan.copy(alpha = 0.78f), 1.05f*sx, p(x, yy))
-            }
+        // Draw cached mesh geometry with one transform and two path draws.
+        withTransform({ scale(sx, sy, pivot = Offset.Zero) }) {
+            drawPath(cachedMesh.first, cyan.copy(alpha = 0.2f), style = Stroke(width = 0.7f))
+            drawPath(cachedMesh.second, cyan.copy(alpha = 0.78f))
         }
         // Ears and cheek contours
         drawOval(cyan.copy(alpha = 0.55f), p(43f, 164f), androidx.compose.ui.geometry.Size(25f*sx, 66f*sy), style = Stroke(1.5f*sx))
