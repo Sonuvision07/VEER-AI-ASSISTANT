@@ -22,7 +22,13 @@ internal object VeerOpenAiToolCallParser {
                     .put("call_id", previousCallId)
                     .put("output", previousToolResult.take(4_000)))
             }
-            for (index in 0 until output.length()) replay.put(output.get(index))
+            for (index in 0 until output.length()) {
+                val item = output.optJSONObject(index)
+                if (item?.optString("type") == "reasoning" && item.optJSONArray("summary") == null) {
+                    item.put("summary", JSONArray())
+                }
+                replay.put(output.get(index))
+            }
             if (replay.toString().length > VeerOpenAiAgentRequest.MAX_REPLAY_CONTEXT_CHARS) return null
             val calls = (0 until output.length()).mapNotNull { index ->
                 output.optJSONObject(index)?.takeIf { it.optString("type") == "function_call" }
