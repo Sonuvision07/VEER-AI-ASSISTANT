@@ -13,6 +13,10 @@ internal object VeerOpenAiToolCallParser {
     ): AgentDecision? {
         return try {
             val root = JSONObject(responseBody)
+            val responseStatus = root.optString("status")
+            if (responseStatus.isNotBlank() && responseStatus != "completed") {
+                return AgentDecision("VEER ne incomplete provider response receive ki; action block kar diya.")
+            }
             val output = root.optJSONArray("output") ?: return null
             val replay = JSONArray(previousContext ?: "[]")
             if (previousCallId != null || previousToolResult != null) {
