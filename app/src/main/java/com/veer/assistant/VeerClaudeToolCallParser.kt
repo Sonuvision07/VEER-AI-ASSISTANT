@@ -18,6 +18,10 @@ internal object VeerClaudeToolCallParser {
                 blocks.optJSONObject(index)?.takeIf { it.optString("type") == "tool_use" }
             }
 
+            if (calls.isNotEmpty() && root.optString("stop_reason") != "tool_use") {
+                return AgentDecision("Anthropic response stop reason invalid; action block.")
+            }
+
             if (calls.isEmpty()) {
                 val reply = buildString {
                     for (index in 0 until blocks.length()) {
