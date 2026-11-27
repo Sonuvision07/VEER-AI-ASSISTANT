@@ -67,13 +67,11 @@ class VeerOpenAiAgentRequestTest {
         assertTrue(request.getString("input").contains("Gemini tool completed"))
     }
 
-    @Test fun rejectsIncompleteOpenAiContinuationState() {
-        try {
-            VeerOpenAiAgentRequest.build(AgentTurn(
-                "Continue", emptyList(), emptyList(), previousToolResult = "done"
-            ))
-            throw AssertionError("Missing call ID and replay context must be rejected")
-        } catch (_: IllegalArgumentException) { }
+    @Test fun sendsPlainToolResultAsContextWhenNoOpenAiCallStateExists() {
+        val request = VeerOpenAiAgentRequest.build(
+            AgentTurn("Continue", emptyList(), emptyList(), previousToolResult = "done")
+        )
+        assertTrue(request.getString("input").contains("done"))
     }
 
     @Test fun rejectsBlankUserRequestAndModel() {
