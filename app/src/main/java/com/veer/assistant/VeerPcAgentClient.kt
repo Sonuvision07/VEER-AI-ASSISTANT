@@ -112,16 +112,18 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
                 if (name.isBlank() || name == "." || name == ".." || name.length > MAX_ENTRY_NAME_CHARS || name.any { it.isISOControl() } ||
                     name.contains('/') || name.contains('\\') || type !in ALLOWED_ENTRY_TYPES
                 ) throw IOException("Windows agent returned an invalid file entry")
-                val rawSize = item.opt("size")
-                val size = when (rawSize) {
-                    null, JSONObject.NULL -> null
-                    is Number -> {
-                        val numeric = rawSize.toDouble()
-                        val integer = rawSize.toLong()
-                        if (numeric.isFinite() && numeric >= 0.0 && numeric == integer.toDouble()) integer
-                        else throw IOException("Windows agent returned an invalid file size")
+                val size = if (item.isNull("size")) {
+                    null
+                } else {
+                    when (val rawSize = item.opt("size")) {
+                        is Number -> {
+                            val numeric = rawSize.toDouble()
+                            val integer = rawSize.toLong()
+                            if (numeric.isFinite() && numeric >= 0.0 && numeric == integer.toDouble()) integer
+                            else throw IOException("Windows agent returned an invalid file size")
+                        }
+                        else -> throw IOException("Windows agent returned an invalid file size")
                     }
-                    else -> throw IOException("Windows agent returned an invalid file size")
                 }
                 if (type != "file" && size != null) throw IOException("Windows agent returned an unexpected file size")
                 entries.add(VeerPcAgentFileEntry(name, type, size))
