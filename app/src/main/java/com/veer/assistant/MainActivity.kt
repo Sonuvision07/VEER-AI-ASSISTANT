@@ -749,11 +749,26 @@ fun VeerApp() {
                     AgentRunResult("Boss, approval ke baad agent safely stop ho gaya.", null, 0)
                 }
                 Handler(Looper.getMainLooper()).post {
-                    if (activeBrainCancellationToken === brainContinuation.cancellationToken) {
-                        activeBrainCancellationToken = null
-                    }
+                    if (activeBrainCancellationToken !== brainContinuation.cancellationToken) return@post
                     loading = false
-                    addReply(result.message)
+                    if (result.stoppedForApproval && result.pendingApproval != null && result.continuation != null) {
+                        val request = agentApprovalSession.request(result.pendingApproval)
+                        if (request == null) {
+                            activeBrainCancellationToken = null
+                            addReply("Boss, next approval request register nahi hui. Koi additional action execute nahi hua.")
+                        } else {
+                            pendingBrainContinuation = result.continuation
+                            pendingAgentApproval = request
+                            pendingAction = request.action
+                            approvalGeneration += 1L
+                            showApproval = true
+                            addReply(result.message.ifBlank { "Agla action karne ke liye approval chahiye." })
+                        }
+                    } else {
+                        activeBrainCancellationToken = null
+                        pendingBrainContinuation = null
+                        addReply(result.message)
+                    }
                 }
             }.start()
             return
