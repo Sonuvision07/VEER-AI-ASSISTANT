@@ -89,10 +89,17 @@ class VeerAgentBrain(
         require(maxToolArgumentChars > 0) { "maxToolArgumentChars must be positive" }
         require(maxToolNameChars > 0) { "maxToolNameChars must be positive" }
     }
-    fun run(initialTurn: AgentTurn): AgentRunResult {
+    fun run(initialTurn: AgentTurn): AgentRunResult =
+        runFromTurn(initialTurn, completedSteps = 0, initialProvider = null)
+
+    private fun runFromTurn(
+        initialTurn: AgentTurn,
+        completedSteps: Int,
+        initialProvider: AiProvider?
+    ): AgentRunResult {
         var turn = initialTurn
-        var lastProvider: AiProvider? = null
-        var steps = 0
+        var lastProvider: AiProvider? = initialProvider
+        var steps = completedSteps
 
         while (steps < maxToolSteps) {
             val decision = requestDecision(turn) ?: return AgentRunResult(
@@ -242,10 +249,12 @@ class VeerAgentBrain(
         val bounded = if (raw.length > maxToolResultChars) {
             raw.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
         } else raw
-        return AgentRunResult(
-            "Approved action ka result: $bounded",
-            continuation.provider,
-            continuation.completedSteps + 1
+        // Feed the real execution result back to the model and continue the same
+        // bounded task. The approval continuation remains one-shot.
+        return runFromTurn(
+            continuation.turn.copy(previousToolResult = bounded),
+            completedSteps = continuation.completedSteps + 1,
+            initialProvider = continuation.provider
         )
     }
 
