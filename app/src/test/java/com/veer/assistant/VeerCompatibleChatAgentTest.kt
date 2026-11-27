@@ -1,5 +1,6 @@
 package com.veer.assistant
 
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -8,6 +9,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VeerCompatibleChatAgentTest {
+    private fun toolCallResponse(id: String, finishReason: String): String {
+        val call = JSONObject()
+            .put("id", id)
+            .put("type", "function")
+            .put("function", JSONObject()
+                .put("name", "android.launch_app")
+                .put("arguments", JSONObject().put("app", "youtube").toString()))
+        val message = JSONObject()
+            .put("role", "assistant")
+            .put("content", JSONObject.NULL)
+            .put("tool_calls", JSONArray().put(call))
+        return JSONObject().put("choices", JSONArray().put(
+            JSONObject().put("finish_reason", finishReason).put("message", message)
+        )).toString()
+    }
+
     @Test fun llamaAdapterUsesGroqAndReturnsStructuredText() {
         var endpoint = ""
         var model = ""
@@ -25,9 +42,7 @@ class VeerCompatibleChatAgentTest {
                 """{"choices":[{"message":{"role":"assistant","content":"Llama fallback ready"}}]}"""
             }
         )
-
         val result = runtime.brain.run(AgentTurn("hello", emptyList(), emptyList()))
-
         assertEquals("https://api.groq.com/openai/v1/chat/completions", endpoint)
         assertEquals("llama-3.3-70b-versatile", model)
         assertEquals("llama-test-key", key)
@@ -46,14 +61,11 @@ class VeerCompatibleChatAgentTest {
             grokTransport = VeerCompatibleChatAgentTransport { e, m, _, body ->
                 endpoint = e
                 model = m
-                val request = JSONObject(body)
-                assertEquals("auto", request.getString("tool_choice"))
-                """{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_grok_1","type":"function","function":{"name":"android.launch_app","arguments":"{\"app\":\"youtube\"}"}}]}}]}"""
+                assertEquals("auto", JSONObject(body).getString("tool_choice"))
+                toolCallResponse("call_grok_1", "tool_calls")
             }
         )
-
         val result = runtime.brain.run(AgentTurn("Open YouTube", emptyList(), emptyList()))
-
         assertEquals("https://api.x.ai/v1/chat/completions", endpoint)
         assertEquals("grok-3-mini", model)
         assertEquals(AiProvider.GROK, result.provider)
@@ -66,7 +78,7 @@ class VeerCompatibleChatAgentTest {
     @Test fun llamaContinuationPairsToolResultWithOriginalCallId() {
         val requests = mutableListOf<JSONObject>()
         val responses = ArrayDeque(listOf(
-            """{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_llama_1","type":"function","function":{"name":"android.launch_app","arguments":"{\\"app\\":\\"youtube\\"}"}}]}}]}""",
+            toolCallResponse("call_llama_1", "tool_calls"),
             """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"YouTube launch request complete."}}]}"""
         ))
         val runtime = VeerAndroidAgentRuntime(
@@ -83,7 +95,6 @@ class VeerCompatibleChatAgentTest {
         val continuation = pending.continuation!!
         val approval = runtime.approvalSession.request(call)!!
         val approved = runtime.approvalSession.approve(approval.id)!!
-
         val completed = runtime.brain.resumeAfterApproval(continuation, approved)
 
         assertEquals("YouTube launch request complete.", completed.message)
@@ -100,12 +111,9 @@ class VeerCompatibleChatAgentTest {
             AiProvider.GROK, "https://api.x.ai/v1/chat/completions", "grok-3-mini",
             { "test-key" }, VeerCompatibleChatAgentTransport { _, _, _, _ -> "" }
         )
-        val result = adapter.parseResponse(
-            """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","tool_calls":[{"id":"call_bad","type":"function","function":{"name":"android.launch_app","arguments":"{\\"app\\":\\"youtube\\"}"}}]}}]}"""
-        )
+        val result = adapter.parseResponse(toolCallResponse("call_bad", "stop"))
         assertEquals(null, result?.toolCall)
         assertTrue(result?.finished ?: false)
         assertTrue(result?.message?.contains("incomplete", ignoreCase = true) == true)
     }
-
 }
