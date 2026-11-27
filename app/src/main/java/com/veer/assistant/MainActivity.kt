@@ -1910,6 +1910,15 @@ private fun HologramFace(
         ),
         label = "faceHologramScanGlow"
     )
+    val hudSignalPulse by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "faceHudSignalPulse"
+    )
 
     // The face mesh never changes shape. Build its paths once instead of
     // recalculating hundreds of points and line segments on every animation frame.
@@ -1979,6 +1988,16 @@ private fun HologramFace(
                 p(x + bracketLength * horizontalDirection, y), bracketStroke)
             drawLine(cyan.copy(alpha = bracketAlpha), corner,
                 p(x, y + bracketLength * verticalDirection), bracketStroke)
+        }
+        // Three pulsing signal indicators show the HUD is active.
+        for (signal in 0 until 3) {
+            val phase = (hudSignalPulse + signal * 0.22f).coerceIn(0f, 1f)
+            val signalAlpha = 0.24f + phase * 0.66f
+            drawCircle(
+                cyan.copy(alpha = signalAlpha),
+                radius = (2.1f + phase * 0.7f) * sx,
+                center = p(164f + signal * 16f, 22f)
+            )
         }
         // HUD tick marks around the face perimeter.
         val hudRadius = size.minDimension * 0.49f
