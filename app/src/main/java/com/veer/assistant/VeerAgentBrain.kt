@@ -35,7 +35,9 @@ data class AgentRunResult(
     val message: String,
     val provider: AiProvider?,
     val steps: Int,
-    val stoppedForApproval: Boolean = false
+    val stoppedForApproval: Boolean = false,
+    /** Exact validated call awaiting a human decision; never execute from message text. */
+    val pendingApproval: AgentToolCall? = null
 )
 
 interface ModelGateway {
@@ -145,7 +147,9 @@ class VeerAgentBrain(
                 if (!approved) {
                     return AgentRunResult(
                         decision.second.message.ifBlank { "Is action ke liye aapki approval zaroori hai." },
-                        lastProvider, steps, stoppedForApproval = true
+                        lastProvider, steps,
+                        stoppedForApproval = true,
+                        pendingApproval = action
                     )
                 }
             }
