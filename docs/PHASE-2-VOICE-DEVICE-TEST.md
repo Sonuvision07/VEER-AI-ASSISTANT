@@ -24,12 +24,12 @@ Phase 2 is not complete until these checks pass on a physical Android phone. CI 
 | V8 | Recognition recovery | Temporarily disconnect network / speech service if practical, then restore it | Status reports recovery and recognition retries without duplicate recognizers |
 | V9 | Stop control | Stop from the foreground notification | Notification disappears, microphone stops, and saved background voice preference becomes off |
 | V10 | Activity recreation | Start background voice, leave and reopen the app | UI restores the saved state and does not start duplicate recognition sessions |
-| V11 | Battery behavior | Repeat V5 with the phone's normal battery settings, then with battery optimization restrictions noted | Record whether the OEM allows sustained screen-off listening; document any required user-visible system setting |
+| V11 | Battery behavior | Repeat V5 with the phone's normal battery settings, then with battery optimization restrictions noted | Record whether the OEM allows sustained screen-off listening; document any required user-visible system setting |\n| V12 | Lost reply callback recovery | Start background voice, close the VEER Activity without stopping the foreground service, issue a wake-word command, then wait up to 2 minutes | If no Activity reply callback is available, the service resumes listening after its 120-second safety timeout |
 
 ## Completion rule
 
 - All V1–V10 checks must pass.
-- V11 must be recorded on the target phone; any OEM restriction must be documented rather than described as a VEER code pass.
+- V11 must be recorded on the target phone; any OEM restriction must be documented rather than described as a VEER code pass.\n- V12 checks the new bounded reply-pause recovery path; the timeout is a fallback, not a replacement for normal TTS completion.
 - Attach the test date, device, Android version, and observations.
 - Do not mark Phase 2 complete from GitHub CI alone.
 - Do not claim continuous wake-word operation after force-stop, reboot, or OEM process termination unless separately tested and explicitly supported.
