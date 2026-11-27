@@ -17,11 +17,11 @@ internal object VeerGeminiAgentRequest {
     fun build(turn: AgentTurn): JSONObject {
         require(turn.userRequest.isNotBlank()) { "User request must not be blank." }
         val prompt = StringBuilder()
-        prompt.append("User request:\n").append(turn.userRequest.take(4_000))
-        appendSection(prompt, "Saved context", turn.memory, 3_000)
-        appendSection(prompt, "Recent conversation", turn.recentConversation, 3_000)
+        prompt.append("User request:\n").append(turn.userRequest.take(3_500))
+        appendSection(prompt, "Saved context", turn.memory, 2_500)
+        appendSection(prompt, "Recent conversation", turn.recentConversation, 2_500)
         turn.previousToolResult?.takeIf { it.isNotBlank() }?.let {
-            prompt.append("\n\nPrevious tool result:\n").append(it.take(2_000))
+            prompt.append("\n\nPrevious tool result:\n").append(it.take(1_500))
         }
         require(prompt.length <= MAX_REQUEST_CONTEXT_CHARS) {
             "Agent context exceeded VEER's request limit."
