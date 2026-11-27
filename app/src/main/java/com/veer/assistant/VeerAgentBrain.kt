@@ -12,6 +12,9 @@ enum class AiProvider { GEMINI, OPENAI, ANTHROPIC }
 
 enum class AgentRisk { READ_ONLY, DEVICE_CHANGE, EXTERNAL_SIDE_EFFECT, DESTRUCTIVE }
 
+/** Safe, provider-neutral failure classification used by bounded retry policy. */
+class AgentProviderException(message: String, val retryable: Boolean) : RuntimeException(message)
+
 data class AgentToolCall(
     val name: String,
     val arguments: Map<String, String>,
@@ -343,15 +346,19 @@ class VeerAgentBrain(
             if (!available) continue
             // Provider generation is safe to retry before any tool dispatch.
             // Side-effecting tools are never retried.
-            repeat(maxProviderAttempts) {
+            for (attempt in 0 until maxProviderAttempts) {
                 if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
                 try {
                     val decision = gateway.decide(provider, turn)
                     if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
                     return provider to decision
+                } catch (failure: AgentProviderException) {
+                    // Only explicitly transient provider failures may be retried.
+                    // Authentication, request validation and malformed responses fall back.
+                    if (!failure.retryable) break
                 } catch (_: Exception) {
-                    // Retry within the task deadline, then fall back to next provider.
-                    // Never expose provider errors or secrets.
+                    // Unknown failures are not assumed transient; try the next provider.
+                    break
                 }
             }
         }
