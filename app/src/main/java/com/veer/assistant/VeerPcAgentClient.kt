@@ -6,10 +6,17 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
+import java.net.URLEncoder
 
 data class VeerPcAgentHealth(
     val agent: String,
     val version: String
+)
+
+data class VeerPcAgentFileEntry(
+    val name: String,
+    val type: String,
+    val sizeBytes: Long?
 )
 
 /**
@@ -19,6 +26,35 @@ data class VeerPcAgentHealth(
 class VeerPcAgentClient(baseUrl: String, token: String) {
     private val endpoint = normalizeBaseUrl(baseUrl)
     private val bearerToken = validateToken(token)
+
+    fun listWorkspace(path: String = "."): List<VeerPcAgentFileEntry> {
+        val safePath = validateWorkspacePath(path)
+        val encodedPath = URLEncoder.encode(safePath, Charsets.UTF_8.name())
+        val response = request("/files?path=$encodedPath")
+        if (!response.optBoolean("ok", false)) {
+            throw IOException(response.optString("error").ifBlank { "Windows workspace listing failed" })
+        }
+        val items = response.optJSONArray("items") ?: throw IOException("Windows agent returned an invalid file list")
+        if (items.length() > MAX_LIST_ITEMS) throw IOException("Windows agent returned too many workspace entries")
+        val entries = ArrayList<VeerPcAgentFileEntry>(items.length())
+        for (index in 0 until items.length()) {
+            val item = items.optJSONObject(index) ?: throw IOException("Windows agent returned an invalid file entry")
+            val name = item.optString("name")
+            val type = item.optString("type")
+            if (name.isBlank() || name.length > MAX_ENTRY_NAME_CHARS || name.any { it.isISOControl() } ||
+                name.contains('/') || name.contains('\\') || type !in ALLOWED_ENTRY_TYPES
+            ) throw IOException("Windows agent returned an invalid file entry")
+            val rawSize = item.opt("size")
+            val size = when (rawSize) {
+                null, JSONObject.NULL -> null
+                is Number -> rawSize.toLong().takeIf { it >= 0 } ?: throw IOException("Windows agent returned an invalid file size")
+                else -> throw IOException("Windows agent returned an invalid file size")
+            }
+            if (type != "file" && size != null) throw IOException("Windows agent returned an unexpected file size")
+            entries.add(VeerPcAgentFileEntry(name, type, size))
+        }
+        return entries
+    }
 
     fun health(): VeerPcAgentHealth {
         val response = request("/health")
@@ -77,6 +113,21 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         private const val CONNECT_TIMEOUT_MS = 5_000
         private const val READ_TIMEOUT_MS = 8_000
         private const val MAX_RESPONSE_BYTES = 64 * 1024
+        private const val MAX_LIST_ITEMS = 200
+        private const val MAX_ENTRY_NAME_CHARS = 255
+        private val ALLOWED_ENTRY_TYPES = setOf("file", "folder", "link")
+
+        internal fun validateWorkspacePath(raw: String): String {
+            val value = raw.trim()
+            require(value.isNotEmpty()) { "Workspace path is required" }
+            require(value == "." || (
+                !value.startsWith("/") && !value.startsWith("\\\\") &&
+                !value.contains('\\\\') && !value.contains(':') &&
+                value.split('/').all { it.isNotBlank() && it != "." && it != ".." && it.none(Char::isISOControl) }
+            )) { "Only relative workspace paths inside VEER's workspace are allowed" }
+            require(value.length <= 512) { "Workspace path is too long" }
+            return value
+        }
 
         fun normalizeBaseUrl(raw: String): String {
             val value = raw.trim().trimEnd('/')
