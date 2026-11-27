@@ -228,6 +228,7 @@ fun VeerApp() {
     var pendingAction by remember { mutableStateOf("") }
     val agentApprovalSession = remember { VeerAgentApprovalSession() }
     var pendingAgentApproval by remember { mutableStateOf<VeerAgentApprovalRequest?>(null) }
+    var pendingBrainContinuation by remember { mutableStateOf<AgentApprovalContinuation?>(null) }
     var pendingMusicUrl by remember { mutableStateOf<String?>(null) }
     var pendingGeminiContents by remember { mutableStateOf<String?>(null) }
     var pendingGeminiModelContent by remember { mutableStateOf<String?>(null) }
@@ -502,7 +503,7 @@ fun VeerApp() {
         else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)))
     }
 
-    fun runApprovedAction(action: String): Boolean {
+    fun runApprovedAction(action: String, announce: Boolean = true): Boolean {
         val allowedActions = setOf(
             "settings", "youtube", "music", "browser", "calculator", "camera", "maps",
             "dialer", "instagram", "facebook", "whatsapp", "x", "telegram",
@@ -515,7 +516,7 @@ fun VeerApp() {
             pendingAction = ""
             pendingMusicUrl = null
             showApproval = false
-            addReply("Boss, ye action supported ya approved list mein nahi hai. Maine ise run nahi kiya.")
+            if (announce) addReply("Boss, ye action supported ya approved list mein nahi hai. Maine ise run nahi kiya.")
             return false
         }
         return try {
@@ -549,10 +550,10 @@ fun VeerApp() {
                 "youtube_studio" -> launchSocialApp("com.google.android.apps.youtube.creator", "https://studio.youtube.com")
                 "gmail" -> launchSocialApp("com.google.android.gm", "https://mail.google.com")
             }
-            addReply("Boss, aapki permission se action complete kar diya.")
+            if (announce) addReply("Boss, aapki permission se action complete kar diya.")
             true
         } catch (_: Exception) {
-            addReply("Boss, ye action phone par complete nahi ho paaya.")
+            if (announce) addReply("Boss, ye action phone par complete nahi ho paaya.")
             false
         } finally {
             approvalGeneration += 1L
@@ -562,6 +563,28 @@ fun VeerApp() {
             pendingMusicUrl = null
             showApproval = false
         }
+    }
+
+    // Agent tools may run on a worker; Activity launches must execute on Android's main thread.
+    val agentRuntime = remember {
+        VeerAndroidAgentRuntime(
+            apiKeyProvider = { apiKey },
+            dispatchApprovedAction = { action ->
+                val completed = java.util.concurrent.CountDownLatch(1)
+                val outcome = java.util.concurrent.atomic.AtomicReference<String>()
+                val posted = Handler(Looper.getMainLooper()).post {
+                    val success = runApprovedAction(action, announce = false)
+                    outcome.set(if (success) "Approved Android action launched successfully."
+                        else "Approved Android action could not be launched.")
+                    completed.countDown()
+                }
+                if (!posted || !completed.await(15, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw IllegalStateException("Android action dispatcher timed out.")
+                }
+                outcome.get()
+            },
+            approvalSession = agentApprovalSession
+        )
     }
 
     fun continueGeminiAfterApprovedTool(call: AgentToolCall, toolResult: String) {
@@ -711,6 +734,26 @@ fun VeerApp() {
             addReply("Boss, pending agent action verify nahi hua. Maine ise run nahi kiya.")
             return
         }
+        val brainContinuation = pendingBrainContinuation
+        if (brainContinuation != null) {
+            pendingBrainContinuation = null
+            pendingAgentApproval = null
+            showApproval = false
+            loading = true
+            status = "VEER AGENT RESUMING..."
+            Thread {
+                val result = try {
+                    agentRuntime.brain.resumeAfterApproval(brainContinuation, call)
+                } catch (_: Exception) {
+                    AgentRunResult("Boss, approval ke baad agent safely stop ho gaya.", null, 0)
+                }
+                Handler(Looper.getMainLooper()).post {
+                    loading = false
+                    addReply(result.message)
+                }
+            }.start()
+            return
+        }
         agentApprovalSession.clear()
         pendingAgentApproval = null
         try {
@@ -837,6 +880,44 @@ fun VeerApp() {
             messages.dropLast(1).takeLast(8).forEach { append(it.first).append(": ").append(it.second).append("\n") }
             if (!attachedText.isNullOrBlank()) append("\n\nAttached document text:\n").append(attachedText)
             append("\nCurrent request: ").append(question)
+        }
+        // Text-only Gemini requests use VEER's provider-neutral Agent Brain.
+        // Multimodal requests keep the existing Gemini path until those adapters are ready.
+        if (imageBase64 == null && attachedText.isNullOrBlank() && selectedProvider == "GEMINI") {
+            val turn = AgentTurn(
+                userRequest = question,
+                memory = memories.takeLast(12).toList(),
+                recentConversation = messages.dropLast(1).takeLast(8).map { "${it.first}: ${it.second}" }
+            )
+            loading = true
+            status = "VEER AGENT THINKING..."
+            Thread {
+                val result = try {
+                    agentRuntime.brain.run(turn)
+                } catch (_: Exception) {
+                    AgentRunResult("Boss, VEER agent request safely fail ho gayi. Dobara try karein.", null, 0)
+                }
+                Handler(Looper.getMainLooper()).post {
+                    loading = false
+                    if (result.stoppedForApproval && result.pendingApproval != null && result.continuation != null) {
+                        val request = agentApprovalSession.request(result.pendingApproval)
+                        if (request == null) {
+                            addReply("Boss, agent approval request register nahi hui. Koi action execute nahi hua.")
+                        } else {
+                            pendingBrainContinuation = result.continuation
+                            pendingAgentApproval = request
+                            pendingAction = request.action
+                            approvalGeneration += 1L
+                            showApproval = true
+                            addReply(result.message.ifBlank { "Is action ke liye approval chahiye." })
+                        }
+                    } else {
+                        pendingBrainContinuation = null
+                        addReply(result.message)
+                    }
+                }
+            }.start()
+            return
         }
         loading = true
         status = "CONNECTING TO AI..."
@@ -998,6 +1079,7 @@ fun VeerApp() {
                 } else pendingAction
                 if (approvedAction.isNullOrBlank()) {
                     agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
+                    pendingBrainContinuation = null
                     pendingAgentApproval = null
                     pendingAction = ""
                     pendingMusicUrl = null
@@ -1012,6 +1094,7 @@ fun VeerApp() {
             } else {
                 approvalGeneration += 1L
                 pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
+                pendingBrainContinuation = null
                 pendingAgentApproval = null
                 pendingAction = ""
                 pendingMusicUrl = null
@@ -1602,6 +1685,7 @@ fun VeerApp() {
                 approvalGeneration += 1L
                 showApproval = false
                 agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
+                pendingBrainContinuation = null
                 pendingAgentApproval = null
                 pendingAction = ""
                 pendingMusicUrl = null
