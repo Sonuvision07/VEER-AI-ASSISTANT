@@ -568,7 +568,7 @@ fun VeerApp() {
                     connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                     code = connection.responseCode
                     val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                    raw = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                    raw = stream?.use { VeerBoundedHttpBody.readUtf8(it) } ?: ""
                 } finally { connection.disconnect() }
                 if (code in 200..299) {
                     val json = JSONObject(raw)
@@ -668,7 +668,7 @@ fun VeerApp() {
                         connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                         code = connection.responseCode
                         val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                        raw = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                        raw = stream?.use { VeerBoundedHttpBody.readUtf8(it) } ?: ""
                     } finally { connection.disconnect() }
                     if (code in 200..299) {
                         val json = JSONObject(raw)
