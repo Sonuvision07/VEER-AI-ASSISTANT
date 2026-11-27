@@ -14,7 +14,12 @@ internal class VeerOpenAiModelGateway(
         require(provider == AiProvider.OPENAI) { "OpenAI gateway cannot serve a different AI provider." }
         val key = apiKeyProvider()?.trim()?.takeIf { it.isNotEmpty() }
             ?: throw IllegalStateException("OpenAI API key unavailable.")
-        return VeerOpenAiToolCallParser.parse(transport.generate(key, turn))
+        return VeerOpenAiToolCallParser.parse(
+            transport.generate(key, turn),
+            previousContext = turn.providerContext,
+            previousCallId = turn.previousToolCallId,
+            previousToolResult = turn.previousToolResult
+        )
             ?: throw IllegalStateException("OpenAI returned an empty or invalid agent response.")
     }
 }
