@@ -41,6 +41,10 @@ class VeerOpenAiToolCallParserTest {
         val blocked = VeerOpenAiToolCallParser.parse(response(missingId))
         assertNull(blocked?.toolCall)
         assertTrue(blocked?.message?.contains("call ID") == true)
+        val oversizedId = functionCall("youtube").put("call_id", "x".repeat(65))
+        val invalidId = VeerOpenAiToolCallParser.parse(response(oversizedId))
+        assertNull(invalidId?.toolCall)
+        assertTrue(invalidId?.message?.contains("valid tool call ID") == true)
     }
 
     @Test fun addsPreviousFunctionOutputToReplayHistoryBeforeNextToolCall() {
