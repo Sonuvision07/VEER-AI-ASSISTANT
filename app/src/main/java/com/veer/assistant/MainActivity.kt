@@ -571,6 +571,7 @@ fun VeerApp() {
         VeerAndroidAgentRuntime(
             apiKeyProvider = { apiKey },
             openAiApiKeyProvider = { openAiApiKey },
+            claudeApiKeyProvider = { claudeApiKey },
             dispatchApprovedAction = { action ->
                 val completed = java.util.concurrent.CountDownLatch(1)
                 val outcome = java.util.concurrent.atomic.AtomicReference<String>()
