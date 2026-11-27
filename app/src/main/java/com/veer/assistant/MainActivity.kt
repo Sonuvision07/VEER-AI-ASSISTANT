@@ -883,7 +883,7 @@ fun VeerApp() {
         }
         // Text-only Gemini requests use VEER's provider-neutral Agent Brain.
         // Multimodal requests keep the existing Gemini path until those adapters are ready.
-        if (imageBase64 == null && attachedText.isNullOrBlank() && selectedProvider == "GEMINI") {
+        if (shouldUseAgentBrainForGeminiRequest(imageBase64, attachedText)) {
             val turn = AgentTurn(
                 userRequest = question,
                 memory = memories.takeLast(12).toList(),
