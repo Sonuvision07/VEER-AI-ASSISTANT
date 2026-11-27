@@ -26,7 +26,7 @@ internal object VeerOpenAiAgentRequest {
             prompt.append("\n\nPrevious tool result:\n").append(it.take(1_500))
         }
         require(prompt.length <= MAX_REQUEST_CONTEXT_CHARS) { "Agent context exceeded VEER's request limit." }
-        val input: Any = if (turn.providerContext == null && turn.previousToolCallId == null && turn.previousToolResult == null) {
+        val input: Any = if (turn.providerContext == null && turn.previousToolCallId == null) {
             prompt.toString()
         } else {
             require(!turn.providerContext.isNullOrBlank()) { "OpenAI continuation context is missing." }
