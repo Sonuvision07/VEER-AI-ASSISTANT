@@ -247,7 +247,7 @@ class VeerVoiceService : Service() {
                     }
                     phrase.isNotBlank() && wakeCommandWindow.isActive(SystemClock.elapsedRealtime()) -> {
                         wakeCommandWindow.clear()
-                        replyGate.beginReply()
+                        pauseForReply()
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", phrase))
                     }
                     else -> {
