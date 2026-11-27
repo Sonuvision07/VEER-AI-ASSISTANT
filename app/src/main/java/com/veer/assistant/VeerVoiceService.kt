@@ -135,12 +135,15 @@ class VeerVoiceService : Service() {
 
     private fun startRecognition() {
         if (stopping || awaitingReply) return
+        // Tear down any previous session before checking availability. If the
+        // platform temporarily reports speech unavailable during RESUME, an old
+        // recognizer must not remain active alongside the scheduled retry.
+        stopRecognition()
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra("status", "Speech recognition unavailable; retrying..."))
             scheduleRecognitionRetry()
             return
         }
-        stopRecognition()
         val speech = try {
             VeerSpeechRecognizerFactory.create(this, VeerRecognitionLanguage.useOnDeviceRecognizer(recognitionLanguageAttempt))
         } catch (e: Exception) {
