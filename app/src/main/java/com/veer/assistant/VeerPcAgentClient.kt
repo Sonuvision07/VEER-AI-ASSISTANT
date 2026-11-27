@@ -104,6 +104,9 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         fun validateToken(raw: String): String {
             val value = raw.trim()
             require(value.length >= 40) { "The Windows agent token must be at least 40 characters" }
+            require(value.none { it.isWhitespace() || it.isISOControl() }) {
+                "The Windows agent token cannot contain spaces, line breaks or control characters"
+            }
             return value
         }
     }
