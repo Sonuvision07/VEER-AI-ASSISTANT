@@ -28,7 +28,6 @@ internal object VeerGeminiToolSchema {
                 .put("type", "OBJECT")
                 .put("properties", properties)
             if (required.length() > 0) parameters.put("required", required)
-            parameters.put("additionalProperties", false)
 
             declarations.put(
                 JSONObject()
