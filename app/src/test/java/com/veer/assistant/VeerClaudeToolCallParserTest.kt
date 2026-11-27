@@ -20,4 +20,9 @@ class VeerClaudeToolCallParserTest {
   val result=VeerClaudeToolCallParser.parse("""{"content":[{"type":"text","text":"Namaste"}]}""")
   assertEquals("Namaste",result!!.message)
  }
+
+ @Test fun blocksToolUseWhenAnthropicDidNotStopForToolUse(){
+  val body="""{"stop_reason":"end_turn","content":[{"type":"tool_use","id":"a","name":"android.launch_app","input":{"app":"youtube"}}]}"""
+  assertTrue(VeerClaudeToolCallParser.parse(body)!!.finished)
+ }
 }
