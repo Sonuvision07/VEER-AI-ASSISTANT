@@ -154,7 +154,7 @@ class VeerPcAgentTests(unittest.TestCase):
         self.assertTrue((token_dir / "agent.token").is_file())
 
     def test_existing_token_with_whitespace_or_control_characters_is_rejected(self):
-        for invalid in ("x" * 20 + " " + "y" * 20, "x" * 20 + "\\n" + "y" * 20, "x" * 20 + "\\x1b" + "y" * 20):
+        for invalid in ("x" * 20 + " " + "y" * 20, "x" * 20 + "\n" + "y" * 20, "x" * 20 + "\x1b" + "y" * 20):
             with self.subTest(invalid=repr(invalid)):
                 token_dir = self.app_dir / ("invalid-" + str(len(list(self.app_dir.iterdir()))))
                 token_dir.mkdir()
