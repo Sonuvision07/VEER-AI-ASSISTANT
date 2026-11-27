@@ -220,6 +220,7 @@ fun VeerApp() {
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
     var backgroundVoiceActive by remember { mutableStateOf(prefs.getBoolean("background_voice_enabled", false)) }
+    var pendingBackgroundVoicePermission by remember { mutableStateOf(false) }
     var attachedImageBase64 by remember { mutableStateOf<String?>(null) }
     var attachedMimeType by remember { mutableStateOf("image/jpeg") }
     var attachedText by remember { mutableStateOf<String?>(null) }
@@ -1005,7 +1006,27 @@ fun VeerApp() {
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) listen() else status = "MICROPHONE PERMISSION DENIED"
+        if (granted && pendingBackgroundVoicePermission) {
+            pendingBackgroundVoicePermission = false
+            try {
+                prefs.edit().putBoolean("background_voice_enabled", true).apply()
+                ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java))
+                backgroundVoiceActive = true
+                status = "BACKGROUND VOICE STARTING"
+            } catch (error: Exception) {
+                prefs.edit().putBoolean("background_voice_enabled", false).apply()
+                backgroundVoiceActive = false
+                status = "BACKGROUND VOICE COULD NOT START"
+                messages.add("VEER" to "Background voice start nahi ho paayi. App ko dobara kholkar try karein.")
+                Log.w("VEER", "Background voice start failed after microphone permission", error)
+            }
+        } else if (granted) {
+            pendingBackgroundVoicePermission = false
+            listen()
+        } else {
+            pendingBackgroundVoicePermission = false
+            status = "MICROPHONE PERMISSION DENIED"
+        }
     }
 
     DisposableEffect(Unit) {
@@ -1094,7 +1115,10 @@ fun VeerApp() {
                                     status = "BACKGROUND VOICE COULD NOT START"
                                     messages.add("VEER" to "Background voice start nahi ho paayi. App ko dobara kholkar try karein.")
                                 }
-                            } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            } else {
+                                pendingBackgroundVoicePermission = true
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
                         }, shape = CircleShape, modifier = Modifier.size(58.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(if (backgroundVoiceActive) "■" else "BG", fontSize = 15.sp) }
                     }
