@@ -34,26 +34,7 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         if (!response.optBoolean("ok", false)) {
             throw IOException(response.optString("error").ifBlank { "Windows workspace listing failed" })
         }
-        val items = response.optJSONArray("items") ?: throw IOException("Windows agent returned an invalid file list")
-        if (items.length() > MAX_LIST_ITEMS) throw IOException("Windows agent returned too many workspace entries")
-        val entries = ArrayList<VeerPcAgentFileEntry>(items.length())
-        for (index in 0 until items.length()) {
-            val item = items.optJSONObject(index) ?: throw IOException("Windows agent returned an invalid file entry")
-            val name = item.optString("name")
-            val type = item.optString("type")
-            if (name.isBlank() || name.length > MAX_ENTRY_NAME_CHARS || name.any { it.isISOControl() } ||
-                name.contains('/') || name.contains('\\') || type !in ALLOWED_ENTRY_TYPES
-            ) throw IOException("Windows agent returned an invalid file entry")
-            val rawSize = item.opt("size")
-            val size = when (rawSize) {
-                null, JSONObject.NULL -> null
-                is Number -> rawSize.toLong().takeIf { it >= 0 } ?: throw IOException("Windows agent returned an invalid file size")
-                else -> throw IOException("Windows agent returned an invalid file size")
-            }
-            if (type != "file" && size != null) throw IOException("Windows agent returned an unexpected file size")
-            entries.add(VeerPcAgentFileEntry(name, type, size))
-        }
-        return entries
+        return parseWorkspaceResponse(response)
     }
 
     fun health(): VeerPcAgentHealth {
@@ -116,6 +97,32 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         private const val MAX_LIST_ITEMS = 200
         private const val MAX_ENTRY_NAME_CHARS = 255
         private val ALLOWED_ENTRY_TYPES = setOf("file", "folder", "link")
+
+        internal fun parseWorkspaceResponse(response: JSONObject): List<VeerPcAgentFileEntry> {
+            if (!response.optBoolean("ok", false)) {
+                throw IOException(response.optString("error").ifBlank { "Windows workspace listing failed" })
+            }
+            val items = response.optJSONArray("items") ?: throw IOException("Windows agent returned an invalid file list")
+            if (items.length() > MAX_LIST_ITEMS) throw IOException("Windows agent returned too many workspace entries")
+            val entries = ArrayList<VeerPcAgentFileEntry>(items.length())
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: throw IOException("Windows agent returned an invalid file entry")
+                val name = item.optString("name")
+                val type = item.optString("type")
+                if (name.isBlank() || name.length > MAX_ENTRY_NAME_CHARS || name.any { it.isISOControl() } ||
+                    name.contains('/') || name.contains('\\') || type !in ALLOWED_ENTRY_TYPES
+                ) throw IOException("Windows agent returned an invalid file entry")
+                val rawSize = item.opt("size")
+                val size = when (rawSize) {
+                    null, JSONObject.NULL -> null
+                    is Number -> rawSize.toLong().takeIf { it >= 0 } ?: throw IOException("Windows agent returned an invalid file size")
+                    else -> throw IOException("Windows agent returned an invalid file size")
+                }
+                if (type != "file" && size != null) throw IOException("Windows agent returned an unexpected file size")
+                entries.add(VeerPcAgentFileEntry(name, type, size))
+            }
+            return entries
+        }
 
         internal fun validateWorkspacePath(raw: String): String {
             val value = raw.trim()
