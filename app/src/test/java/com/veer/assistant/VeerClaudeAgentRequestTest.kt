@@ -22,4 +22,15 @@ class VeerClaudeAgentRequestTest {
         assertEquals("user",messages.getJSONObject(2).getString("role"))
         assertEquals("call-1",messages.getJSONObject(2).getJSONArray("content").getJSONObject(0).getString("tool_use_id"))
     }
+
+    @Test fun continuationRejectsMismatchedToolUseId() {
+        val context="""[{"type":"tool_use","id":"call-original","name":"android.launch_app","input":{"app":"youtube"}}]"""
+        val turn=AgentTurn("open youtube",emptyList(),emptyList(),"opened",context,"call-forged",AiProvider.ANTHROPIC)
+        try {
+            VeerClaudeAgentRequest.build(turn)
+            fail("Expected mismatched tool-use ID to be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected: tool_result must reference the exact assistant tool_use ID.
+        }
+    }
 }
