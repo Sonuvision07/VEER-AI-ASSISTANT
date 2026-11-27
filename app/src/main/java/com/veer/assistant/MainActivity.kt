@@ -152,6 +152,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun generateDemoReply(question: String): String =
+    "Ye VEER ka demo jawab hai. Aapne poochha: $question"
+
 @Composable
 private fun VeerActionGlyph(kind: String, modifier: Modifier = Modifier, tint: Color = Color.White) {
     Canvas(modifier) {
@@ -183,6 +186,53 @@ private fun VeerBrandMark(modifier: Modifier = Modifier) {
         drawPath(path, Brush.linearGradient(listOf(Color(0xFF83F4FF), Color(0xFF28A8FF), Color(0xFF9B7BFF))), style = Stroke(width = w * 0.12f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
         drawCircle(Color(0xFF8CEFFF), radius = w * 0.055f, center = Offset(w * 0.50f, h * 0.10f))
         drawCircle(Color(0xFF27C8FF).copy(alpha = 0.22f), radius = w * 0.46f, style = Stroke(width = w * 0.025f))
+    }
+}
+
+@Composable
+private fun VeerOutlineIcon(kind: String, modifier: Modifier = Modifier, tint: Color = Color(0xFF17181A)) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = size.minDimension * 0.085f
+        val start = Offset(w * 0.14f, h * 0.5f)
+        when (kind) {
+            "menu" -> {
+                for (y in listOf(0.25f, 0.5f, 0.75f)) {
+                    drawLine(tint, Offset(w * 0.16f, h * y), Offset(w * 0.84f, h * y), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                }
+            }
+            "new" -> {
+                drawRoundRect(tint, Offset(w * 0.13f, h * 0.13f), androidx.compose.ui.geometry.Size(w * 0.74f, h * 0.74f), androidx.compose.ui.geometry.CornerRadius(w * 0.12f), style = Stroke(stroke))
+                drawLine(tint, Offset(w * 0.5f, h * 0.31f), Offset(w * 0.5f, h * 0.69f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.31f, h * 0.5f), Offset(w * 0.69f, h * 0.5f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            "plus" -> {
+                drawLine(tint, Offset(w * 0.5f, h * 0.17f), Offset(w * 0.5f, h * 0.83f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.17f, h * 0.5f), Offset(w * 0.83f, h * 0.5f), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            "camera" -> {
+                drawRoundRect(tint, Offset(w * 0.10f, h * 0.27f), androidx.compose.ui.geometry.Size(w * 0.80f, h * 0.57f), androidx.compose.ui.geometry.CornerRadius(w * 0.10f), style = Stroke(stroke))
+                drawRoundRect(tint, Offset(w * 0.28f, h * 0.15f), androidx.compose.ui.geometry.Size(w * 0.22f, h * 0.14f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f), style = Stroke(stroke))
+                drawCircle(tint, w * 0.15f, Offset(w * 0.52f, h * 0.55f), style = Stroke(stroke))
+            }
+            "mic" -> {
+                drawRoundRect(tint, Offset(w * 0.38f, h * 0.08f), androidx.compose.ui.geometry.Size(w * 0.24f, h * 0.55f), androidx.compose.ui.geometry.CornerRadius(w * 0.12f), style = Stroke(stroke))
+                drawArc(tint, 0f, 180f, false, Offset(w * 0.20f, h * 0.25f), androidx.compose.ui.geometry.Size(w * 0.60f, h * 0.52f), style = Stroke(stroke))
+                drawLine(tint, Offset(w * 0.50f, h * 0.76f), Offset(w * 0.50f, h * 0.91f), stroke)
+                drawLine(tint, Offset(w * 0.34f, h * 0.92f), Offset(w * 0.66f, h * 0.92f), stroke)
+            }
+            "send" -> {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.18f, h * 0.50f)
+                    lineTo(w * 0.82f, h * 0.50f)
+                    moveTo(w * 0.56f, h * 0.23f)
+                    lineTo(w * 0.83f, h * 0.50f)
+                    lineTo(w * 0.56f, h * 0.77f)
+                }
+                drawPath(path, tint, style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
     }
 }
 
@@ -306,8 +356,7 @@ fun VeerApp() {
             }
         } catch (_: Exception) {}
         mutableStateListOf<Pair<String, String>>().apply {
-            if (restored.isEmpty()) add("VEER" to "Namaste Boss! Main VEER hoon. Aap text ya voice se baat kar sakte hain.")
-            else addAll(restored.takeLast(100))
+            addAll(restored.takeLast(100))
         }
     }
 
@@ -1118,194 +1167,12 @@ fun VeerApp() {
         val clean = command.trim()
         if (clean.isEmpty()) return
         messages.add("BOSS" to clean)
-        val approvalPhrase = VeerApprovalPhrase.parse(clean)
-        if (showApproval && approvalPhrase != VeerApprovalPhrase.Decision.NONE) {
-            if (approvalPhrase == VeerApprovalPhrase.Decision.APPROVE) {
-                approvalGeneration += 1L
-                val agentRequest = pendingAgentApproval
-                val agentCall = agentRequest?.let { request ->
-                    agentApprovalSession.approve(request.id)?.takeIf { it == request.call }
-                }
-                val approvedAction = if (agentRequest != null) {
-                    agentCall?.let { VeerAgentToolPolicy.toPendingAppAction(it) }
-                        ?.takeIf { it == pendingAction }
-                } else pendingAction
-                if (approvedAction.isNullOrBlank()) {
-                    agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
-                    pendingBrainContinuation = null
-                    pendingAgentApproval = null
-                    pendingAction = ""
-                    pendingMusicUrl = null
-                    showApproval = false
-                    addReply("Boss, pending approval request verify nahi hui. Action run nahi kiya.")
-                } else if (agentRequest != null && agentCall != null) {
-                    pendingAgentApproval = null
-                    runApprovedAgentTool(agentCall)
-                } else {
-                    runApprovedAction(approvedAction)
-                }
-            } else {
-                approvalGeneration += 1L
-                pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
-                pendingBrainContinuation = null
-                pendingAgentApproval = null
-                pendingAction = ""
-                pendingMusicUrl = null
-                showApproval = false
-                addReply("Theek hai Boss, action cancel kar diya.")
-            }
-            return
-        }
-        val text = clean.lowercase(Locale.getDefault())
-        // Handle simple everyday conversation and arithmetic locally before any cloud provider.
-        VeerLocalBrain.reply(clean, memories)?.let { localReply ->
-            addReply(localReply)
-            return
-        }
-        when {
-            text.startsWith("yaad rakho ") || text.startsWith("remember ") -> {
-                val prefixLength = if (text.startsWith("yaad rakho ")) "yaad rakho ".length else "remember ".length
-                val note = clean.drop(prefixLength).trim()
-                if (note.isNotBlank()) {
-                    if (memories.none { it.equals(note, ignoreCase = true) }) {
-                        memories.add(note)
-                        if (memories.size > 100) memories.removeAt(0)
-                    }
-                    addReply("Note local memory mein save kiya.")
-                } else addReply("Kya yaad rakhna hai?")
-            }
-            text.contains("meri yaadein") || text.contains("yaadein dikhao") || text.contains("show memories") -> addReply(if (memories.isEmpty()) "Abhi koi note save nahi hai." else "Saved notes:\n" + memories.mapIndexed { i, note -> "${i+1}. $note" }.joinToString("\n"))
-            text.startsWith("forget ") || text.startsWith("yaad hatao ") -> {
-                val prefixLength = if (text.startsWith("forget ")) "forget ".length else "yaad hatao ".length
-                val target = clean.drop(prefixLength).trim()
-                val memoryIndex = findMemoryIndex(memories, target)
-                val removed = memoryIndex >= 0
-                if (removed) memories.removeAt(memoryIndex)
-                addReply(if (removed) "Note delete kiya." else "Note nahi mila.")
-            }
-            text=="clear all memories" || text=="saari yaadein hatao" -> {memories.clear();addReply("Saved memories clear kar di.")}
-            text.contains("time") || text.contains("samay") || text.contains("kitne baje") -> addReply("Abhi time hai "+SimpleDateFormat("hh:mm a",Locale.getDefault()).format(Date()))
-            text.contains("tarikh") || text.contains("date") || text.contains("aaj kya") -> addReply("Aaj "+SimpleDateFormat("dd MMMM yyyy",Locale("hi","IN")).format(Date()))
-            text.contains("gaana chalao") || text.contains("song play") || text.contains("music chalao") || text.contains("play song") -> {
-                val query=clean.replace(Regex("(?i)^(gaana|song|music)\\s*(chalao|play)?\\s*"),"").trim()
-                pendingMusicUrl = if (query.isBlank()) null else "https://music.youtube.com/search?q=" + Uri.encode(query)
-                pendingAction = "music"
-                agentApprovalSession.clear()
-                pendingAgentApproval = null
-                approvalGeneration += 1L
-                showApproval = true
-            }
-            VeerCommandRouter.route(clean) != null -> {
-                val routed = VeerCommandRouter.route(clean)!!
-                val agentCall = AgentToolCall(
-                    name = VeerAgentToolPolicy.ANDROID_LAUNCH_APP,
-                    arguments = mapOf("app" to routed.action),
-                    risk = AgentRisk.DEVICE_CHANGE
-                )
-                val request = agentApprovalSession.request(agentCall)
-                if (request == null) {
-                    addReply("Boss, ek approval pehle se pending hai ya request safety check mein fail hui. Pehle use approve/cancel karein.")
-                } else {
-                    pendingAgentApproval = request
-                    pendingAction = request.action
-                    approvalGeneration += 1L
-                    showApproval = true
-                }
-            }
-            else -> {
-                val image = attachedImageBase64
-                if (localAiReady && image == null && attachedText.isNullOrBlank()) {
-                    val localPrompt = VeerLocalPromptBuilder.build(
-                        memories = memories.toList(),
-                        history = messages.dropLast(1).takeLast(8).toList(),
-                        currentRequest = clean
-                    )
-                    loading = true
-                    status = "LOCAL AI THINKING..."
-                    localAiScope.launch {
-                        try {
-                            val answer = withContext(Dispatchers.Default) { localAiEngine.generateReply(localPrompt) }
-                            loading = false
-                            addReply(answer.ifBlank { "Boss, local model se khaali jawab mila. Dobara try karein." })
-                        } catch (error: Exception) {
-                            loading = false
-                            status = "LOCAL AI ERROR"
-                            addReply("Boss, offline AI run nahi ho paaya: " + (error.message ?: "unknown error"))
-                        }
-                    }
-                    attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg"
-                    return
-                }
-                if (localAiReady && (image != null || !attachedText.isNullOrBlank())) {
-                    addReply("Boss, VEER ka current offline model abhi text-only hai. Image aur document analysis local model mein abhi add nahi hua; normal text chat offline chalegi.")
-                    attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg"
-                    return
-                }
-                if (!localAiReady && apiKey.isBlank() && openAiApiKey.isBlank() && claudeApiKey.isBlank() && llamaApiKey.isBlank() && grokApiKey.isBlank() && museApiKey.isBlank()) {
-                    addReply(if (localModelInstalled) "Offline AI model phone mein hai, lekin activate nahi hua. Settings kholkar ACTIVATE OFFLINE AI dabayein." else "VEER ka apna offline AI model abhi install nahi hai. Settings mein 347 MB model download karein; iske liye API key nahi chahiye.")
-                    showSettings = true
-                    return
-                }
-                fallbackAttempted.clear()
-                when (selectedProvider) {
-                    "CLAUDE" -> {
-                        if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
-                        else if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
-                        else if (apiKey.isNotBlank()) askGemini(clean, image)
-                        else if (museApiKey.isNotBlank() && image == null) askMuse(clean)
-                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
-                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
-                        else addReply("Boss, Claude ke liye API key chahiye. Image request ke liye Gemini ya OpenAI key add karein.")
-                    }
-                    "OPENAI" -> {
-                        if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
-                        else if (apiKey.isNotBlank()) askGemini(clean, image)
-                        else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
-                        else if (museApiKey.isNotBlank() && image == null) askMuse(clean)
-                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
-                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
-                        else addReply("Boss, selected provider ki API key Settings mein add karein.")
-                    }
-                    "GEMINI" -> {
-                        if (apiKey.isNotBlank()) askGemini(clean, image)
-                        else if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
-                        else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
-                        else if (museApiKey.isNotBlank() && image == null) askMuse(clean)
-                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
-                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
-                        else addReply("Boss, selected provider ki API key Settings mein add karein.")
-                    }
-                    "MUSE" -> {
-                        if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
-                        else if (image != null && apiKey.isNotBlank()) askGemini(clean, image)
-                        else if (image != null) addReply("Boss, Muse image input is not enabled in this VEER path yet. Gemini ya OpenAI key add karein.")
-                        else askMuse(clean)
-                    }
-                    "LLAMA" -> {
-                        if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
-                        else if (image != null && apiKey.isNotBlank()) askGemini(clean, image)
-                        else if (image != null) addReply("Boss, Meta Llama image input is not enabled here. Gemini ya OpenAI key add karein.")
-                        else askMetaLlama(clean)
-                    }
-                    "GROK" -> {
-                        if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
-                        else if (image != null && apiKey.isNotBlank()) askGemini(clean, image)
-                        else if (image != null) addReply("Boss, Grok image input is not enabled here. Gemini ya OpenAI key add karein.")
-                        else askGrok(clean)
-                    }
-                    else -> {
-                        if (openAiApiKey.isNotBlank()) askOpenAI(clean, image)
-                        else if (apiKey.isNotBlank()) askGemini(clean, image)
-                        else if (claudeApiKey.isNotBlank() && image == null) askClaude(clean)
-                        else if (museApiKey.isNotBlank() && image == null) askMuse(clean)
-                        else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
-                        else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
-                        else { addReply("Boss, pehle Settings mein kam se kam ek AI provider ki API key add karein."); showSettings = true }
-                    }
-                }
-                attachedImageBase64=null; attachedText=null; attachedFileName=null; attachedMimeType="image/jpeg"
-            }
-        }
+        loading = false
+        addReply(generateDemoReply(clean))
+        attachedImageBase64 = null
+        attachedText = null
+        attachedFileName = null
+        attachedMimeType = "image/jpeg"
     }
 
     fun listen(languageAttempt: Int = 0) {
@@ -1458,6 +1325,14 @@ fun VeerApp() {
         status = if (bitmap != null) "CAMERA IMAGE ATTACHED" else "CAMERA CANCELLED"
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) cameraLauncher.launch(null)
+        else {
+            status = "CAMERA PERMISSION DENIED"
+            addReply("Camera permission nahi mili. Photo lene ke liye Android Settings mein VEER ko Camera permission dein.")
+        }
+    }
+
     val documentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             status = "READING FILE..."
@@ -1515,6 +1390,7 @@ fun VeerApp() {
         } else {
             pendingBackgroundVoicePermission = false
             status = "MICROPHONE PERMISSION DENIED"
+            addReply("Microphone permission nahi mili. Voice input ke liye Android Settings mein VEER ko Microphone permission dein.")
         }
     }
 
@@ -1533,7 +1409,7 @@ fun VeerApp() {
                     VeerVoiceService.ACTION_TRANSCRIPT -> {
                         val phrase = intent.getStringExtra("text").orEmpty()
                         if (phrase.isNotBlank()) {
-                            voiceMode = true
+                            voiceMode = false
                             processCommand(phrase)
                         }
                     }
@@ -1554,151 +1430,235 @@ fun VeerApp() {
         onDispose { try { context.unregisterReceiver(receiver) } catch (_: Exception) {} }
     }
 
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary = cyan, background = Color.Black, surface = Color(0xFF202124), onSurface = Color.White
+    fun sendTypedMessage() {
+        val question = typedCommand.trim()
+        if (loading || (question.isBlank() && attachedImageBase64 == null && attachedText.isNullOrBlank())) return
+        typedCommand = ""
+        processCommand(question.ifBlank { "Please analyse the attached file." })
+    }
+
+    val isListening = status.contains("LISTENING") || status.contains("HEARING")
+    val uiBackground = Color(0xFFF7F7F5)
+    val uiSurface = Color(0xFFFFFFFF)
+    val uiBorder = Color(0xFFDEDFDB)
+    val uiText = Color(0xFF17181A)
+    val uiMuted = Color(0xFF5C5F66)
+    val uiAccent = Color(0xFF2F5BEA)
+
+    MaterialTheme(colorScheme = lightColorScheme(
+        primary = uiAccent,
+        background = uiBackground,
+        surface = uiSurface,
+        onSurface = uiText
     )) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            if (voiceMode) {
-                Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { voiceMode = false; status = "ONLINE"; val activeRecognizer = recognizer; recognizer = null; safelyReleaseSpeechRecognizer(activeRecognizer) }) { Text("‹  CHAT", color = Color.White, fontSize = 15.sp) }
-                        Spacer(Modifier.weight(1f))
-                        Text("VEER", color = Color(0xFF69DFFF), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("•••", color = Color.LightGray, fontSize = 20.sp) }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    val faceExpression = when {
-                        loading || status.contains("PROCESSING") || status.contains("CONNECTING") -> VeerFaceExpression.THINKING
-                        ttsSpeaking -> VeerFaceExpression.SPEAKING
-                        status.contains("LISTENING") || status.contains("HEARING") -> VeerFaceExpression.LISTENING
-                        else -> VeerFaceExpression.IDLE
-                    }
-                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = faceExpression != VeerFaceExpression.IDLE, expression = faceExpression, speaking = ttsSpeaking, mouthOpenTarget = ttsMouthOpenTarget)
-                    Spacer(Modifier.height(18.dp))
-                    Text(when { loading -> "THINKING"; backgroundVoiceActive -> "BACKGROUND VOICE ACTIVE"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
-                        color = Color(0xFF78DFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp)
-                    Spacer(Modifier.height(10.dp))
-                    Text(messages.lastOrNull { it.first == "VEER" }?.second ?: "Namaste. Main sun raha hoon.",
-                        color = Color(0xFFE6F6FF), fontSize = 16.sp, modifier = Modifier.fillMaxWidth().heightIn(max = 88.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Spacer(Modifier.weight(1f))
-                    Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = { voiceMode = false; status = "ONLINE"; val activeRecognizer = recognizer; recognizer = null; safelyReleaseSpeechRecognizer(activeRecognizer) }, shape = CircleShape, modifier = Modifier.size(58.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("×", fontSize = 27.sp) }
-                        Spacer(Modifier.width(30.dp))
-                        Button(onClick = {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen()
-                            else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }, shape = CircleShape, modifier = Modifier.size(76.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1677B8))) { Text("🎙", fontSize = 27.sp) }
-                        Spacer(Modifier.width(30.dp))
-                        OutlinedButton(onClick = {
-                            if (backgroundVoiceActive) {
-                                prefs.edit().putBoolean("background_voice_enabled", false).apply()
-                                context.stopService(Intent(context, VeerVoiceService::class.java))
-                                backgroundVoiceActive = false
-                            } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                try {
-                                    prefs.edit().putBoolean("background_voice_enabled", true).apply()
-                                    ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java))
-                                    backgroundVoiceActive = true
-                                    status = "BACKGROUND VOICE STARTING"
-                                } catch (_: Exception) {
-                                    // The service never starts when startForegroundService throws.
-                                    prefs.edit().putBoolean("background_voice_enabled", false).apply()
-                                    backgroundVoiceActive = false
-                                    status = "BACKGROUND VOICE COULD NOT START"
-                                    messages.add("VEER" to "Background voice start nahi ho paayi. App ko dobara kholkar try karein.")
-                                }
-                            } else {
-                                pendingBackgroundVoicePermission = true
-                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        }, shape = CircleShape, modifier = Modifier.size(58.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(if (backgroundVoiceActive) "■" else "BG", fontSize = 15.sp) }
+        Column(
+            Modifier.fillMaxSize().background(uiBackground).imePadding()
+        ) {
+            Row(
+                Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { keyDraft = apiKey; showSettings = true },
+                    modifier = Modifier.size(44.dp)
+                ) { VeerOutlineIcon("menu", Modifier.size(19.dp), uiText) }
+                Spacer(Modifier.weight(1f))
+                Text("Veer", color = uiText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        activeBrainCancellationToken?.cancel()
+                        activeBrainCancellationToken = null
+                        pendingBrainContinuation = null
+                        pendingAgentApproval?.let { agentApprovalSession.cancel(it.id) }
+                        pendingAgentApproval = null
+                        pendingAction = ""
+                        showApproval = false
+                        loading = false
+                        typedCommand = ""
+                        attachedImageBase64 = null
+                        attachedText = null
+                        attachedFileName = null
+                        attachedMimeType = "image/jpeg"
+                        messages.clear()
+                        status = "ONLINE"
+                    },
+                    modifier = Modifier.size(44.dp)
+                ) { VeerOutlineIcon("new", Modifier.size(19.dp), uiText) }
+            }
+
+            if (messages.isEmpty()) {
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier.size(44.dp).background(uiAccent, RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("V", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.height(20.dp))
+                        Text(
+                            "Namaste, kya madad karun?",
+                            color = uiText,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Likhiye, boliye ya photo bhejiye",
+                            color = uiMuted,
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             } else {
-                Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("☰", color = Color(0xFFB8C8E4), fontSize = 23.sp) }
-                        Spacer(Modifier.weight(1f))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            VeerBrandMark(Modifier.size(30.dp))
-                            Text("VEER", color = Color(0xFFF4F8FF), fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { showClearChatConfirm = true }) { Text("＋", color = Color(0xFFB8C8E4), fontSize = 25.sp) }
-                    }
-                    if (messages.size <= 1) {
-                        Spacer(Modifier.weight(0.7f))
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(Modifier.size(164.dp), contentAlignment = Alignment.Center) {
-                                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x553A8BFF), Color(0x222A4D9B), Color.Transparent)), CircleShape))
-                                VeerBrandMark(Modifier.size(104.dp))
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp),
+                    contentPadding = PaddingValues(top = 14.dp, bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(messages) { item ->
+                        val isUser = item.first == "BOSS"
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                        ) {
+                            Surface(
+                                color = if (isUser) Color(0xFFEDEEEB) else uiSurface,
+                                shape = RoundedCornerShape(16.dp),
+                                border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
+                                modifier = Modifier.widthIn(max = 320.dp)
+                            ) {
+                                Text(
+                                    item.second,
+                                    color = uiText,
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp)
+                                )
                             }
-                            Spacer(Modifier.height(12.dp))
-                            Text("Hello, Boss", color = Color(0xFFF4F7FF), fontSize = 29.sp, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(7.dp))
-                            Text("What can I help you with today?", color = Color(0xFF9EACC4), fontSize = 15.sp)
-                            Spacer(Modifier.height(28.dp))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                listOf("Ask anything", "Create", "Learn").forEach { suggestion ->
-                                    Surface(color = Color(0xFF111C30), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263B5D))) {
-                                        Text(suggestion, color = Color(0xFFD4E1F6), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp))
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(Modifier.weight(1f))
-                    } else {
-                        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                            items(messages) { item ->
-                                val isBoss = item.first == "BOSS"
-                                Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isBoss) Alignment.End else Alignment.Start) {
-                                    Surface(color = if (isBoss) Color(0xFF30343A) else Color.Transparent, shape = RoundedCornerShape(20.dp)) {
-                                        Text(item.second, color = Color(0xFFF1F1F1), modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp), fontSize = 16.sp, lineHeight = 23.sp)
-                                    }
-                                }
-                            }
-                            if (loading) item { Text("VEER is thinking…", color = Color.Gray, fontSize = 14.sp) }
                         }
                     }
-                    if (attachedImageBase64 != null) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${attachedFileName ?: "ATTACHMENT READY"} — send a message to analyse", color = Color(0xFF70DFFF), fontSize = 12.sp, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { attachedImageBase64 = null; attachedText = null; attachedFileName = null }) { Text("REMOVE", color = Color.LightGray, fontSize = 11.sp) }
+                    if (loading) {
+                        item {
+                            Text("Veer soch raha hai…", color = uiMuted, fontSize = 13.sp)
                         }
                     }
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Brush.horizontalGradient(listOf(Color(0xFF111B2D), Color(0xFF101827))), RoundedCornerShape(28.dp)).border(1.dp, Color(0xFF263B5D), RoundedCornerShape(28.dp)).padding(horizontal = 7.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { documentLauncher.launch("*/*") }, contentPadding = PaddingValues(5.dp)) { Text("＋", color = Color(0xFF9CB5D8), fontSize = 25.sp) }
-                        OutlinedTextField(value = typedCommand, onValueChange = { typedCommand = it }, modifier = Modifier.weight(1f),
-                            placeholder = { Text("Message VEER...", color = Color(0xFF8292AA)) }, singleLine = false, maxLines = 4,
-                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color(0xFF62CFFF)))
-                        TextButton(onClick = { cameraLauncher.launch(null) }, contentPadding = PaddingValues(5.dp)) { VeerActionGlyph("camera", Modifier.size(22.dp), Color(0xFFB9C9E5)) }
-                        Button(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                            shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF126CBA))) { VeerActionGlyph("mic", Modifier.size(21.dp), Color.White) }
-                        if (activeBrainCancellationToken != null) {
-                            Button(onClick = {
-                                val token = activeBrainCancellationToken
-                                token?.cancel()
-                                activeBrainCancellationToken = null
-                                pendingBrainContinuation = null
-                                pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
-                                pendingAgentApproval = null
-                                pendingAction = ""
-                                showApproval = false
-                                loading = false
-                                status = "TASK CANCELLED"
-                                addReply("Boss, VEER agent task cancel kar diya. Koi naya action start nahi hoga.")
-                            }, shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))) {
-                                Text("■", color = Color.White, fontSize = 17.sp)
+                }
+            }
+
+            if (attachedImageBase64 != null || !attachedText.isNullOrBlank()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        attachedFileName ?: "Attachment ready",
+                        color = uiMuted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1
+                    )
+                    TextButton(onClick = {
+                        attachedImageBase64 = null
+                        attachedText = null
+                        attachedFileName = null
+                    }) { Text("HATAO", color = uiAccent, fontSize = 12.sp) }
+                }
+            }
+
+            Surface(
+                color = uiSurface,
+                shape = RoundedCornerShape(22.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
+            ) {
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    OutlinedTextField(
+                        value = typedCommand,
+                        onValueChange = { typedCommand = it },
+                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 42.dp),
+                        placeholder = {
+                            Text(
+                                if (isListening) "Sun raha hoon..." else "Veer se kuch bhi poochhein",
+                                color = uiMuted,
+                                fontSize = 15.sp
+                            )
+                        },
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = uiText,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp
+                        ),
+                        singleLine = false,
+                        maxLines = 4,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { sendTypedMessage() }),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = uiText,
+                            unfocusedTextColor = uiText,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            cursorColor = uiAccent
+                        )
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { documentLauncher.launch("*/*") },
+                            modifier = Modifier.size(44.dp)
+                        ) { VeerOutlineIcon("plus", Modifier.size(19.dp), uiMuted) }
+                        IconButton(
+                            onClick = {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                    cameraLauncher.launch(null)
+                                } else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) { VeerOutlineIcon("camera", Modifier.size(19.dp), uiMuted) }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen()
+                                else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            VeerOutlineIcon("mic", Modifier.size(19.dp), if (isListening) uiAccent else uiMuted)
+                        }
+                        Box(
+                            Modifier.size(44.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                Modifier.size(34.dp)
+                                    .background(
+                                        if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) uiAccent else Color(0xFFBFC7DD),
+                                        CircleShape
+                                    )
+                                    .then(
+                                        if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()))
+                                            Modifier
+                                        else Modifier
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                IconButton(
+                                    onClick = { sendTypedMessage() },
+                                    enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()),
+                                    modifier = Modifier.size(44.dp)
+                                ) { VeerOutlineIcon("send", Modifier.size(17.dp), Color.White) }
                             }
-                        } else {
-                            Button(onClick = { val q = typedCommand.trim().ifBlank { "Please analyse the attached file and explain its important details." }; if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) { typedCommand = ""; processCommand(q) } },
-                                enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDAE9FF), contentColor = Color(0xFF071326))) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
