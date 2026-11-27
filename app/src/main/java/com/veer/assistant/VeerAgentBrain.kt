@@ -221,7 +221,10 @@ class VeerAgentBrain(
                         stoppedForApproval = true,
                         pendingApproval = action,
                         continuation = AgentApprovalContinuation(
-                            turn, decision.first, action, steps, continuationOwnerToken,
+                            turn.copy(
+                                providerContext = decision.second.providerContext,
+                                previousToolCallId = decision.second.providerCallId
+                            ), decision.first, action, steps, continuationOwnerToken,
                             cancellationToken, deadlineNanos
                         )
                     )
