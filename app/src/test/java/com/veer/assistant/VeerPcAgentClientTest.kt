@@ -49,7 +49,7 @@ class VeerPcAgentClientTest {
             VeerPcAgentClient.validateToken("01234567890123456789 12345678901234567890")
         }
         assertThrows(IllegalArgumentException::class.java) {
-            VeerPcAgentClient.validateToken("01234567890123456789\\n12345678901234567890")
+            VeerPcAgentClient.validateToken("01234567890123456789\n12345678901234567890")
         }
     }
 }
