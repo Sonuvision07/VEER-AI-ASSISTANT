@@ -1271,13 +1271,24 @@ fun VeerApp() {
         }
     }
 
-    LaunchedEffect(showApproval, pendingAction) {
+    LaunchedEffect(showApproval, pendingAction, approvalGeneration) {
         if (showApproval && pendingAction.isNotBlank()) {
             val requestedAction = pendingAction
+            val requestedGeneration = approvalGeneration
             kotlinx.coroutines.delay(60_000)
-            if (showApproval && pendingAction == requestedAction) {
-                showApproval = false
+            if (showApproval && pendingAction == requestedAction &&
+                approvalGeneration == requestedGeneration
+            ) {
+                // Expiry is a real cancellation: invalidate captured dialog callbacks
+                // and consume the matching one-shot request so it cannot be approved later.
+                approvalGeneration += 1L
+                pendingAgentApproval?.let { request ->
+                    agentApprovalSession.cancel(request.id)
+                }
+                pendingAgentApproval = null
+                pendingMusicUrl = null
                 pendingAction = ""
+                showApproval = false
                 addReply("Boss, permission request 60 seconds mein expire ho gayi. Zarurat ho to command dobara dein.")
             }
         }
