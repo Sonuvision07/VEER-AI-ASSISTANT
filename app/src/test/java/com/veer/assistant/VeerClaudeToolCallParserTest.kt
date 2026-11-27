@@ -5,15 +5,15 @@ import org.junit.Test
 
 class VeerClaudeToolCallParserTest {
  @Test fun parsesOnlyAllowlistedToolUse(){
-  val body="""{"content":[{"type":"tool_use","id":"id-123","name":"android.launch_app","input":{"app":"youtube"}}]}"""
+  val body="""{"stop_reason":"tool_use","content":[{"type":"tool_use","id":"id-123","name":"android.launch_app","input":{"app":"youtube"}}]}"""
   val decision=VeerClaudeToolCallParser.parse(body)!!
   assertFalse(decision.finished);assertEquals("id-123",decision.providerCallId)
   assertEquals("youtube",decision.toolCall!!.arguments["app"])
  }
  @Test fun rejectsUnknownAppAndMultipleCalls(){
-  val bad="""{"content":[{"type":"tool_use","id":"a","name":"android.launch_app","input":{"app":"unknown"}}]}"""
+  val bad="""{"stop_reason":"tool_use","content":[{"type":"tool_use","id":"a","name":"android.launch_app","input":{"app":"unknown"}}]}"""
   assertTrue(VeerClaudeToolCallParser.parse(bad)!!.finished)
-  val multi="""{"content":[{"type":"tool_use","id":"a","name":"android.launch_app","input":{"app":"youtube"}},{"type":"tool_use","id":"b","name":"android.launch_app","input":{"app":"browser"}}]}"""
+  val multi="""{"stop_reason":"tool_use","content":[{"type":"tool_use","id":"a","name":"android.launch_app","input":{"app":"youtube"}},{"type":"tool_use","id":"b","name":"android.launch_app","input":{"app":"browser"}}]}"""
   assertTrue(VeerClaudeToolCallParser.parse(multi)!!.finished)
  }
  @Test fun parsesTextResponse(){
