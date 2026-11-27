@@ -37,6 +37,36 @@ class VeerMuseHttpTransportTest {
         assertTrue(connection.disconnected)
     }
 
+    @Test fun usesTypedInputTextBlockForStatelessToolContinuation() {
+        val connection = FakeConnection(
+            URL(VeerMuseHttpTransport.ENDPOINT), 200,
+            """{"output":[{"type":"message","content":[{"type":"output_text","text":"Continued"}]}]}"""
+        )
+        val prior = org.json.JSONArray().put(org.json.JSONObject()
+            .put("type", "function_call")
+            .put("name", "android.launch_app")
+            .put("arguments", """{"app":"youtube"}""")
+            .put("call_id", "muse_call_1"))
+        VeerMuseHttpTransport { connection }.generate(
+            "key",
+            AgentTurn(
+                "Open YouTube", emptyList(), emptyList(),
+                previousToolResult = "YouTube launched",
+                providerContext = prior.toString(),
+                previousToolCallId = "muse_call_1"
+            )
+        )
+
+        val request = org.json.JSONObject(connection.sentBody.toString(Charsets.UTF_8.name()))
+        val input = request.getJSONArray("input")
+        val content = input.getJSONObject(0).getJSONArray("content")
+        assertEquals("input_text", content.getJSONObject(0).getString("type"))
+        assertTrue(content.getJSONObject(0).getString("text").contains("Open YouTube"))
+        assertEquals("function_call", input.getJSONObject(1).getString("type"))
+        assertEquals("function_call_output", input.getJSONObject(2).getString("type"))
+        assertEquals("muse_call_1", input.getJSONObject(2).getString("call_id"))
+    }
+
     @Test fun classifiesMetaRateLimitAsRetryableAndAuthAsPermanent() {
         val limited = FakeConnection(URL(VeerMuseHttpTransport.ENDPOINT), 429, "{}")
         try {
