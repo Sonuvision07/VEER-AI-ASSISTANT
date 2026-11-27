@@ -38,6 +38,31 @@ class VeerAgentBrainTest {
     private fun call(name: String, risk: AgentRisk) =
         AgentToolCall(name, emptyMap(), risk)
 
+    @Test fun carriesProviderContinuationStateWithToolResult() {
+        val tools = FakeTools()
+        var received: AgentTurn? = null
+        val brain = VeerAgentBrain(
+            FakeGateway { _, nextTurn ->
+                if (nextTurn.previousToolResult == null) {
+                    AgentDecision(
+                        "Reading", call("read", AgentRisk.READ_ONLY), finished = false,
+                        providerContext = "[{}]", providerCallId = "call_abc"
+                    )
+                } else {
+                    received = nextTurn
+                    AgentDecision("Finished")
+                }
+            },
+            tools,
+            FakeApproval(false)
+        )
+        val result = brain.run(turn())
+        assertEquals(1, result.steps)
+        assertEquals("done", received?.previousToolResult)
+        assertEquals("[{}]", received?.providerContext)
+        assertEquals("call_abc", received?.previousToolCallId)
+    }
+
     @Test fun readOnlyToolRunsWithoutApproval() {
         val tools = FakeTools()
         val approval = FakeApproval(false)
