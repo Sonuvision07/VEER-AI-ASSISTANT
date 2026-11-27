@@ -209,4 +209,55 @@ class VeerAndroidAgentRuntimeTest {
         assertEquals("Grok fallback ready", result.message)
     }
 
+    @Test fun composesMetaMuseSparkStructuredAdapterInAndroidRuntime() {
+        var keySeen: String? = null
+        var turnSeen: AgentTurn? = null
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { null },
+            museApiKeyProvider = { " meta-muse-key " },
+            dispatchApprovedAction = { "unused: $it" },
+            museTransport = VeerMuseAgentTransport { key, turn ->
+                keySeen = key
+                turnSeen = turn
+                """{"output":[{"type":"message","content":[{"type":"output_text","text":"Muse Spark ready"}]}]}"""
+            },
+            providerOrder = listOf(AiProvider.MUSE)
+        )
+
+        val turn = AgentTurn("hello", listOf("memory"), listOf("recent chat"))
+        val result = runtime.brain.run(turn)
+
+        assertEquals("meta-muse-key", keySeen)
+        assertEquals(turn, turnSeen)
+        assertEquals(AiProvider.MUSE, result.provider)
+        assertEquals("Muse Spark ready", result.message)
+    }
+
+    @Test fun fallsBackFromMuseToLlamaAfterTransientMetaFailure() {
+        var museAttempts = 0
+        var llamaCalled = false
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { null },
+            museApiKeyProvider = { "muse-key" },
+            llamaApiKeyProvider = { "groq-key" },
+            dispatchApprovedAction = { "unused: $it" },
+            museTransport = VeerMuseAgentTransport { _, _ ->
+                museAttempts += 1
+                throw AgentProviderException("temporary Meta outage", retryable = true)
+            },
+            llamaTransport = VeerCompatibleChatAgentTransport { _, _, _, _ ->
+                llamaCalled = true
+                """{"choices":[{"finish_reason":"stop","message":{"content":"Llama fallback ready"}}]}"""
+            },
+            providerOrder = listOf(AiProvider.MUSE, AiProvider.LLAMA)
+        )
+
+        val result = runtime.brain.run(AgentTurn("hello", emptyList(), emptyList()))
+
+        assertEquals(2, museAttempts)
+        assertTrue(llamaCalled)
+        assertEquals(AiProvider.LLAMA, result.provider)
+        assertEquals("Llama fallback ready", result.message)
+    }
+
 }
