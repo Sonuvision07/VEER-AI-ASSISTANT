@@ -4,7 +4,12 @@ import org.json.JSONObject
 
 /** Parses OpenAI Responses API output into the same validated decision contract as Gemini. */
 internal object VeerOpenAiToolCallParser {
-    fun parse(responseBody: String): AgentDecision? {
+    fun parse(
+        responseBody: String,
+        previousContext: String? = null,
+        previousCallId: String? = null,
+        previousToolResult: String? = null
+    ): AgentDecision? {
         return try {
             val root = JSONObject(responseBody)
             val output = root.optJSONArray("output") ?: return null
