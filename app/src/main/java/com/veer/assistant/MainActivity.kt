@@ -713,6 +713,7 @@ fun VeerApp() {
                         .put("systemInstruction", JSONObject().put("parts", org.json.JSONArray().put(JSONObject().put("text", systemText))))
                         .put("contents", org.json.JSONArray().put(JSONObject().put("role", "user").put("parts", requestParts)))
                         .put("generationConfig", generation)
+                        .put("tools", org.json.JSONArray().put(JSONObject().put("functionDeclarations", VeerGeminiToolSchema.functionDeclarations())))
                     val connection = (endpoint.openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
                         connectTimeout = 10000
@@ -730,11 +731,34 @@ fun VeerApp() {
                         raw = stream?.use { VeerBoundedHttpBody.readUtf8(it) } ?: ""
                     } finally { connection.disconnect() }
                     if (code in 200..299) {
-                        val json = JSONObject(raw)
-                        val parts = json.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
-                        val result = StringBuilder()
-                        if (parts != null) for (i in 0 until parts.length()) result.append(parts.optJSONObject(i)?.optString("text", "") ?: "")
-                        answer = if (result.isNotBlank()) result.toString().trim() else "Boss, AI se khaali response mila. Dobara try karein."
+                        val toolDecision = VeerGeminiToolCallParser.parse(raw)
+                        if (toolDecision != null) {
+                            answer = toolDecision.message
+                            val requestedCall = toolDecision.toolCall
+                            if (requestedCall != null) {
+                                Handler(Looper.getMainLooper()).post {
+                                    val request = agentApprovalSession.request(requestedCall)
+                                    if (request == null) {
+                                        loading = false
+                                        addReply("Boss, ek approval pehle se pending hai ya tool request safety check mein fail hui.")
+                                    } else {
+                                        pendingAgentApproval = request
+                                        pendingAction = request.action
+                                        approvalGeneration += 1L
+                                        showApproval = true
+                                        loading = false
+                                        addReply(toolDecision.message)
+                                    }
+                                }
+                                return@Thread
+                            }
+                        } else {
+                            val json = JSONObject(raw)
+                            val parts = json.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
+                            val result = StringBuilder()
+                            if (parts != null) for (i in 0 until parts.length()) result.append(parts.optJSONObject(i)?.optString("text", "") ?: "")
+                            answer = if (result.isNotBlank()) result.toString().trim() else "Boss, AI se khaali response mila. Dobara try karein."
+                        }
                         break
                     }
                     val detail = try { JSONObject(raw).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
