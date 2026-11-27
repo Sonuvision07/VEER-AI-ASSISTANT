@@ -81,9 +81,11 @@ object VeerModelInstaller {
             check(sha256(temporary) == EXPECTED_SHA256) {
                 "Model file verification fail hui. Corrupt download delete kar diya."
             }
-            if (!temporary.renameTo(destination)) {
-                temporary.copyTo(destination, overwrite = true)
-                temporary.delete()
+            // Install the verified file with a same-directory rename. Never
+            // stream-copy over the destination: a failed copy could leave a
+            // partially written model that looks installed to the UI.
+            check(temporary.renameTo(destination)) {
+                "Verified model ko safely install nahi kar paye. Storage check karke dobara try karein."
             }
             destination
         } catch (error: Throwable) {
