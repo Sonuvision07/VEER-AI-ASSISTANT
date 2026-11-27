@@ -41,6 +41,8 @@ internal class VeerAndroidAgentRuntime(
         providerOrder = providerOrder
     )
 
+    fun setProviderOrder(order: List<AiProvider>) = brain.setProviderOrder(order)
+
     companion object {
         val defaultProviderOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.LLAMA, AiProvider.GROK)
 
