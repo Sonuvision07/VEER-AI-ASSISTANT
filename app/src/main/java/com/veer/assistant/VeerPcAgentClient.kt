@@ -134,7 +134,7 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
             require(value.isNotEmpty()) { "Workspace path is required" }
             require(value == "." || (
                 !value.startsWith("/") && !value.startsWith("\\\\") &&
-                !value.contains('\\\\') && !value.contains(':') &&
+                !value.contains('\\') && !value.contains(':') &&
                 value.split('/').all { it.isNotBlank() && it != "." && it != ".." && it.none(Char::isISOControl) }
             )) { "Only relative workspace paths inside VEER's workspace are allowed" }
             require(value.length <= 512) { "Workspace path is too long" }
