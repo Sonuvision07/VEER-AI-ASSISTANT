@@ -3,6 +3,7 @@ package com.veer.assistant
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONArray
 
 internal fun interface VeerMuseAgentTransport {
     fun generate(apiKey: String, turn: AgentTurn): String
@@ -17,7 +18,10 @@ internal class VeerMuseHttpTransport(
 ) : VeerMuseAgentTransport {
     override fun generate(apiKey: String, turn: AgentTurn): String {
         require(apiKey.isNotBlank()) { "Meta Muse API key unavailable." }
-        val body = VeerOpenAiAgentRequest.build(turn, model).apply { remove("store") }.toString()
+        val body = VeerOpenAiAgentRequest.build(turn, model)
+            .put("store", false)
+            .put("include", JSONArray().put("reasoning.encrypted_content"))
+            .toString()
         val connection = connectionFactory(URL(ENDPOINT))
         try {
             connection.requestMethod = "POST"
