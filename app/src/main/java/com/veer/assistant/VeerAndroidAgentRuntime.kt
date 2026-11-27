@@ -2,7 +2,7 @@ package com.veer.assistant
 
 /**
  * Composition root for VEER's Android agent runtime.
- * Gemini, OpenAI and Claude use independent structured adapters and API-key providers;
+ * Gemini, OpenAI, Claude, Meta Muse, Llama and Grok use independent structured adapters and API-key providers;
  * the brain decides fallback only among adapters that report availability.
  */
 internal class VeerAndroidAgentRuntime(
