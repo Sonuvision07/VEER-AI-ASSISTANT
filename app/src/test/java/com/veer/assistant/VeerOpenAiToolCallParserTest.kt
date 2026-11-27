@@ -28,11 +28,14 @@ class VeerOpenAiToolCallParserTest {
 
     @Test fun preservesResponseOutputAndRequiresCallIdForContinuation() {
         val output = JSONObject().put("type", "reasoning").put("id", "rs_1")
+            .put("encrypted_content", "opaque-encrypted-state")
         val parsed = VeerOpenAiToolCallParser.parse(response(functionCall("youtube"), output))
         val replay = JSONArray(parsed!!.providerContext)
         assertEquals(2, replay.length())
         assertEquals("call_1", parsed.providerCallId)
         assertEquals("reasoning", replay.getJSONObject(1).getString("type"))
+        assertEquals("opaque-encrypted-state", replay.getJSONObject(1).getString("encrypted_content"))
+        assertEquals(0, replay.getJSONObject(1).getJSONArray("summary").length())
 
         val missingId = JSONObject()
             .put("type", "function_call")
