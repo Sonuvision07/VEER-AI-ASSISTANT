@@ -153,7 +153,36 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun generateDemoReply(question: String): String =
-    "Ye VEER ka demo jawab hai. Aapne poochha: $question"
+    "Main Veer hoon. Aapka message mil gaya: $question\\n\\nAbhi main demo mode mein hoon. Asli AI connection agle update mein jodega."
+
+@Composable
+private fun VeerVoiceOrb(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val c = Offset(size.width / 2f, size.height / 2f)
+        val radius = size.minDimension * 0.43f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFF3DD6C4).copy(alpha = 0.34f), Color(0xFF3DD6C4).copy(alpha = 0.08f), Color.Transparent),
+                center = c,
+                radius = size.minDimension * 0.50f
+            ),
+            radius = size.minDimension * 0.50f,
+            center = c
+        )
+        drawCircle(Color(0xFF2D5F5A), radius = radius * 1.04f, center = c, style = Stroke(width = size.minDimension * 0.012f))
+        drawCircle(
+            brush = Brush.radialGradient(listOf(Color(0xFF70F1E2), Color(0xFF3DD6C4), Color(0xFF168E83)), center = Offset(c.x * 0.72f, c.y * 0.66f), radius = radius * 1.6f),
+            radius = radius,
+            center = c
+        )
+        val heights = listOf(0.20f, 0.36f, 0.54f, 0.36f, 0.20f)
+        heights.forEachIndexed { index, fraction ->
+            val x = c.x + (index - 2) * size.width * 0.105f
+            val half = radius * fraction
+            drawLine(Color(0xFF062B27), Offset(x, c.y - half), Offset(x, c.y + half), size.minDimension * 0.045f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+    }
+}
 
 @Composable
 private fun VeerActionGlyph(kind: String, modifier: Modifier = Modifier, tint: Color = Color.White) {
@@ -1438,15 +1467,17 @@ fun VeerApp() {
     }
 
     val isListening = status.contains("LISTENING") || status.contains("HEARING")
-    val uiBackground = Color(0xFFF7F7F5)
-    val uiSurface = Color(0xFFFFFFFF)
-    val uiBorder = Color(0xFFDEDFDB)
-    val uiText = Color(0xFF17181A)
-    val uiMuted = Color(0xFF5C5F66)
-    val uiAccent = Color(0xFF2F5BEA)
+    val uiBackground = Color(0xFF101214)
+    val uiSurface = Color(0xFF1A1D21)
+    val uiBorder = Color(0xFF2C3137)
+    val uiText = Color(0xFFF1F2F4)
+    val uiMuted = Color(0xFFA6ABB3)
+    val uiAccent = Color(0xFF3DD6C4)
+    val uiAccentInk = Color(0xFF062B27)
 
-    MaterialTheme(colorScheme = lightColorScheme(
+    MaterialTheme(colorScheme = darkColorScheme(
         primary = uiAccent,
+        onPrimary = uiAccentInk,
         background = uiBackground,
         surface = uiSurface,
         onSurface = uiText
@@ -1462,9 +1493,22 @@ fun VeerApp() {
                     onClick = { keyDraft = apiKey; showSettings = true },
                     modifier = Modifier.size(44.dp)
                 ) { VeerOutlineIcon("menu", Modifier.size(19.dp), uiText) }
-                Spacer(Modifier.weight(1f))
-                Text("Veer", color = uiText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Surface(
+                        color = uiSurface,
+                        shape = RoundedCornerShape(20.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Box(Modifier.size(7.dp).background(uiAccent, CircleShape))
+                            Text("Veer", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
                 IconButton(
                     onClick = {
                         activeBrainCancellationToken?.cancel()
@@ -1484,7 +1528,7 @@ fun VeerApp() {
                         status = "ONLINE"
                     },
                     modifier = Modifier.size(44.dp)
-                ) { VeerOutlineIcon("new", Modifier.size(19.dp), uiText) }
+                ) { VeerOutlineIcon("plus", Modifier.size(19.dp), uiText) }
             }
 
             if (messages.isEmpty()) {
@@ -1493,27 +1537,57 @@ fun VeerApp() {
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            Modifier.size(44.dp).background(uiAccent, RoundedCornerShape(14.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("V", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Spacer(Modifier.height(20.dp))
+                        VeerVoiceOrb(Modifier.size(124.dp))
+                        Spacer(Modifier.height(18.dp))
                         Text(
-                            "Namaste, kya madad karun?",
+                            "Main Veer hoon",
                             color = uiText,
                             fontSize = 22.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.SemiBold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(7.dp))
                         Text(
-                            "Likhiye, boliye ya photo bhejiye",
+                            "Boliye ya likhiye",
                             color = uiMuted,
                             fontSize = 13.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
+                        Spacer(Modifier.height(22.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                onClick = { typedCommand = "Mere liye ek email draft likho: " },
+                                color = uiSurface,
+                                shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder)
+                            ) {
+                                Text("Mail likho", color = uiText, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                            }
+                            Surface(
+                                onClick = { typedCommand = "Mere liye ek video script likho: " },
+                                color = uiSurface,
+                                shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder)
+                            ) {
+                                Text("Video script", color = uiText, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Surface(
+                            onClick = {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                    cameraLauncher.launch(null)
+                                } else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            },
+                            color = uiSurface,
+                            shape = RoundedCornerShape(18.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder)
+                        ) {
+                            Text("Photo samjhao", color = uiText, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+                        }
                     }
                 }
             } else {
@@ -1529,14 +1603,14 @@ fun VeerApp() {
                             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
                         ) {
                             Surface(
-                                color = if (isUser) Color(0xFFEDEEEB) else uiSurface,
+                                color = if (isUser) uiAccent else uiSurface,
                                 shape = RoundedCornerShape(16.dp),
                                 border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
                                 modifier = Modifier.widthIn(max = 320.dp)
                             ) {
                                 Text(
                                     item.second,
-                                    color = uiText,
+                                    color = if (isUser) uiAccentInk else uiText,
                                     fontSize = 14.sp,
                                     lineHeight = 20.sp,
                                     modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp)
@@ -1585,7 +1659,7 @@ fun VeerApp() {
                         modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 42.dp),
                         placeholder = {
                             Text(
-                                if (isListening) "Sun raha hoon..." else "Veer se kuch bhi poochhein",
+                                if (isListening) "Sun raha hoon..." else "Message likhiye",
                                 color = uiMuted,
                                 fontSize = 15.sp
                             )
@@ -1617,7 +1691,7 @@ fun VeerApp() {
                         IconButton(
                             onClick = { documentLauncher.launch("*/*") },
                             modifier = Modifier.size(44.dp)
-                        ) { VeerOutlineIcon("plus", Modifier.size(19.dp), uiMuted) }
+                        ) { VeerOutlineIcon("plus", Modifier.size(18.dp), uiMuted) }
                         IconButton(
                             onClick = {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -1643,7 +1717,7 @@ fun VeerApp() {
                             Box(
                                 Modifier.size(34.dp)
                                     .background(
-                                        if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) uiAccent else Color(0xFFBFC7DD),
+                                        if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) uiAccent else Color(0xFF2C3137),
                                         CircleShape
                                     )
                                     .then(
