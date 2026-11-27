@@ -744,7 +744,7 @@ fun VeerApp() {
                     agentApprovalSession.approve(request.id)?.takeIf { it == request.call }
                 }
                 val approvedAction = if (agentRequest != null) {
-                    agentCall?.let(VeerAgentToolPolicy::toPendingAppAction)
+                    agentCall?.let { VeerAgentToolPolicy.toPendingAppAction(it) }
                         ?.takeIf { it == pendingAction }
                 } else pendingAction
                 if (approvedAction.isNullOrBlank()) {
@@ -1336,7 +1336,7 @@ fun VeerApp() {
                         agentApprovalSession.approve(request.id)?.takeIf { it == request.call }
                     }
                     val approvedAction = if (currentRequest != null) {
-                        currentCall?.let(VeerAgentToolPolicy::toPendingAppAction)
+                        currentCall?.let { VeerAgentToolPolicy.toPendingAppAction(it) }
                             ?.takeIf { it == pendingAction }
                     } else pendingAction
                     if (approvedAction.isNullOrBlank()) {
