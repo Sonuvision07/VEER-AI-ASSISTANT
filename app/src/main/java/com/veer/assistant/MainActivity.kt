@@ -1937,6 +1937,15 @@ private fun HologramFace(
         ),
         label = "faceHudRadarSweepGlow"
     )
+    val hudSweepTrail by transition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.62f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "faceHudRadarSweepTrail"
+    )
 
     // The face mesh never changes shape. Build its paths once instead of
     // recalculating hundreds of points and line segments on every animation frame.
@@ -2017,6 +2026,16 @@ private fun HologramFace(
                 center = p(164f + signal * 16f, 22f)
             )
         }
+        // A fading arc trails the radar head to visualize scan direction.
+        drawArc(
+            cyan.copy(alpha = hudSweepTrail * 0.38f),
+            startAngle = hudSweepRotation - 34f,
+            sweepAngle = 30f,
+            useCenter = false,
+            topLeft = Offset(22f * sx, 24f * sy),
+            size = androidx.compose.ui.geometry.Size(316f * sx, 316f * sy),
+            style = Stroke(width = 3.6f * sx)
+        )
         // The radar sweep has a soft halo and a crisp leading edge.
         drawArc(
             cyan.copy(alpha = 0.12f + hudSweepGlow * 0.12f),
