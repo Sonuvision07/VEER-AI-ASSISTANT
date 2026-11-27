@@ -43,11 +43,14 @@ object VeerCommandRouter {
         } while (changed)
 
         normalized = normalized.removeSuffix(" please").trim()
-        openingPrefixes.firstOrNull { normalized.startsWith(it) }?.let {
-            normalized = normalized.removePrefix(it).trim()
-        }
-        openingPrefixes.firstOrNull { normalized.startsWith(it + "the ") }?.let {
-            normalized = normalized.removePrefix(it + "the ").trim()
+        // Handle "open the app" before stripping the ordinary opening prefix.
+        val prefixWithArticle = openingPrefixes.firstOrNull { normalized.startsWith(it + "the ") }
+        if (prefixWithArticle != null) {
+            normalized = normalized.removePrefix(prefixWithArticle + "the ").trim()
+        } else {
+            openingPrefixes.firstOrNull { normalized.startsWith(it) }?.let {
+                normalized = normalized.removePrefix(it).trim()
+            }
         }
 
         openingSuffixes.sortedByDescending { it.length }.firstOrNull { normalized.endsWith(it) }?.let {
