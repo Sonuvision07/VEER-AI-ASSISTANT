@@ -34,7 +34,7 @@ object ClaudeApiClient {
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val raw = stream?.use { VeerBoundedHttpBody.readUtf8(it) }.orEmpty()
             if (code !in 200..299) {
                 val detail = try { JSONObject(raw).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
                 val message = when (code) {
