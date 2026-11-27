@@ -454,7 +454,7 @@ fun VeerApp() {
             addReply("Boss, ye action supported ya approved list mein nahi hai. Maine ise run nahi kiya.")
             return false
         }
-        try {
+        return try {
             when (action) {
                 "settings" -> context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
                 "youtube" -> {
