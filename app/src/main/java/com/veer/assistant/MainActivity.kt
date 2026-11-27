@@ -1732,6 +1732,20 @@ private fun HologramFace(
         animationSpec = tween(260, easing = FastOutSlowInEasing),
         label = "faceExpressionGazeX"
     )
+    val browLift by animateFloatAsState(
+        targetValue = when (expression) {
+            VeerFaceExpression.LISTENING -> 7f
+            VeerFaceExpression.THINKING -> 3f
+            else -> 0f
+        },
+        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        label = "faceExpressionBrowLift"
+    )
+    val thinkingBrowTilt by animateFloatAsState(
+        targetValue = if (expression == VeerFaceExpression.THINKING) 4f else 0f,
+        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        label = "faceThinkingBrowTilt"
+    )
     val gazeVerticalOffset by animateFloatAsState(
         targetValue = when (expression) {
             VeerFaceExpression.THINKING -> -3f
@@ -1910,14 +1924,9 @@ private fun HologramFace(
         drawOval(cyan.copy(alpha = 0.55f), p(43f, 164f), androidx.compose.ui.geometry.Size(25f*sx, 66f*sy), style = Stroke(1.5f*sx))
         drawOval(cyan.copy(alpha = 0.55f), p(292f, 164f), androidx.compose.ui.geometry.Size(25f*sx, 66f*sy), style = Stroke(1.5f*sx))
         // Expression-aware brows, eyelids and pupils.
-        val browLift = when (expression) {
-            VeerFaceExpression.LISTENING -> 7f
-            VeerFaceExpression.THINKING -> 3f
-            else -> 0f
-        }
-        val thinkingTilt = if (expression == VeerFaceExpression.THINKING) 4f else 0f
-        drawLine(cyan, p(88f, 145f - browLift), p(150f, 139f - browLift + thinkingTilt), 2.3f*sx)
-        drawLine(cyan, p(210f, 139f - browLift - thinkingTilt), p(272f, 145f - browLift), 2.3f*sx)
+        val currentThinkingTilt = thinkingBrowTilt
+        drawLine(cyan, p(88f, 145f - browLift), p(150f, 139f - browLift + currentThinkingTilt), 2.3f*sx)
+        drawLine(cyan, p(210f, 139f - browLift - currentThinkingTilt), p(272f, 145f - browLift), 2.3f*sx)
         val currentEyeHeight = eyeHeight * blink
         val eyeTop = 166f - currentEyeHeight / 2f
         drawOval(cyan.copy(alpha = 0.9f), p(91f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
