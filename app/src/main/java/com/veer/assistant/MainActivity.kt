@@ -1728,6 +1728,38 @@ private fun HologramFace(
         animationSpec = tween(260, easing = FastOutSlowInEasing),
         label = "faceExpressionGazeY"
     )
+    val idleGazeX by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = androidx.compose.animation.core.keyframes {
+                durationMillis = 5200
+                0f at 0
+                1.4f at 1100
+                0.2f at 2300
+                -1.1f at 3600
+                0f at 5200
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "idleEyeMicroMovementX"
+    )
+    val idleGazeY by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = androidx.compose.animation.core.keyframes {
+                durationMillis = 5200
+                0f at 0
+                -0.6f at 1100
+                0.7f at 2300
+                0f at 3600
+                0f at 5200
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "idleEyeMicroMovementY"
+    )
     val blink by transition.animateFloat(
         initialValue = 1f,
         targetValue = 1f,
@@ -1790,8 +1822,8 @@ private fun HologramFace(
         val eyeTop = 166f - currentEyeHeight / 2f
         drawOval(cyan.copy(alpha = 0.9f), p(91f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
         drawOval(cyan.copy(alpha = 0.9f), p(201f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
-        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(125f + gazeOffset, 166f + gazeVerticalOffset))
-        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(235f + gazeOffset, 166f + gazeVerticalOffset))
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(125f + gazeOffset + if (expression == VeerFaceExpression.IDLE) idleGazeX else 0f, 166f + gazeVerticalOffset + if (expression == VeerFaceExpression.IDLE) idleGazeY else 0f))
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(235f + gazeOffset + if (expression == VeerFaceExpression.IDLE) idleGazeX else 0f, 166f + gazeVerticalOffset + if (expression == VeerFaceExpression.IDLE) idleGazeY else 0f))
         // Nose
         drawLine(cyan.copy(alpha = 0.75f), p(180f, 168f), p(173f, 226f), 1.6f*sx)
         drawLine(cyan.copy(alpha = 0.75f), p(173f, 226f), p(180f, 232f), 1.6f*sx)
