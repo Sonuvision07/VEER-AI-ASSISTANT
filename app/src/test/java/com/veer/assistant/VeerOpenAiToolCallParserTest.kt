@@ -1,5 +1,7 @@
 package com.veer.assistant
 
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -7,12 +9,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VeerOpenAiToolCallParserTest {
-    private fun response(item: String) = """{"output":[$item]}"""
+    private fun response(vararg items: JSONObject): String =
+        JSONObject().put("output", JSONArray().apply { items.forEach { put(it) } }).toString()
+
+    private fun functionCall(app: String) = JSONObject()
+        .put("type", "function_call")
+        .put("name", "android.launch_app")
+        .put("arguments", JSONObject().put("app", app).toString())
+        .put("call_id", "call_1")
 
     @Test fun parsesValidatedAppToolCall() {
-        val decision = VeerOpenAiToolCallParser.parse(response(
-            """{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"youtube\"}","call_id":"call_1"}"""
-        ))
+        val decision = VeerOpenAiToolCallParser.parse(response(functionCall("youtube")))
         assertEquals("android.launch_app", decision?.toolCall?.name)
         assertEquals(mapOf("app" to "youtube"), decision?.toolCall?.arguments)
         assertEquals(AgentRisk.DEVICE_CHANGE, decision?.toolCall?.risk)
@@ -20,11 +27,11 @@ class VeerOpenAiToolCallParserTest {
     }
 
     @Test fun rejectsUnknownAppAndUnsupportedTool() {
-        val unknownApp = VeerOpenAiToolCallParser.parse(response(
-            """{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"attacker\"}"}"""
-        ))
+        val unknownApp = VeerOpenAiToolCallParser.parse(response(functionCall("attacker")))
         val unknownTool = VeerOpenAiToolCallParser.parse(response(
-            """{"type":"function_call","name":"android.run_shell","arguments":"{\"command\":\"id\"}"}"""
+            JSONObject().put("type", "function_call")
+                .put("name", "android.run_shell")
+                .put("arguments", JSONObject().put("command", "id").toString())
         ))
         assertNull(unknownApp?.toolCall)
         assertNull(unknownTool?.toolCall)
@@ -34,21 +41,23 @@ class VeerOpenAiToolCallParserTest {
 
     @Test fun rejectsNonStringArgumentsAndMultipleCalls() {
         val wrongType = VeerOpenAiToolCallParser.parse(response(
-            """{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":7}"}"""
+            JSONObject().put("type", "function_call")
+                .put("name", "android.launch_app")
+                .put("arguments", JSONObject().put("app", 7).toString())
         ))
-        val multiple = VeerOpenAiToolCallParser.parse(response(
-            """"{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"youtube\"}"}""".trim('"') +
-            """,""" + """"{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"camera\"}"}""".trim('"')
-        ))
+        val multiple = VeerOpenAiToolCallParser.parse(response(functionCall("youtube"), functionCall("camera")))
         assertNull(wrongType?.toolCall)
         assertNull(multiple?.toolCall)
         assertTrue(multiple?.message?.contains("zyada tool calls") == true)
     }
 
     @Test fun parsesNormalTextAndRejectsMalformedBody() {
-        val decision = VeerOpenAiToolCallParser.parse(response(
-            """{"type":"message","content":[{"type":"output_text","text":"Hello Boss"}]}"""
-        ))
+        val message = JSONObject().put("type", "message").put(
+            "content", JSONArray().put(
+                JSONObject().put("type", "output_text").put("text", "Hello Boss")
+            )
+        )
+        val decision = VeerOpenAiToolCallParser.parse(response(message))
         assertEquals("Hello Boss", decision?.message)
         assertTrue(decision?.finished ?: false)
         assertNull(VeerOpenAiToolCallParser.parse("not-json"))
