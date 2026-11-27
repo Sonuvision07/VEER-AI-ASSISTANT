@@ -247,7 +247,11 @@ class VeerAgentBrain(
                 rawResult
             }
             steps += 1
-            turn = turn.copy(previousToolResult = result)
+            turn = turn.copy(
+                previousToolResult = result,
+                providerContext = decision.second.providerContext,
+                previousToolCallId = decision.second.providerCallId
+            )
         }
         return AgentRunResult(
             "VEER ne safety limit ke liye task ko ${maxToolSteps} tool steps ke baad roka. Aage badhne ke liye task ko review karein.",
