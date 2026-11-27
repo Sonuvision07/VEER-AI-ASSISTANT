@@ -1341,6 +1341,7 @@ fun VeerApp() {
                     OutlinedTextField(
                         value = pcAgentUrlDraft,
                         onValueChange = { pcAgentUrlDraft = it },
+                        enabled = !pcAgentChecking,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         label = { Text("Windows PC HTTPS address") },
@@ -1349,6 +1350,7 @@ fun VeerApp() {
                     OutlinedTextField(
                         value = pcAgentTokenDraft,
                         onValueChange = { pcAgentTokenDraft = it },
+                        enabled = !pcAgentChecking,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         label = { Text("Windows agent token") },
