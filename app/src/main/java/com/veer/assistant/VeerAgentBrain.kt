@@ -31,13 +31,24 @@ data class AgentTurn(
     val previousToolResult: String? = null
 )
 
+class AgentApprovalContinuation internal constructor(
+    val turn: AgentTurn,
+    val provider: AiProvider,
+    val call: AgentToolCall,
+    val completedSteps: Int
+) {
+    internal var consumed: Boolean = false
+}
+
 data class AgentRunResult(
     val message: String,
     val provider: AiProvider?,
     val steps: Int,
     val stoppedForApproval: Boolean = false,
     /** Exact validated call awaiting a human decision; never execute from message text. */
-    val pendingApproval: AgentToolCall? = null
+    val pendingApproval: AgentToolCall? = null,
+    /** Opaque in-memory continuation; only resume this exact approved call. */
+    val continuation: AgentApprovalContinuation? = null
 )
 
 interface ModelGateway {
@@ -149,7 +160,8 @@ class VeerAgentBrain(
                         decision.second.message.ifBlank { "Is action ke liye aapki approval zaroori hai." },
                         lastProvider, steps,
                         stoppedForApproval = true,
-                        pendingApproval = action
+                        pendingApproval = action,
+                        continuation = AgentApprovalContinuation(turn, lastProvider, action, steps)
                     )
                 }
             }
@@ -171,6 +183,64 @@ class VeerAgentBrain(
         return AgentRunResult(
             "VEER ne safety limit ke liye task ko ${maxToolSteps} tool steps ke baad roka. Aage badhne ke liye task ko review karein.",
             lastProvider, steps
+        )
+    }
+
+
+    /**
+     * Resumes only the exact call returned by run(). The continuation is
+     * one-shot and revalidates the trusted tool registry before execution.
+     * It never asks the model to regenerate the action being approved.
+     */
+    @Synchronized
+    fun resumeAfterApproval(
+        continuation: AgentApprovalContinuation,
+        approvedCall: AgentToolCall
+    ): AgentRunResult {
+        if (continuation.consumed || continuation.call != approvedCall) {
+            return AgentRunResult(
+                "VEER ne stale ya mismatched approval ko reject kar diya.",
+                continuation.provider, continuation.completedSteps
+            )
+        }
+        continuation.consumed = true
+
+        val action = continuation.call
+        val invalid = action.name.isBlank() ||
+            action.name != action.name.trim() ||
+            action.name.any { it.isISOControl() } ||
+            action.name.length > maxToolNameChars ||
+            action.arguments.keys.any { key ->
+                key.isBlank() || key != key.trim() ||
+                    key.any { it.isISOControl() } || key.length > 128
+            }
+        val argumentChars = action.arguments.entries.fold(0L) { total, entry ->
+            total + entry.key.length.toLong() + entry.value.length.toLong()
+        }
+        val supported = try { tools.supports(action.name) } catch (_: Exception) { false }
+        val trustedRisk = try { tools.riskFor(action.name) } catch (_: Exception) { null }
+        if (invalid || argumentChars > maxToolArgumentChars.toLong() ||
+            !supported || trustedRisk == null || trustedRisk != action.risk ||
+            trustedRisk == AgentRisk.READ_ONLY
+        ) {
+            return AgentRunResult(
+                "VEER ne approval ke baad action ko dobara verify karke block kar diya.",
+                continuation.provider, continuation.completedSteps
+            )
+        }
+
+        val raw = try {
+            tools.execute(action)
+        } catch (_: Exception) {
+            "Tool execution failed. VEER ne action ko safely stop kar diya."
+        }
+        val bounded = if (raw.length > maxToolResultChars) {
+            raw.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
+        } else raw
+        return AgentRunResult(
+            "Approved action ka result: $bounded",
+            continuation.provider,
+            continuation.completedSteps + 1
         )
     }
 
