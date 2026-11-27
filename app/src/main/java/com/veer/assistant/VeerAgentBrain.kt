@@ -35,7 +35,8 @@ class AgentApprovalContinuation internal constructor(
     val turn: AgentTurn,
     val provider: AiProvider,
     val call: AgentToolCall,
-    val completedSteps: Int
+    val completedSteps: Int,
+    internal val ownerToken: Any
 ) {
     internal var consumed: Boolean = false
 }
@@ -80,6 +81,8 @@ class VeerAgentBrain(
     private val maxToolArgumentChars: Int = 8_000,
     private val maxToolNameChars: Int = 128
 ) {
+    private val continuationOwnerToken = Any()
+
     init {
         require(maxToolSteps > 0) { "maxToolSteps must be positive" }
         require(maxToolResultChars > 0) { "maxToolResultChars must be positive" }
@@ -161,7 +164,7 @@ class VeerAgentBrain(
                         lastProvider, steps,
                         stoppedForApproval = true,
                         pendingApproval = action,
-                        continuation = AgentApprovalContinuation(turn, decision.first, action, steps)
+                        continuation = AgentApprovalContinuation(turn, decision.first, action, steps, continuationOwnerToken)
                     )
                 }
             }
@@ -197,7 +200,9 @@ class VeerAgentBrain(
         continuation: AgentApprovalContinuation,
         approvedCall: AgentToolCall
     ): AgentRunResult {
-        if (continuation.consumed || continuation.call != approvedCall) {
+        if (continuation.ownerToken !== continuationOwnerToken ||
+            continuation.consumed || continuation.call != approvedCall
+        ) {
             return AgentRunResult(
                 "VEER ne stale ya mismatched approval ko reject kar diya.",
                 continuation.provider, continuation.completedSteps
