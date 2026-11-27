@@ -571,7 +571,7 @@ fun VeerApp() {
     }
 
     // Agent tools may run on a worker; Activity launches must execute on Android's main thread.
-    val agentRuntime = remember(selectedProvider) {
+    val agentRuntime = remember {
         VeerAndroidAgentRuntime(
             apiKeyProvider = { apiKey },
             openAiApiKeyProvider = { openAiApiKey },
@@ -596,6 +596,7 @@ fun VeerApp() {
             providerOrder = VeerAndroidAgentRuntime.providerOrderForSelection(selectedProvider)
         )
     }
+    agentRuntime.setProviderOrder(VeerAndroidAgentRuntime.providerOrderForSelection(selectedProvider))
 
     fun continueGeminiAfterApprovedTool(call: AgentToolCall, toolResult: String) {
         val savedContents = pendingGeminiContents
