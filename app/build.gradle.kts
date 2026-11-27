@@ -42,4 +42,5 @@ dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.16.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
