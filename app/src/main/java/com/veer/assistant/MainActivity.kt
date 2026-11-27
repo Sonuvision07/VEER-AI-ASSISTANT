@@ -449,7 +449,11 @@ fun VeerApp() {
             "youtube_studio", "gmail"
         )
         if (action !in allowedActions) {
+            approvalGeneration += 1L
+            agentApprovalSession.clear()
+            pendingAgentApproval = null
             pendingAction = ""
+            pendingMusicUrl = null
             showApproval = false
             addReply("Boss, ye action supported ya approved list mein nahi hai. Maine ise run nahi kiya.")
             return false
@@ -524,6 +528,8 @@ fun VeerApp() {
             }.execute(call)
         } catch (_: Exception) {
             approvalGeneration += 1L
+            agentApprovalSession.clear()
+            pendingAgentApproval = null
             pendingAction = ""
             pendingMusicUrl = null
             showApproval = false
