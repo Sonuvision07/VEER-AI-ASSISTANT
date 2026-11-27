@@ -150,4 +150,63 @@ class VeerAndroidAgentRuntimeTest {
         assertTrue(replay.message.contains("stale", ignoreCase = true))
     }
 
+    @Test fun composesMetaLlamaStructuredAdapterThroughGroq() {
+        var endpoint: String? = null
+        var model: String? = null
+        var apiKey: String? = null
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { null },
+            llamaApiKeyProvider = { " groq-test-key " },
+            dispatchApprovedAction = { "unused: $it" },
+            llamaTransport = VeerCompatibleChatAgentTransport { url, selectedModel, key, _ ->
+                endpoint = url
+                model = selectedModel
+                apiKey = key
+                """{"choices":[{"finish_reason":"stop","message":{"content":"Meta Llama ready"}}]}"""
+            },
+            providerOrder = listOf(AiProvider.LLAMA)
+        )
+
+        val result = runtime.brain.run(AgentTurn("hello", emptyList(), emptyList()))
+
+        assertEquals("https://api.groq.com/openai/v1/chat/completions", endpoint)
+        assertEquals("llama-3.3-70b-versatile", model)
+        assertEquals("groq-test-key", apiKey)
+        assertEquals(AiProvider.LLAMA, result.provider)
+        assertEquals("Meta Llama ready", result.message)
+    }
+
+    @Test fun composesGrokStructuredAdapterAndFallsBackFromLlama() {
+        var llamaAttempts = 0
+        var grokEndpoint: String? = null
+        var grokModel: String? = null
+        var grokKey: String? = null
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { null },
+            llamaApiKeyProvider = { "llama-key" },
+            grokApiKeyProvider = { " grok-key " },
+            dispatchApprovedAction = { "unused: $it" },
+            llamaTransport = VeerCompatibleChatAgentTransport { _, _, _, _ ->
+                llamaAttempts += 1
+                throw AgentProviderException("temporary Groq outage", retryable = true)
+            },
+            grokTransport = VeerCompatibleChatAgentTransport { endpoint, model, key, _ ->
+                grokEndpoint = endpoint
+                grokModel = model
+                grokKey = key
+                """{"choices":[{"finish_reason":"stop","message":{"content":"Grok fallback ready"}}]}"""
+            },
+            providerOrder = listOf(AiProvider.LLAMA, AiProvider.GROK)
+        )
+
+        val result = runtime.brain.run(AgentTurn("hello", emptyList(), emptyList()))
+
+        assertEquals(2, llamaAttempts)
+        assertEquals("https://api.x.ai/v1/chat/completions", grokEndpoint)
+        assertEquals("grok-3-mini", grokModel)
+        assertEquals("grok-key", grokKey)
+        assertEquals(AiProvider.GROK, result.provider)
+        assertEquals("Grok fallback ready", result.message)
+    }
+
 }
