@@ -37,7 +37,8 @@ data class AgentTurn(
     val recentConversation: List<String>,
     val previousToolResult: String? = null,
     val providerContext: String? = null,
-    val previousToolCallId: String? = null
+    val previousToolCallId: String? = null,
+    val providerContextProvider: AiProvider? = null
 )
 
 /** Cooperative cancellation checked between provider and tool operations. */
@@ -223,7 +224,8 @@ class VeerAgentBrain(
                         continuation = AgentApprovalContinuation(
                             turn.copy(
                                 providerContext = decision.second.providerContext,
-                                previousToolCallId = decision.second.providerCallId
+                                previousToolCallId = decision.second.providerCallId,
+                                providerContextProvider = decision.first.takeIf { decision.second.providerContext != null }
                             ), decision.first, action, steps, continuationOwnerToken,
                             cancellationToken, deadlineNanos
                         )
@@ -250,7 +252,8 @@ class VeerAgentBrain(
             turn = turn.copy(
                 previousToolResult = result,
                 providerContext = decision.second.providerContext,
-                previousToolCallId = decision.second.providerCallId
+                previousToolCallId = decision.second.providerCallId,
+                providerContextProvider = decision.first.takeIf { decision.second.providerContext != null }
             )
         }
         return AgentRunResult(
@@ -362,7 +365,14 @@ class VeerAgentBrain(
             for (attempt in 0 until maxProviderAttempts) {
                 if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
                 try {
-                    val decision = gateway.decide(provider, turn)
+                    val providerTurn = if (turn.providerContextProvider != null && turn.providerContextProvider != provider) {
+                        turn.copy(
+                            providerContext = null,
+                            previousToolCallId = null,
+                            providerContextProvider = null
+                        )
+                    } else turn
+                    val decision = gateway.decide(provider, providerTurn)
                     if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
                     return provider to decision
                 } catch (failure: AgentProviderException) {
