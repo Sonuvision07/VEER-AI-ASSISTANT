@@ -32,7 +32,7 @@ class VeerMuseModelGatewayTest {
 
     @Test fun parsesStructuredToolCallAndPreservesMetaContinuation() {
         val gateway = VeerMuseModelGateway({ "key" }) { _, _ ->
-            """{"output":[{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"youtube\"}","call_id":"muse_call_1"}]}"""
+            """{"output":[{"type":"reasoning","summary":[],"encrypted_content":"opaque-state"},{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"youtube\"}","call_id":"muse_call_1"}]}"""
         }
         val decision = gateway.decide(AiProvider.MUSE, turn)
         assertEquals("android.launch_app", decision.toolCall?.name)
