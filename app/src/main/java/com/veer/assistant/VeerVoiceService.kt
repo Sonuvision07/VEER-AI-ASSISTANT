@@ -90,6 +90,25 @@ class VeerVoiceService : Service() {
         return START_NOT_STICKY
     }
 
+    /**
+     * A transcript pauses the microphone while the Activity handles the command
+     * and speaks. If the Activity is gone or its reply callback never arrives,
+     * recover after a bounded interval instead of leaving voice mode paused forever.
+     */
+    private fun pauseForReply() {
+        val replyToken = replyGate.beginReply()
+        handler.postDelayed({
+            if (replyGate.isCurrentReply(replyToken) && !stopping) {
+                replyGate.resumeAfterReply()
+                sendBroadcast(
+                    Intent(ACTION_STATUS).setPackage(packageName)
+                        .putExtra("status", "Voice reply timed out; listening resumed")
+                )
+                startRecognition()
+            }
+        }, REPLY_RECOVERY_TIMEOUT_MS)
+    }
+
     private fun stopAfterStartupFailure() {
         stopping = true
         replyGate.resumeAfterReply()
@@ -219,7 +238,7 @@ class VeerVoiceService : Service() {
                 when {
                     command != null && command.isNotBlank() -> {
                         wakeCommandWindow.clear()
-                        replyGate.beginReply()
+                        pauseForReply()
                         sendBroadcast(Intent(ACTION_TRANSCRIPT).setPackage(packageName).putExtra("text", command))
                     }
                     command != null -> {
@@ -331,5 +350,6 @@ class VeerVoiceService : Service() {
         const val ACTION_RESUME = "com.veer.assistant.RESUME_VOICE"
         private const val CHANNEL_ID = "veer_voice_channel"
         private const val NOTIFICATION_ID = 7201
+        private const val REPLY_RECOVERY_TIMEOUT_MS = 120_000L
     }
 }
