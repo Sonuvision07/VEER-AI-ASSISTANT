@@ -22,7 +22,7 @@ internal object VeerOpenAiAgentRequest {
         prompt.append("User request:\n").append(turn.userRequest.take(3_500))
         appendSection(prompt, "Saved context", turn.memory, 2_500)
         appendSection(prompt, "Recent conversation", turn.recentConversation, 2_500)
-        turn.previousToolResult?.takeIf { it.isNotBlank() }?.let {
+        turn.previousToolResult?.takeIf { it.isNotBlank() && turn.providerContext == null }?.let {
             prompt.append("\n\nPrevious tool result:\n").append(it.take(1_500))
         }
         require(prompt.length <= MAX_REQUEST_CONTEXT_CHARS) { "Agent context exceeded VEER's request limit." }
