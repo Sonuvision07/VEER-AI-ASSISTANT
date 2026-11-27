@@ -925,7 +925,11 @@ fun VeerApp() {
     fun askMuse(question: String) {
         if (attachedText.isNullOrBlank()) { askAgentBrain(question); return }
         val key = museApiKey.trim()
-        if (key.isEmpty()) { addReply("Boss, Meta Muse API key Settings mein add karein."); showSettings = true; return }
+        if (key.isEmpty()) {
+            val moved = providerFallback?.invoke("MUSE", question, null) == true
+            if (!moved) { addReply("Boss, Meta Muse API key Settings mein add karein."); showSettings = true }
+            return
+        }
         loading = true
         status = "CONNECTING TO META MUSE..."
         val prompt = messages.dropLast(1).takeLast(8).joinToString("\n") { it.first + ": " + it.second } +
