@@ -30,6 +30,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -231,6 +232,7 @@ fun VeerApp() {
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
     var ttsSpeaking by remember { mutableStateOf(false) }
+    var ttsMouthOpenTarget by remember { mutableFloatStateOf(0f) }
     var pendingTtsMessage by remember { mutableStateOf<String?>(null) }
     var activeTtsUtteranceId by remember { mutableStateOf<String?>(null) }
     var ttsUtteranceSequence by remember { mutableLongStateOf(0L) }
@@ -343,6 +345,7 @@ fun VeerApp() {
             if (tts === engine) tts = null
             ttsReady = false
             ttsSpeaking = false
+            ttsMouthOpenTarget = 0f
             pendingTtsMessage = null
             activeTtsUtteranceId = null
             engine.stop()
@@ -391,13 +394,32 @@ fun VeerApp() {
             engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     Handler(Looper.getMainLooper()).post {
-                        if (utteranceId == activeTtsUtteranceId) ttsSpeaking = true
+                        if (utteranceId == activeTtsUtteranceId) {
+                            ttsSpeaking = true
+                            ttsMouthOpenTarget = 0.28f
+                        }
+                    }
+                }
+                override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && start >= 0 && end > start && start < message.length) {
+                        val spokenPart = message.substring(start, end.coerceAtMost(message.length)).lowercase(Locale.ROOT)
+                        val openness = when {
+                            spokenPart.any { it in "आािीुूेैोौंःअ" } -> 0.9f
+                            spokenPart.any { it in "aou" } -> 0.9f
+                            spokenPart.any { it in "ei" } -> 0.58f
+                            spokenPart.any { it.isLetterOrDigit() } -> 0.22f
+                            else -> 0.08f
+                        }
+                        Handler(Looper.getMainLooper()).post {
+                            if (utteranceId == activeTtsUtteranceId) ttsMouthOpenTarget = openness
+                        }
                     }
                 }
                 override fun onDone(utteranceId: String?) {
                     Handler(Looper.getMainLooper()).post {
                         if (utteranceId == activeTtsUtteranceId) {
                             ttsSpeaking = false
+                            ttsMouthOpenTarget = 0f
                             activeTtsUtteranceId = null
                             resumeBackgroundVoiceIfEnabled()
                         }
@@ -408,6 +430,7 @@ fun VeerApp() {
                     Handler(Looper.getMainLooper()).post {
                         if (utteranceId == activeTtsUtteranceId) {
                             ttsSpeaking = false
+                            ttsMouthOpenTarget = 0f
                             activeTtsUtteranceId = null
                             resumeBackgroundVoiceIfEnabled()
                         }
@@ -417,6 +440,7 @@ fun VeerApp() {
                     Handler(Looper.getMainLooper()).post {
                         if (utteranceId == activeTtsUtteranceId) {
                             ttsSpeaking = false
+                            ttsMouthOpenTarget = 0f
                             activeTtsUtteranceId = null
                             resumeBackgroundVoiceIfEnabled()
                         }
@@ -426,6 +450,7 @@ fun VeerApp() {
             val result = engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
             if (result == TextToSpeech.ERROR) {
                 ttsSpeaking = false
+                ttsMouthOpenTarget = 0f
                 activeTtsUtteranceId = null
                 status = "VOICE OUTPUT ERROR"
                 resumeBackgroundVoiceIfEnabled()
@@ -434,6 +459,7 @@ fun VeerApp() {
             // A disconnected or already-shutdown TTS engine must not leave the
             // background microphone paused while the service waits for a reply.
             ttsSpeaking = false
+            ttsMouthOpenTarget = 0f
             activeTtsUtteranceId = null
             status = "VOICE OUTPUT ERROR"
             Log.w("VEER", "Text-to-speech request failed", error)
@@ -1183,7 +1209,7 @@ fun VeerApp() {
                         TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("•••", color = Color.LightGray, fontSize = 20.sp) }
                     }
                     Spacer(Modifier.weight(1f))
-                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = loading || ttsSpeaking || status.contains("LISTENING") || status.contains("HEARING"), speaking = ttsSpeaking)
+                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = loading || ttsSpeaking || status.contains("LISTENING") || status.contains("HEARING"), speaking = ttsSpeaking, mouthOpenTarget = ttsMouthOpenTarget)
                     Spacer(Modifier.height(18.dp))
                     Text(when { loading -> "THINKING"; backgroundVoiceActive -> "BACKGROUND VOICE ACTIVE"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
                         color = Color(0xFF78DFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp)
@@ -1648,14 +1674,13 @@ private fun HologramCore(modifier: Modifier = Modifier, active: Boolean) {
 
 
 @Composable
-private fun HologramFace(modifier: Modifier = Modifier, active: Boolean, speaking: Boolean = false) {
+private fun HologramFace(modifier: Modifier = Modifier, active: Boolean, speaking: Boolean = false, mouthOpenTarget: Float = 0f) {
     val transition = rememberInfiniteTransition(label = "veer_face")
     val pulse by transition.animateFloat(0.96f, 1.025f,
         animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "facePulse")
-    val mouthOpen by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = if (speaking) 1f else 0f,
-        animationSpec = if (speaking) infiniteRepeatable(tween(170, easing = FastOutSlowInEasing), RepeatMode.Reverse) else tween(120),
+    val mouthOpen by animateFloatAsState(
+        targetValue = if (speaking) mouthOpenTarget.coerceIn(0f, 1f) else 0f,
+        animationSpec = tween(durationMillis = 110, easing = FastOutSlowInEasing),
         label = "mouthLipSync"
     )
     val cyan = if (active) Color(0xFF8AF8FF) else Color(0xFF28C8F5)
