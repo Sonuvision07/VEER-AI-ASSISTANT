@@ -455,4 +455,41 @@ class VeerAgentBrainTest {
         assertEquals(1, result.steps)
         assertTrue(result.message.contains("1 tool steps"))
     }
+
+    @Test fun approvalContinuationExecutesOnlyExactCallOnce() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) }, tools, FakeApproval(false))
+        val pending = brain.run(turn())
+        val continuation = pending.continuation!!
+        assertEquals(requested, pending.pendingApproval)
+        assertTrue(tools.executed.isEmpty())
+        val resumed = brain.resumeAfterApproval(continuation, requested)
+        assertEquals(1, tools.executed.size)
+        assertEquals(requested, tools.executed.single())
+        assertEquals(1, resumed.steps)
+        val repeated = brain.resumeAfterApproval(continuation, requested)
+        assertEquals(1, tools.executed.size)
+        assertTrue(repeated.message.contains("stale", ignoreCase = true))
+    }
+
+    @Test fun approvalContinuationRejectsDifferentCall() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) }, tools, FakeApproval(false))
+        val continuation = brain.run(turn()).continuation!!
+        val result = brain.resumeAfterApproval(continuation, call("read", AgentRisk.READ_ONLY))
+        assertTrue(tools.executed.isEmpty())
+        assertTrue(result.message.contains("stale", ignoreCase = true))
+    }
+
+    @Test fun unapprovedContinuationDoesNotExecuteAnything() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) }, tools, FakeApproval(false))
+        val pending = brain.run(turn())
+        assertTrue(pending.stoppedForApproval)
+        assertTrue(tools.executed.isEmpty())
+    }
+
 }
