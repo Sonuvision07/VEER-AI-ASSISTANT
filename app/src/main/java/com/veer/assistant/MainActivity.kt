@@ -1210,7 +1210,13 @@ fun VeerApp() {
                         TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("•••", color = Color.LightGray, fontSize = 20.sp) }
                     }
                     Spacer(Modifier.weight(1f))
-                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = loading || ttsSpeaking || status.contains("LISTENING") || status.contains("HEARING"), speaking = ttsSpeaking, mouthOpenTarget = ttsMouthOpenTarget)
+                    val faceExpression = when {
+                        loading || status.contains("PROCESSING") || status.contains("CONNECTING") -> VeerFaceExpression.THINKING
+                        ttsSpeaking -> VeerFaceExpression.SPEAKING
+                        status.contains("LISTENING") || status.contains("HEARING") -> VeerFaceExpression.LISTENING
+                        else -> VeerFaceExpression.IDLE
+                    }
+                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = faceExpression != VeerFaceExpression.IDLE, expression = faceExpression, speaking = ttsSpeaking, mouthOpenTarget = ttsMouthOpenTarget)
                     Spacer(Modifier.height(18.dp))
                     Text(when { loading -> "THINKING"; backgroundVoiceActive -> "BACKGROUND VOICE ACTIVE"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
                         color = Color(0xFF78DFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp)
@@ -1674,8 +1680,16 @@ private fun HologramCore(modifier: Modifier = Modifier, active: Boolean) {
 }
 
 
+private enum class VeerFaceExpression { IDLE, LISTENING, THINKING, SPEAKING }
+
 @Composable
-private fun HologramFace(modifier: Modifier = Modifier, active: Boolean, speaking: Boolean = false, mouthOpenTarget: Float = 0f) {
+private fun HologramFace(
+    modifier: Modifier = Modifier,
+    active: Boolean,
+    expression: VeerFaceExpression = VeerFaceExpression.IDLE,
+    speaking: Boolean = false,
+    mouthOpenTarget: Float = 0f
+) {
     val transition = rememberInfiniteTransition(label = "veer_face")
     val pulse by transition.animateFloat(0.96f, 1.025f,
         animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "facePulse")
@@ -1685,6 +1699,21 @@ private fun HologramFace(modifier: Modifier = Modifier, active: Boolean, speakin
         label = "mouthLipSync"
     )
     val cyan = if (active) Color(0xFF8AF8FF) else Color(0xFF28C8F5)
+    val eyeHeight by animateFloatAsState(
+        targetValue = when (expression) {
+            VeerFaceExpression.IDLE -> 23f
+            VeerFaceExpression.LISTENING -> 38f
+            VeerFaceExpression.THINKING -> 27f
+            VeerFaceExpression.SPEAKING -> 31f
+        },
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "faceExpressionEyes"
+    )
+    val gazeOffset by animateFloatAsState(
+        targetValue = if (expression == VeerFaceExpression.THINKING) 5f else 0f,
+        animationSpec = tween(220),
+        label = "faceExpressionGaze"
+    )
     Canvas(modifier = modifier) {
         val sx = size.width / 360f
         val sy = size.height / 390f
@@ -1718,13 +1747,15 @@ private fun HologramFace(modifier: Modifier = Modifier, active: Boolean, speakin
         // Ears and cheek contours
         drawOval(cyan.copy(alpha = 0.55f), p(43f, 164f), androidx.compose.ui.geometry.Size(25f*sx, 66f*sy), style = Stroke(1.5f*sx))
         drawOval(cyan.copy(alpha = 0.55f), p(292f, 164f), androidx.compose.ui.geometry.Size(25f*sx, 66f*sy), style = Stroke(1.5f*sx))
-        // Brows and eyes
-        drawLine(cyan, p(88f, 145f), p(150f, 139f), 2.3f*sx)
-        drawLine(cyan, p(210f, 139f), p(272f, 145f), 2.3f*sx)
-        drawOval(cyan.copy(alpha = 0.9f), p(91f, 151f), androidx.compose.ui.geometry.Size(68f*sx, 30f*sy), style = Stroke(1.8f*sx))
-        drawOval(cyan.copy(alpha = 0.9f), p(201f, 151f), androidx.compose.ui.geometry.Size(68f*sx, 30f*sy), style = Stroke(1.8f*sx))
-        drawCircle(cyan, 5f*sx, p(125f, 166f))
-        drawCircle(cyan, 5f*sx, p(235f, 166f))
+        // Expression-aware brows, eyelids and pupils.
+        val browLift = if (expression == VeerFaceExpression.LISTENING) 7f else 0f
+        drawLine(cyan, p(88f, 145f - browLift), p(150f, 139f - browLift), 2.3f*sx)
+        drawLine(cyan, p(210f, 139f - browLift), p(272f, 145f - browLift), 2.3f*sx)
+        val eyeTop = 166f - eyeHeight / 2f
+        drawOval(cyan.copy(alpha = 0.9f), p(91f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, eyeHeight*sy), style = Stroke(1.8f*sx))
+        drawOval(cyan.copy(alpha = 0.9f), p(201f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, eyeHeight*sy), style = Stroke(1.8f*sx))
+        drawCircle(cyan, 5f*sx, p(125f + gazeOffset, 166f))
+        drawCircle(cyan, 5f*sx, p(235f + gazeOffset, 166f))
         // Nose
         drawLine(cyan.copy(alpha = 0.75f), p(180f, 168f), p(173f, 226f), 1.6f*sx)
         drawLine(cyan.copy(alpha = 0.75f), p(173f, 226f), p(180f, 232f), 1.6f*sx)
