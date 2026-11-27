@@ -693,4 +693,88 @@ class VeerAgentBrainTest {
         assertTrue(tools.executed.isEmpty())
     }
 
+    @Test fun taskTimeoutPreventsStartingProviderRequest() {
+        var clock = 0L
+        var decisions = 0
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisions += 1
+                AgentDecision("Should not run")
+            },
+            FakeTools(),
+            FakeApproval(false),
+            taskTimeoutMillis = 1,
+            nanoTime = { clock.also { clock += 2_000_000L } }
+        )
+
+        val result = brain.run(turn())
+
+        assertTrue(result.message.contains("timeout", ignoreCase = true))
+        assertEquals(0, decisions)
+        assertEquals(0, result.steps)
+    }
+
+    @Test fun timeoutAfterToolExecutionPreventsNextProviderRequest() {
+        var clock = 0L
+        var decisions = 0
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun riskFor(name: String): AgentRisk? = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall): String {
+                clock = 2_000_000L
+                return "tool finished"
+            }
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisions += 1
+                AgentDecision("Read", call("read", AgentRisk.READ_ONLY), finished = false)
+            },
+            tools,
+            FakeApproval(false),
+            taskTimeoutMillis = 1,
+            nanoTime = { clock }
+        )
+
+        val result = brain.run(turn())
+
+        assertTrue(result.message.contains("timeout", ignoreCase = true))
+        assertEquals(1, decisions)
+        assertEquals(1, result.steps)
+    }
+
+    @Test fun approvalContinuationExpiresBeforeApprovedToolDispatch() {
+        var clock = 0L
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val approval = FakeApproval(false)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) },
+            tools,
+            approval,
+            taskTimeoutMillis = 1,
+            nanoTime = { clock }
+        )
+
+        val pending = brain.run(turn())
+        assertTrue(pending.stoppedForApproval)
+        clock = 2_000_000L
+        approval.result = true
+
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertTrue(resumed.message.contains("timeout", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveTaskTimeout() {
+        VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("No action") },
+            FakeTools(),
+            FakeApproval(false),
+            taskTimeoutMillis = 0
+        )
+    }
+
 }
