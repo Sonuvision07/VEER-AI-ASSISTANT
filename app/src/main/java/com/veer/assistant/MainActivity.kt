@@ -229,6 +229,7 @@ fun VeerApp() {
     val agentApprovalSession = remember { VeerAgentApprovalSession() }
     var pendingAgentApproval by remember { mutableStateOf<VeerAgentApprovalRequest?>(null) }
     var pendingBrainContinuation by remember { mutableStateOf<AgentApprovalContinuation?>(null) }
+    var activeBrainCancellationToken by remember { mutableStateOf<AgentCancellationToken?>(null) }
     var pendingMusicUrl by remember { mutableStateOf<String?>(null) }
     var pendingGeminiContents by remember { mutableStateOf<String?>(null) }
     var pendingGeminiModelContent by remember { mutableStateOf<String?>(null) }
@@ -748,6 +749,9 @@ fun VeerApp() {
                     AgentRunResult("Boss, approval ke baad agent safely stop ho gaya.", null, 0)
                 }
                 Handler(Looper.getMainLooper()).post {
+                    if (activeBrainCancellationToken === brainContinuation.cancellationToken) {
+                        activeBrainCancellationToken = null
+                    }
                     loading = false
                     addReply(result.message)
                 }
@@ -889,15 +893,18 @@ fun VeerApp() {
                 memory = memories.takeLast(12).toList(),
                 recentConversation = messages.dropLast(1).takeLast(8).map { "${it.first}: ${it.second}" }
             )
+            val cancellationToken = AgentCancellationToken()
+            activeBrainCancellationToken = cancellationToken
             loading = true
             status = "VEER AGENT THINKING..."
             Thread {
                 val result = try {
-                    agentRuntime.brain.run(turn)
+                    agentRuntime.brain.run(turn, cancellationToken)
                 } catch (_: Exception) {
                     AgentRunResult("Boss, VEER agent request safely fail ho gayi. Dobara try karein.", null, 0)
                 }
                 Handler(Looper.getMainLooper()).post {
+                    if (activeBrainCancellationToken !== cancellationToken) return@post
                     loading = false
                     if (result.stoppedForApproval && result.pendingApproval != null && result.continuation != null) {
                         val request = agentApprovalSession.request(result.pendingApproval)
@@ -913,7 +920,11 @@ fun VeerApp() {
                         }
                     } else {
                         pendingBrainContinuation = null
+                        activeBrainCancellationToken = null
                         addReply(result.message)
+                    }
+                    if (result.stoppedForApproval && result.continuation == null) {
+                        activeBrainCancellationToken = null
                     }
                 }
             }.start()
@@ -1595,9 +1606,27 @@ fun VeerApp() {
                         TextButton(onClick = { cameraLauncher.launch(null) }, contentPadding = PaddingValues(5.dp)) { VeerActionGlyph("camera", Modifier.size(22.dp), Color(0xFFB9C9E5)) }
                         Button(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                             shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF126CBA))) { VeerActionGlyph("mic", Modifier.size(21.dp), Color.White) }
-                        Button(onClick = { val q = typedCommand.trim().ifBlank { "Please analyse the attached file and explain its important details." }; if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) { typedCommand = ""; processCommand(q) } },
-                            enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDAE9FF), contentColor = Color(0xFF071326))) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
+                        if (activeBrainCancellationToken != null) {
+                            Button(onClick = {
+                                val token = activeBrainCancellationToken
+                                token?.cancel()
+                                activeBrainCancellationToken = null
+                                pendingBrainContinuation = null
+                                pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
+                                pendingAgentApproval = null
+                                pendingAction = ""
+                                showApproval = false
+                                loading = false
+                                status = "TASK CANCELLED"
+                                addReply("Boss, VEER agent task cancel kar diya. Koi naya action start nahi hoga.")
+                            }, shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))) {
+                                Text("■", color = Color.White, fontSize = 17.sp)
+                            }
+                        } else {
+                            Button(onClick = { val q = typedCommand.trim().ifBlank { "Please analyse the attached file and explain its important details." }; if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) { typedCommand = ""; processCommand(q) } },
+                                enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDAE9FF), contentColor = Color(0xFF071326))) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
             }
@@ -1618,6 +1647,9 @@ fun VeerApp() {
                 pendingAgentApproval?.let { request ->
                     agentApprovalSession.cancel(request.id)
                 }
+                activeBrainCancellationToken?.cancel()
+                activeBrainCancellationToken = null
+                pendingBrainContinuation = null
                 pendingAgentApproval = null
                 pendingMusicUrl = null
                 pendingAction = ""
@@ -1685,6 +1717,8 @@ fun VeerApp() {
                 approvalGeneration += 1L
                 showApproval = false
                 agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
+                activeBrainCancellationToken?.cancel()
+                activeBrainCancellationToken = null
                 pendingBrainContinuation = null
                 pendingAgentApproval = null
                 pendingAction = ""
@@ -1733,6 +1767,9 @@ fun VeerApp() {
                     if (approvalGeneration != dialogGeneration) return@TextButton
                     approvalGeneration += 1L
                     agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
+                    activeBrainCancellationToken?.cancel()
+                    activeBrainCancellationToken = null
+                    pendingBrainContinuation = null
                     pendingAgentApproval = null
                     pendingAction = ""
                     pendingMusicUrl = null
