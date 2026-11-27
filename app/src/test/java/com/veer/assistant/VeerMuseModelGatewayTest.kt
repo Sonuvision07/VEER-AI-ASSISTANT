@@ -41,6 +41,18 @@ class VeerMuseModelGatewayTest {
         assertTrue(decision.providerContext.orEmpty().contains("muse_call_1"))
     }
 
+    @Test fun rejectsToolContinuationWhenMetaOmitsEncryptedReasoningState() {
+        val gateway = VeerMuseModelGateway({ "key" }) { _, _ ->
+            """{"output":[{"type":"reasoning","summary":[]},{"type":"function_call","name":"android.launch_app","arguments":"{\"app\":\"youtube\"}","call_id":"muse_call_2"}]}"""
+        }
+        try {
+            gateway.decide(AiProvider.MUSE, turn)
+            fail("Expected missing encrypted reasoning state to be rejected")
+        } catch (error: IllegalStateException) {
+            assertTrue(error.message.orEmpty().contains("encrypted reasoning"))
+        }
+    }
+
     @Test fun rejectsWrongProviderAndMissingKey() {
         val gateway = VeerMuseModelGateway({ null }) { _, _ -> textResponse("unused") }
         try { gateway.decide(AiProvider.GEMINI, turn); fail("Expected wrong provider rejection") }
