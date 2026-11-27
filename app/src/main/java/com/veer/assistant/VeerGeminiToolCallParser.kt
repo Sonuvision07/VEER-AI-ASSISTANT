@@ -3,7 +3,7 @@ package com.veer.assistant
 import org.json.JSONObject
 
 /**
- * Parses a single Gemini functionCall into VEER's provider-neutral decision.
+ * Parses Gemini text and function-call responses into VEER's provider-neutral decision.
  * Unknown tools, malformed arguments and multiple calls fail closed.
  */
 internal object VeerGeminiToolCallParser {
@@ -19,7 +19,13 @@ internal object VeerGeminiToolCallParser {
             val calls = (0 until parts.length()).mapNotNull { index ->
                 parts.optJSONObject(index)?.optJSONObject("functionCall")
             }
-            if (calls.isEmpty()) return null
+            if (calls.isEmpty()) {
+                val message = (0 until parts.length()).mapNotNull { index ->
+                    parts.optJSONObject(index)?.optString("text")
+                        ?.takeIf { it.isNotBlank() }
+                }.joinToString("\n").trim()
+                return message.takeIf { it.isNotEmpty() }?.let { AgentDecision(it) }
+            }
             if (calls.size != 1) {
                 return AgentDecision(
                     "VEER ne ek se zyada tool calls receive kiye; safety ke liye sab block kar diye."
