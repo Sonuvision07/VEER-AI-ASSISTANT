@@ -892,7 +892,8 @@ fun VeerApp() {
 
     fun askMistral(question: String) { val key=mistralApiKey.trim(); if(key.isEmpty()){addReply("Mistral API key Settings mein add karein.");showSettings=true;return}; loading=true;status="CONNECTING TO MISTRAL...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\\n"){it.first+": "+it.second}+"\\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.mistral.ai/v1/chat/completions",key,"mistral-small-latest",prompt)}catch(e:Exception){answer="Mistral error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Mistral error:")&&providerFallback?.invoke("MISTRAL",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
     fun askGrok(question: String) { val key=grokApiKey.trim(); if(key.isEmpty()){addReply("Grok (xAI) API key Settings mein add karein.");showSettings=true;return};loading=true;status="CONNECTING TO GROK...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\\n"){it.first+": "+it.second}+"\\n"+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.x.ai/v1/chat/completions",key,"grok-3-mini",prompt)}catch(e:Exception){answer="Grok error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Grok error:")&&providerFallback?.invoke("GROK",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
-\n    fun askGemini(question: String, imageBase64: String? = null) {
+
+    fun askGemini(question: String, imageBase64: String? = null) {
         val key = apiKey.trim()
         if (key.isEmpty()) {
             addReply("Boss, AI brain connect karne ke liye Settings mein apni Gemini API key save karein.")
