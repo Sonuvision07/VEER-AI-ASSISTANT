@@ -139,7 +139,7 @@ class VeerAgentBrain(
             if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps)
             val decision = requestDecision(turn, cancellationToken, deadlineNanos)
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
-            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
+            if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps)
             if (decision == null) return AgentRunResult(
                 "VEER ka AI engine abhi available nahi hai. Provider connection check karein.",
                 lastProvider, steps
@@ -224,8 +224,8 @@ class VeerAgentBrain(
                 // Tool exceptions may contain credentials or private arguments; never pass them to the model.
                 "Tool execution failed. VEER ne action ko safely stop kar diya."
             }
-            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
-            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps + 1)
+            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps + 1)
+            if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps + 1)
             // Bound tool output before adding it to the next model request.
             val result = if (rawResult.length > maxToolResultChars) {
                 rawResult.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
@@ -306,7 +306,7 @@ class VeerAgentBrain(
             )
         }
         if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
-        if (nanoTime() >= continuation.deadlineNanos) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
+        if (nanoTime() - continuation.deadlineNanos >= 0L) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
         continuation.consumed = true
 
         val raw = try {
