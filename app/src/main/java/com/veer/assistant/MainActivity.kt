@@ -55,6 +55,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -268,6 +270,7 @@ private fun VeerOutlineIcon(kind: String, modifier: Modifier = Modifier, tint: C
 @Composable
 fun VeerApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val veerFont = remember { FontFamily(Font(R.font.inter_variable, weight = FontWeight.Normal)) }
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
     val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
     val localAiScope = rememberCoroutineScope()
@@ -1481,7 +1484,7 @@ fun VeerApp() {
         background = uiBackground,
         surface = uiSurface,
         onSurface = uiText
-    )) {
+    ), typography = Typography(defaultFontFamily = veerFont)) {
         Column(
             Modifier.fillMaxSize().background(uiBackground).imePadding()
         ) {
