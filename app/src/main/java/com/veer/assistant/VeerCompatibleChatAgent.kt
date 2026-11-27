@@ -88,7 +88,7 @@ internal class VeerCompatibleChatAgent(
                     append(turn.previousToolResult.take(4_000))
                 }
             }))
-        if (turn.providerContext != null || turn.previousToolCallId != null || turn.previousToolResult != null) {
+        if (turn.providerContext != null || turn.previousToolCallId != null) {
             require(!turn.providerContext.isNullOrBlank() && !turn.previousToolCallId.isNullOrBlank() &&
                 !turn.previousToolResult.isNullOrBlank()) { "Provider continuation context is incomplete." }
             require(turn.providerContext.length <= 40_000) { "Provider replay context exceeded VEER's limit." }
