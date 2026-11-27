@@ -142,4 +142,10 @@ class VeerCompatibleChatAgentTest {
         assertEquals(AiProvider.GEMINI, VeerAndroidAgentRuntime.providerOrderForSelection("GEMINI").first())
     }
 
+    @Test fun nullTextContentIsNotReturnedAsLiteralNull() {
+        val adapter = VeerCompatibleChatAgent(AiProvider.GROK, "https://api.x.ai/v1/chat/completions", "grok-3-mini", { "key" }, VeerCompatibleChatAgentTransport { _, _, _, _ -> "" })
+        val result = adapter.parseResponse("""{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":null}}]}""")
+        assertEquals(null, result)
+    }
+
 }
