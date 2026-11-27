@@ -1554,151 +1554,235 @@ fun VeerApp() {
         onDispose { try { context.unregisterReceiver(receiver) } catch (_: Exception) {} }
     }
 
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary = cyan, background = Color.Black, surface = Color(0xFF202124), onSurface = Color.White
+    fun sendTypedMessage() {
+        val question = typedCommand.trim()
+        if (loading || (question.isBlank() && attachedImageBase64 == null && attachedText.isNullOrBlank())) return
+        typedCommand = ""
+        processCommand(question.ifBlank { "Please analyse the attached file." })
+    }
+
+    val isListening = status.contains("LISTENING") || status.contains("HEARING")
+    val uiBackground = Color(0xFFF7F7F5)
+    val uiSurface = Color(0xFFFFFFFF)
+    val uiBorder = Color(0xFFDEDFDB)
+    val uiText = Color(0xFF17181A)
+    val uiMuted = Color(0xFF5C5F66)
+    val uiAccent = Color(0xFF2F5BEA)
+
+    MaterialTheme(colorScheme = lightColorScheme(
+        primary = uiAccent,
+        background = uiBackground,
+        surface = uiSurface,
+        onSurface = uiText
     )) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            if (voiceMode) {
-                Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { voiceMode = false; status = "ONLINE"; val activeRecognizer = recognizer; recognizer = null; safelyReleaseSpeechRecognizer(activeRecognizer) }) { Text("‹  CHAT", color = Color.White, fontSize = 15.sp) }
-                        Spacer(Modifier.weight(1f))
-                        Text("VEER", color = Color(0xFF69DFFF), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("•••", color = Color.LightGray, fontSize = 20.sp) }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    val faceExpression = when {
-                        loading || status.contains("PROCESSING") || status.contains("CONNECTING") -> VeerFaceExpression.THINKING
-                        ttsSpeaking -> VeerFaceExpression.SPEAKING
-                        status.contains("LISTENING") || status.contains("HEARING") -> VeerFaceExpression.LISTENING
-                        else -> VeerFaceExpression.IDLE
-                    }
-                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = faceExpression != VeerFaceExpression.IDLE, expression = faceExpression, speaking = ttsSpeaking, mouthOpenTarget = ttsMouthOpenTarget)
-                    Spacer(Modifier.height(18.dp))
-                    Text(when { loading -> "THINKING"; backgroundVoiceActive -> "BACKGROUND VOICE ACTIVE"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
-                        color = Color(0xFF78DFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp)
-                    Spacer(Modifier.height(10.dp))
-                    Text(messages.lastOrNull { it.first == "VEER" }?.second ?: "Namaste. Main sun raha hoon.",
-                        color = Color(0xFFE6F6FF), fontSize = 16.sp, modifier = Modifier.fillMaxWidth().heightIn(max = 88.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Spacer(Modifier.weight(1f))
-                    Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = { voiceMode = false; status = "ONLINE"; val activeRecognizer = recognizer; recognizer = null; safelyReleaseSpeechRecognizer(activeRecognizer) }, shape = CircleShape, modifier = Modifier.size(58.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("×", fontSize = 27.sp) }
-                        Spacer(Modifier.width(30.dp))
-                        Button(onClick = {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen()
-                            else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }, shape = CircleShape, modifier = Modifier.size(76.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1677B8))) { Text("🎙", fontSize = 27.sp) }
-                        Spacer(Modifier.width(30.dp))
-                        OutlinedButton(onClick = {
-                            if (backgroundVoiceActive) {
-                                prefs.edit().putBoolean("background_voice_enabled", false).apply()
-                                context.stopService(Intent(context, VeerVoiceService::class.java))
-                                backgroundVoiceActive = false
-                            } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                try {
-                                    prefs.edit().putBoolean("background_voice_enabled", true).apply()
-                                    ContextCompat.startForegroundService(context, Intent(context, VeerVoiceService::class.java))
-                                    backgroundVoiceActive = true
-                                    status = "BACKGROUND VOICE STARTING"
-                                } catch (_: Exception) {
-                                    // The service never starts when startForegroundService throws.
-                                    prefs.edit().putBoolean("background_voice_enabled", false).apply()
-                                    backgroundVoiceActive = false
-                                    status = "BACKGROUND VOICE COULD NOT START"
-                                    messages.add("VEER" to "Background voice start nahi ho paayi. App ko dobara kholkar try karein.")
-                                }
-                            } else {
-                                pendingBackgroundVoicePermission = true
-                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        }, shape = CircleShape, modifier = Modifier.size(58.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(if (backgroundVoiceActive) "■" else "BG", fontSize = 15.sp) }
+        Column(
+            Modifier.fillMaxSize().background(uiBackground).imePadding()
+        ) {
+            Row(
+                Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { keyDraft = apiKey; showSettings = true },
+                    modifier = Modifier.size(44.dp)
+                ) { VeerOutlineIcon("menu", Modifier.size(19.dp), uiText) }
+                Spacer(Modifier.weight(1f))
+                Text("Veer", color = uiText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        activeBrainCancellationToken?.cancel()
+                        activeBrainCancellationToken = null
+                        pendingBrainContinuation = null
+                        pendingAgentApproval?.let { agentApprovalSession.cancel(it.id) }
+                        pendingAgentApproval = null
+                        pendingAction = ""
+                        showApproval = false
+                        loading = false
+                        typedCommand = ""
+                        attachedImageBase64 = null
+                        attachedText = null
+                        attachedFileName = null
+                        attachedMimeType = "image/jpeg"
+                        messages.clear()
+                        status = "ONLINE"
+                    },
+                    modifier = Modifier.size(44.dp)
+                ) { VeerOutlineIcon("new", Modifier.size(19.dp), uiText) }
+            }
+
+            if (messages.isEmpty()) {
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier.size(44.dp).background(uiAccent, RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("V", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.height(20.dp))
+                        Text(
+                            "Namaste, kya madad karun?",
+                            color = uiText,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Likhiye, boliye ya photo bhejiye",
+                            color = uiMuted,
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             } else {
-                Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("☰", color = Color(0xFFB8C8E4), fontSize = 23.sp) }
-                        Spacer(Modifier.weight(1f))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            VeerBrandMark(Modifier.size(30.dp))
-                            Text("VEER", color = Color(0xFFF4F8FF), fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { showClearChatConfirm = true }) { Text("＋", color = Color(0xFFB8C8E4), fontSize = 25.sp) }
-                    }
-                    if (messages.size <= 1) {
-                        Spacer(Modifier.weight(0.7f))
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(Modifier.size(164.dp), contentAlignment = Alignment.Center) {
-                                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x553A8BFF), Color(0x222A4D9B), Color.Transparent)), CircleShape))
-                                VeerBrandMark(Modifier.size(104.dp))
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp),
+                    contentPadding = PaddingValues(top = 14.dp, bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(messages) { item ->
+                        val isUser = item.first == "BOSS"
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                        ) {
+                            Surface(
+                                color = if (isUser) Color(0xFFEDEEEB) else uiSurface,
+                                shape = RoundedCornerShape(16.dp),
+                                border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
+                                modifier = Modifier.widthIn(max = 320.dp)
+                            ) {
+                                Text(
+                                    item.second,
+                                    color = uiText,
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp)
+                                )
                             }
-                            Spacer(Modifier.height(12.dp))
-                            Text("Hello, Boss", color = Color(0xFFF4F7FF), fontSize = 29.sp, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(7.dp))
-                            Text("What can I help you with today?", color = Color(0xFF9EACC4), fontSize = 15.sp)
-                            Spacer(Modifier.height(28.dp))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                listOf("Ask anything", "Create", "Learn").forEach { suggestion ->
-                                    Surface(color = Color(0xFF111C30), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263B5D))) {
-                                        Text(suggestion, color = Color(0xFFD4E1F6), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp))
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(Modifier.weight(1f))
-                    } else {
-                        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                            items(messages) { item ->
-                                val isBoss = item.first == "BOSS"
-                                Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isBoss) Alignment.End else Alignment.Start) {
-                                    Surface(color = if (isBoss) Color(0xFF30343A) else Color.Transparent, shape = RoundedCornerShape(20.dp)) {
-                                        Text(item.second, color = Color(0xFFF1F1F1), modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp), fontSize = 16.sp, lineHeight = 23.sp)
-                                    }
-                                }
-                            }
-                            if (loading) item { Text("VEER is thinking…", color = Color.Gray, fontSize = 14.sp) }
                         }
                     }
-                    if (attachedImageBase64 != null) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${attachedFileName ?: "ATTACHMENT READY"} — send a message to analyse", color = Color(0xFF70DFFF), fontSize = 12.sp, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { attachedImageBase64 = null; attachedText = null; attachedFileName = null }) { Text("REMOVE", color = Color.LightGray, fontSize = 11.sp) }
+                    if (loading) {
+                        item {
+                            Text("Veer soch raha hai…", color = uiMuted, fontSize = 13.sp)
                         }
                     }
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp).background(Brush.horizontalGradient(listOf(Color(0xFF111B2D), Color(0xFF101827))), RoundedCornerShape(28.dp)).border(1.dp, Color(0xFF263B5D), RoundedCornerShape(28.dp)).padding(horizontal = 7.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { documentLauncher.launch("*/*") }, contentPadding = PaddingValues(5.dp)) { Text("＋", color = Color(0xFF9CB5D8), fontSize = 25.sp) }
-                        OutlinedTextField(value = typedCommand, onValueChange = { typedCommand = it }, modifier = Modifier.weight(1f),
-                            placeholder = { Text("Message VEER...", color = Color(0xFF8292AA)) }, singleLine = false, maxLines = 4,
-                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, cursorColor = Color(0xFF62CFFF)))
-                        TextButton(onClick = { cameraLauncher.launch(null) }, contentPadding = PaddingValues(5.dp)) { VeerActionGlyph("camera", Modifier.size(22.dp), Color(0xFFB9C9E5)) }
-                        Button(onClick = { voiceMode = true; if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                            shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF126CBA))) { VeerActionGlyph("mic", Modifier.size(21.dp), Color.White) }
-                        if (activeBrainCancellationToken != null) {
-                            Button(onClick = {
-                                val token = activeBrainCancellationToken
-                                token?.cancel()
-                                activeBrainCancellationToken = null
-                                pendingBrainContinuation = null
-                                pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
-                                pendingAgentApproval = null
-                                pendingAction = ""
-                                showApproval = false
-                                loading = false
-                                status = "TASK CANCELLED"
-                                addReply("Boss, VEER agent task cancel kar diya. Koi naya action start nahi hoga.")
-                            }, shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))) {
-                                Text("■", color = Color.White, fontSize = 17.sp)
+                }
+            }
+
+            if (attachedImageBase64 != null || !attachedText.isNullOrBlank()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        attachedFileName ?: "Attachment ready",
+                        color = uiMuted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1
+                    )
+                    TextButton(onClick = {
+                        attachedImageBase64 = null
+                        attachedText = null
+                        attachedFileName = null
+                    }) { Text("HATAO", color = uiAccent, fontSize = 12.sp) }
+                }
+            }
+
+            Surface(
+                color = uiSurface,
+                shape = RoundedCornerShape(22.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
+            ) {
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    OutlinedTextField(
+                        value = typedCommand,
+                        onValueChange = { typedCommand = it },
+                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 42.dp),
+                        placeholder = {
+                            Text(
+                                if (isListening) "Sun raha hoon..." else "Veer se kuch bhi poochhein",
+                                color = uiMuted,
+                                fontSize = 15.sp
+                            )
+                        },
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = uiText,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp
+                        ),
+                        singleLine = false,
+                        maxLines = 4,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { sendTypedMessage() }),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = uiText,
+                            unfocusedTextColor = uiText,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            cursorColor = uiAccent
+                        )
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { documentLauncher.launch("*/*") },
+                            modifier = Modifier.size(44.dp)
+                        ) { VeerOutlineIcon("plus", Modifier.size(19.dp), uiMuted) }
+                        IconButton(
+                            onClick = {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                    cameraLauncher.launch(null)
+                                } else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) { VeerOutlineIcon("camera", Modifier.size(19.dp), uiMuted) }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen()
+                                else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            VeerOutlineIcon("mic", Modifier.size(19.dp), if (isListening) uiAccent else uiMuted)
+                        }
+                        Box(
+                            Modifier.size(44.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                Modifier.size(34.dp)
+                                    .background(
+                                        if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) uiAccent else Color(0xFFBFC7DD),
+                                        CircleShape
+                                    )
+                                    .then(
+                                        if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()))
+                                            Modifier
+                                        else Modifier
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                IconButton(
+                                    onClick = { sendTypedMessage() },
+                                    enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()),
+                                    modifier = Modifier.size(44.dp)
+                                ) { VeerOutlineIcon("send", Modifier.size(17.dp), Color.White) }
                             }
-                        } else {
-                            Button(onClick = { val q = typedCommand.trim().ifBlank { "Please analyse the attached file and explain its important details." }; if (!loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank())) { typedCommand = ""; processCommand(q) } },
-                                enabled = !loading && (typedCommand.isNotBlank() || attachedImageBase64 != null || !attachedText.isNullOrBlank()), shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(42.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDAE9FF), contentColor = Color(0xFF071326))) { Text("↑", fontSize = 23.sp, fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
