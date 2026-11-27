@@ -5,7 +5,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Small OpenAI-compatible chat-completions client for Mistral and xAI Grok. */
+/** Small OpenAI-compatible chat-completions client for Meta Llama (via Groq) and xAI Grok. */
 internal object VeerExtraAiClient {
     fun chat(endpoint: String, apiKey: String, model: String, prompt: String): String {
         require(apiKey.isNotBlank() && !apiKey.any { it.isWhitespace() }) { "API key invalid or blank." }
