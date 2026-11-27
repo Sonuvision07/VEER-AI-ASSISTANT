@@ -1808,6 +1808,16 @@ private fun HologramFace(
 
     // The face mesh never changes shape. Build its paths once instead of
     // recalculating hundreds of points and line segments on every animation frame.
+    val cachedHead = remember {
+        androidx.compose.ui.graphics.Path().apply {
+            moveTo(180f, 24f)
+            cubicTo(92f, 20f, 52f, 88f, 58f, 190f)
+            cubicTo(62f, 294f, 112f, 355f, 180f, 365f)
+            cubicTo(248f, 355f, 298f, 294f, 302f, 190f)
+            cubicTo(308f, 88f, 268f, 20f, 180f, 24f)
+            close()
+        }
+    }
     val cachedMesh = remember {
         val lines = androidx.compose.ui.graphics.Path()
         val dots = androidx.compose.ui.graphics.Path()
@@ -1840,14 +1850,7 @@ private fun HologramFace(
         val sx = size.width / 360f
         val sy = size.height / 390f
         fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
-        val head = androidx.compose.ui.graphics.Path().apply {
-            moveTo(180f*sx, 24f*sy)
-            cubicTo(92f*sx, 20f*sy, 52f*sx, 88f*sy, 58f*sx, 190f*sy)
-            cubicTo(62f*sx, 294f*sy, 112f*sx, 355f*sy, 180f*sx, 365f*sy)
-            cubicTo(248f*sx, 355f*sy, 298f*sx, 294f*sy, 302f*sx, 190f*sy)
-            cubicTo(308f*sx, 88f*sy, 268f*sx, 20f*sy, 180f*sx, 24f*sy)
-            close()
-        }
+
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(cyan.copy(alpha = faceGlowStrength), cyan.copy(alpha = faceGlowStrength * 0.28f), Color.Transparent),
@@ -1876,7 +1879,9 @@ private fun HologramFace(
             radius = 30f * sx,
             center = p(248f, 245f)
         )
-        drawPath(head, cyan.copy(alpha = 0.12f), style = Stroke(2f*sx))
+        withTransform({ scale(sx, sy, pivot = Offset.Zero) }) {
+            drawPath(cachedHead, cyan.copy(alpha = 0.12f), style = Stroke(width = 2f))
+        }
         val scanT = ((scanLineY - 194f) / 174f).coerceIn(-0.98f, 0.98f)
         val scanHalfWidth = 115f * kotlin.math.sqrt((1f - scanT * scanT).coerceAtLeast(0.08f))
         val scanStart = p(180f - scanHalfWidth, scanLineY)
