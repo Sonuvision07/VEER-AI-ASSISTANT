@@ -830,7 +830,9 @@ class VeerAgentBrainTest {
             override fun isAvailable(provider: AiProvider) = true
             override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
                 attempts[provider] = (attempts[provider] ?: 0) + 1
-                if (provider == AiProvider.GEMINI) error("provider unavailable")
+                if (provider == AiProvider.GEMINI) {
+                    throw AgentProviderException("temporary provider unavailable", retryable = true)
+                }
                 return AgentDecision("Fallback recovered")
             }
         }
