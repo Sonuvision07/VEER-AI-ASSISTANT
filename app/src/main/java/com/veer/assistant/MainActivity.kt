@@ -1214,7 +1214,7 @@ fun VeerApp() {
     fun processCommand(command: String) {
         val clean = command.trim()
         if (clean.isEmpty()) return
-        val messageWithAttachment = if (!attachedFileName.isNullOrBlank()) "$clean\\nAttachment: $attachedFileName" else clean
+        val messageWithAttachment = if (!attachedFileName.isNullOrBlank()) "$clean\nAttachment: $attachedFileName" else clean
         messages.add("BOSS" to messageWithAttachment)
         loading = false
         addReply(generateDemoReply(clean))
