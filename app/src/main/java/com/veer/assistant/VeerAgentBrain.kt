@@ -114,9 +114,9 @@ class VeerAgentBrain(
         initialTurn: AgentTurn,
         cancellationToken: AgentCancellationToken = AgentCancellationToken()
     ): AgentRunResult {
-        val timeoutNanos = taskTimeoutMillis.coerceAtMost(Long.MAX_VALUE / 1_000_000L) * 1_000_000L
+        val timeoutNanos = taskTimeoutMillis.coerceAtMost((Long.MAX_VALUE / 2) / 1_000_000L) * 1_000_000L
         val now = nanoTime()
-        val deadline = if (Long.MAX_VALUE - now < timeoutNanos) Long.MAX_VALUE else now + timeoutNanos
+        val deadline = now + timeoutNanos
         return runFromTurn(
             initialTurn, completedSteps = 0, initialProvider = null,
             cancellationToken = cancellationToken, deadlineNanos = deadline
@@ -136,7 +136,7 @@ class VeerAgentBrain(
 
         while (steps < maxToolSteps) {
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
-            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
+            if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps)
             val decision = requestDecision(turn, cancellationToken, deadlineNanos)
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
             if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
@@ -263,7 +263,7 @@ class VeerAgentBrain(
         val action = continuation.call
         val cancellationToken = continuation.cancellationToken
         if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
-        if (nanoTime() >= continuation.deadlineNanos) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
+        if (nanoTime() - continuation.deadlineNanos >= 0L) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
         val invalid = action.name.isBlank() ||
             action.name != action.name.trim() ||
             action.name.any { it.isISOControl() } ||
