@@ -14,9 +14,7 @@ internal object VeerOpenAiToolCallParser {
         return try {
             val root = JSONObject(responseBody)
             val responseStatus = root.optString("status")
-            if (responseStatus.isNotBlank() && responseStatus != "completed") {
-                return AgentDecision("VEER ne incomplete provider response receive ki; action block kar diya.")
-            }
+            if (responseStatus.isNotBlank() && responseStatus != "completed") return null
             val output = root.optJSONArray("output") ?: return null
             val replay = JSONArray(previousContext ?: "[]")
             if (previousCallId != null || previousToolResult != null) {
@@ -56,9 +54,7 @@ internal object VeerOpenAiToolCallParser {
             }
             val functionCall = calls.single()
             val callStatus = functionCall.optString("status")
-            if (callStatus.isNotBlank() && callStatus != "completed") {
-                return AgentDecision("VEER ne incomplete tool call receive ki; action block kar diya.")
-            }
+            if (callStatus.isNotBlank() && callStatus != "completed") return null
             val callId = functionCall.optString("call_id").takeIf {
                 it.length in 1..64 && it.none { character -> character.isISOControl() }
             } ?: return AgentDecision("VEER ko valid tool call ID nahi mila; action block kar diya.")
