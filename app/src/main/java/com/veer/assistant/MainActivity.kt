@@ -215,6 +215,7 @@ fun VeerApp() {
     var showBackConfirm by remember { mutableStateOf(false) }
     var showClearChatConfirm by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
+    var approvalGeneration by remember { mutableLongStateOf(0L) }
     var pendingAction by remember { mutableStateOf("") }
     val agentApprovalSession = remember { VeerAgentApprovalSession() }
     var pendingAgentApproval by remember { mutableStateOf<VeerAgentApprovalRequest?>(null) }
@@ -490,6 +491,7 @@ fun VeerApp() {
             addReply("Boss, ye action phone par complete nahi ho paaya.")
             false
         } finally {
+            approvalGeneration += 1L
             pendingAction = ""
             agentApprovalSession.clear()
             pendingAgentApproval = null
@@ -501,6 +503,7 @@ fun VeerApp() {
     fun runApprovedAgentTool(call: AgentToolCall) {
         val validatedAction = VeerAgentToolPolicy.toPendingAppAction(call)
         if (validatedAction == null || validatedAction != pendingAction) {
+            approvalGeneration += 1L
             agentApprovalSession.clear()
             pendingAgentApproval = null
             pendingAction = ""
@@ -520,6 +523,7 @@ fun VeerApp() {
                 }
             }.execute(call)
         } catch (_: Exception) {
+            approvalGeneration += 1L
             pendingAction = ""
             pendingMusicUrl = null
             showApproval = false
@@ -761,6 +765,7 @@ fun VeerApp() {
                     runApprovedAction(approvedAction)
                 }
             } else {
+                approvalGeneration += 1L
                 pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
                 pendingAgentApproval = null
                 pendingAction = ""
@@ -806,6 +811,7 @@ fun VeerApp() {
                 pendingAction = "music"
                 agentApprovalSession.clear()
                 pendingAgentApproval = null
+                approvalGeneration += 1L
                 showApproval = true
             }
             VeerCommandRouter.route(clean) != null -> {
@@ -821,6 +827,7 @@ fun VeerApp() {
                 } else {
                     pendingAgentApproval = request
                     pendingAction = request.action
+                    approvalGeneration += 1L
                     showApproval = true
                 }
             }
@@ -1313,6 +1320,8 @@ fun VeerApp() {
 
     if (showApproval) {
         val agentRequest = pendingAgentApproval
+        val dialogGeneration = approvalGeneration
+        val dialogAction = pendingAction
         val actionLabel = if (agentRequest != null) {
             VeerAgentApprovalPresentation.actionLabel(agentRequest.call)
         } else {
@@ -1320,6 +1329,8 @@ fun VeerApp() {
         } ?: "Action chalana"
         AlertDialog(
             onDismissRequest = {
+                if (approvalGeneration != dialogGeneration) return@AlertDialog
+                approvalGeneration += 1L
                 showApproval = false
                 agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
                 pendingAgentApproval = null
@@ -1331,6 +1342,8 @@ fun VeerApp() {
             text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\n\n$actionLabel") },
             confirmButton = {
                 TextButton(onClick = {
+                    if (approvalGeneration != dialogGeneration) return@TextButton
+                    approvalGeneration += 1L
                     // Capture this dialog's request, never a newer Compose state value.
                     val currentRequest = agentRequest
                     val currentCall = currentRequest?.let { request ->
@@ -1338,8 +1351,8 @@ fun VeerApp() {
                     }
                     val approvedAction = if (currentRequest != null) {
                         currentCall?.let { VeerAgentToolPolicy.toPendingAppAction(it) }
-                            ?.takeIf { it == pendingAction }
-                    } else pendingAction
+                            ?.takeIf { it == dialogAction }
+                    } else dialogAction
                     if (approvedAction.isNullOrBlank()) {
                         currentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
                         pendingAgentApproval = null
@@ -1357,6 +1370,8 @@ fun VeerApp() {
             },
             dismissButton = {
                 TextButton(onClick = {
+                    if (approvalGeneration != dialogGeneration) return@TextButton
+                    approvalGeneration += 1L
                     agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
                     pendingAgentApproval = null
                     pendingAction = ""
