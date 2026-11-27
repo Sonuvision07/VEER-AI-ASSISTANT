@@ -31,12 +31,25 @@ data class AgentTurn(
     val previousToolResult: String? = null
 )
 
+/** Cooperative cancellation checked between provider and tool operations. */
+class AgentCancellationToken {
+    @Volatile private var cancelled = false
+
+    fun cancel() { cancelled = true }
+    fun isCancelled(): Boolean = cancelled
+}
+
+private fun cancelledAgentResult(provider: AiProvider?, steps: Int) = AgentRunResult(
+    "VEER ne task cancel kar diya. Koi naya action start nahi kiya gaya.", provider, steps
+)
+
 class AgentApprovalContinuation internal constructor(
     val turn: AgentTurn,
     val provider: AiProvider,
     val call: AgentToolCall,
     val completedSteps: Int,
-    internal val ownerToken: Any
+    internal val ownerToken: Any,
+    internal val cancellationToken: AgentCancellationToken
 ) {
     internal var consumed: Boolean = false
 }
@@ -89,20 +102,28 @@ class VeerAgentBrain(
         require(maxToolArgumentChars > 0) { "maxToolArgumentChars must be positive" }
         require(maxToolNameChars > 0) { "maxToolNameChars must be positive" }
     }
-    fun run(initialTurn: AgentTurn): AgentRunResult =
-        runFromTurn(initialTurn, completedSteps = 0, initialProvider = null)
+    fun run(
+        initialTurn: AgentTurn,
+        cancellationToken: AgentCancellationToken = AgentCancellationToken()
+    ): AgentRunResult = runFromTurn(
+        initialTurn, completedSteps = 0, initialProvider = null, cancellationToken = cancellationToken
+    )
 
     private fun runFromTurn(
         initialTurn: AgentTurn,
         completedSteps: Int,
-        initialProvider: AiProvider?
+        initialProvider: AiProvider?,
+        cancellationToken: AgentCancellationToken
     ): AgentRunResult {
         var turn = initialTurn
         var lastProvider: AiProvider? = initialProvider
         var steps = completedSteps
 
         while (steps < maxToolSteps) {
-            val decision = requestDecision(turn) ?: return AgentRunResult(
+            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
+            val decision = requestDecision(turn, cancellationToken)
+            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
+            if (decision == null) return AgentRunResult(
                 "VEER ka AI engine abhi available nahi hai. Provider connection check karein.",
                 lastProvider, steps
             )
@@ -171,10 +192,11 @@ class VeerAgentBrain(
                         lastProvider, steps,
                         stoppedForApproval = true,
                         pendingApproval = action,
-                        continuation = AgentApprovalContinuation(turn, decision.first, action, steps, continuationOwnerToken)
+                        continuation = AgentApprovalContinuation(turn, decision.first, action, steps, continuationOwnerToken, cancellationToken)
                     )
                 }
             }
+            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
             val rawResult = try {
                 tools.execute(action)
             } catch (_: Exception) {
@@ -216,6 +238,8 @@ class VeerAgentBrain(
             )
         }
         val action = continuation.call
+        val cancellationToken = continuation.cancellationToken
+        if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
         val invalid = action.name.isBlank() ||
             action.name != action.name.trim() ||
             action.name.any { it.isISOControl() } ||
@@ -257,6 +281,7 @@ class VeerAgentBrain(
                 continuation = continuation
             )
         }
+        if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
         continuation.consumed = true
 
         val raw = try {
@@ -272,15 +297,23 @@ class VeerAgentBrain(
         return runFromTurn(
             continuation.turn.copy(previousToolResult = bounded),
             completedSteps = continuation.completedSteps + 1,
-            initialProvider = continuation.provider
+            initialProvider = continuation.provider,
+            cancellationToken = cancellationToken
         )
     }
 
-    private fun requestDecision(turn: AgentTurn): Pair<AiProvider, AgentDecision>? {
+    private fun requestDecision(
+        turn: AgentTurn,
+        cancellationToken: AgentCancellationToken
+    ): Pair<AiProvider, AgentDecision>? {
         for (provider in providerOrder) {
+            if (cancellationToken.isCancelled()) return null
             try {
                 if (!gateway.isAvailable(provider)) continue
-                return provider to gateway.decide(provider, turn)
+                if (cancellationToken.isCancelled()) return null
+                val decision = gateway.decide(provider, turn)
+                if (cancellationToken.isCancelled()) return null
+                return provider to decision
             } catch (_: Exception) {
                 // Availability checks and requests can both fail; try the next provider.
                 // Do not expose provider secrets/errors.
