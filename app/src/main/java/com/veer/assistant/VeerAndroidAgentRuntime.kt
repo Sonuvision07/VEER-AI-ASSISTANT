@@ -1,23 +1,27 @@
 package com.veer.assistant
 
 /**
- * Composition root for VEER's first Android agent runtime.
- *
- * It deliberately exposes the same approval session used by the Android
- * approval UI, while keeping the model gateway and tool executor behind the
- * provider-neutral VeerAgentBrain contract.
+ * Composition root for VEER's Android agent runtime.
+ * Gemini and OpenAI use independent structured adapters and API-key providers;
+ * the brain decides fallback only among adapters that report availability.
  */
 internal class VeerAndroidAgentRuntime(
     apiKeyProvider: () -> String?,
     dispatchApprovedAction: (String) -> String,
+    openAiApiKeyProvider: () -> String? = { null },
     internal val approvalSession: VeerAgentApprovalSession = VeerAgentApprovalSession(),
-    transport: VeerGeminiAgentTransport = VeerGeminiHttpTransport()
+    transport: VeerGeminiAgentTransport = VeerGeminiHttpTransport(),
+    openAiTransport: VeerOpenAiAgentTransport = VeerOpenAiHttpTransport()
 ) {
     internal val brain = VeerAgentBrain(
-        gateway = VeerGeminiModelGateway(apiKeyProvider, transport),
+        gateway = VeerMultiProviderModelGateway(
+            mapOf(
+                AiProvider.GEMINI to VeerGeminiModelGateway(apiKeyProvider, transport),
+                AiProvider.OPENAI to VeerOpenAiModelGateway(openAiApiKeyProvider, openAiTransport)
+            )
+        ),
         tools = VeerAndroidAppToolExecutor(dispatchApprovedAction),
         approval = approvalSession,
-        // Other providers are added here only when they have structured-tool adapters.
-        providerOrder = listOf(AiProvider.GEMINI)
+        providerOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI)
     )
 }
