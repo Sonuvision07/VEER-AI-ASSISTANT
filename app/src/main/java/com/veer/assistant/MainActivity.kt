@@ -1321,7 +1321,7 @@ fun VeerApp() {
         AlertDialog(
             onDismissRequest = {
                 showApproval = false
-                pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
+                agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
                 pendingAgentApproval = null
                 pendingAction = ""
                 pendingMusicUrl = null
@@ -1331,7 +1331,8 @@ fun VeerApp() {
             text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\n\n$actionLabel") },
             confirmButton = {
                 TextButton(onClick = {
-                    val currentRequest = pendingAgentApproval
+                    // Capture this dialog's request, never a newer Compose state value.
+                    val currentRequest = agentRequest
                     val currentCall = currentRequest?.let { request ->
                         agentApprovalSession.approve(request.id)?.takeIf { it == request.call }
                     }
@@ -1356,7 +1357,7 @@ fun VeerApp() {
             },
             dismissButton = {
                 TextButton(onClick = {
-                    pendingAgentApproval?.let { request -> agentApprovalSession.cancel(request.id) }
+                    agentRequest?.let { request -> agentApprovalSession.cancel(request.id) }
                     pendingAgentApproval = null
                     pendingAction = ""
                     pendingMusicUrl = null
