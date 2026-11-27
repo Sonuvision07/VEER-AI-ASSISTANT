@@ -13,6 +13,16 @@ internal object VeerOpenAiToolCallParser {
         return try {
             val root = JSONObject(responseBody)
             val output = root.optJSONArray("output") ?: return null
+            val replay = JSONArray(previousContext ?: "[]")
+            if (previousCallId != null || previousToolResult != null) {
+                if (previousCallId.isNullOrBlank() || previousToolResult.isNullOrBlank()) return null
+                replay.put(JSONObject()
+                    .put("type", "function_call_output")
+                    .put("call_id", previousCallId)
+                    .put("output", previousToolResult.take(4_000)))
+            }
+            for (index in 0 until output.length()) replay.put(output.get(index))
+            if (replay.toString().length > VeerOpenAiAgentRequest.MAX_REPLAY_CONTEXT_CHARS) return null
             val calls = (0 until output.length()).mapNotNull { index ->
                 output.optJSONObject(index)?.takeIf { it.optString("type") == "function_call" }
             }
