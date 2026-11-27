@@ -488,8 +488,33 @@ fun VeerApp() {
             addReply("Boss, ye action phone par complete nahi ho paaya.")
         }
         pendingAction = ""
+        pendingAgentToolCall = null
         pendingMusicUrl = null
         showApproval = false
+    }
+
+    fun runApprovedAgentTool(call: AgentToolCall) {
+        val validatedAction = VeerAgentToolPolicy.toPendingAppAction(call)
+        if (validatedAction == null || validatedAction != pendingAction) {
+            pendingAgentToolCall = null
+            pendingAction = ""
+            pendingMusicUrl = null
+            showApproval = false
+            addReply("Boss, pending agent action verify nahi hua. Maine ise run nahi kiya.")
+            return
+        }
+        pendingAgentToolCall = null
+        try {
+            VeerAndroidAppToolExecutor { action ->
+                runApprovedAction(action)
+                "Approved Android action dispatched."
+            }.execute(call)
+        } catch (_: Exception) {
+            pendingAction = ""
+            pendingMusicUrl = null
+            showApproval = false
+            addReply("Boss, agent action safely stop kar diya.")
+        }
     }
 
     var providerFallback: ((String, String, String?) -> Boolean)? = null
@@ -709,12 +734,14 @@ fun VeerApp() {
                     VeerAgentToolPolicy.toPendingAppAction(agentCall)
                         ?.takeIf { it == pendingAction }
                 } else pendingAction
-                pendingAgentToolCall = null
                 if (approvedAction.isNullOrBlank()) {
+                    pendingAgentToolCall = null
                     pendingAction = ""
                     pendingMusicUrl = null
                     showApproval = false
                     addReply("Boss, pending approval request verify nahi hui. Action run nahi kiya.")
+                } else if (agentCall != null) {
+                    runApprovedAgentTool(agentCall)
                 } else {
                     runApprovedAction(approvedAction)
                 }
@@ -1291,12 +1318,14 @@ fun VeerApp() {
                         VeerAgentToolPolicy.toPendingAppAction(currentCall)
                             ?.takeIf { it == pendingAction }
                     } else pendingAction
-                    pendingAgentToolCall = null
                     if (approvedAction.isNullOrBlank()) {
+                        pendingAgentToolCall = null
                         pendingAction = ""
                         pendingMusicUrl = null
                         showApproval = false
                         addReply("Boss, pending approval request verify nahi hui. Action run nahi kiya.")
+                    } else if (currentCall != null) {
+                        runApprovedAgentTool(currentCall)
                     } else {
                         runApprovedAction(approvedAction)
                     }
