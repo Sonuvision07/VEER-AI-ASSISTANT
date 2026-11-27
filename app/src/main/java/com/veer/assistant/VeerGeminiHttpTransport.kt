@@ -31,12 +31,17 @@ internal class VeerGeminiHttpTransport(
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val response = stream?.use { VeerBoundedHttpBody.readUtf8(it) } ?: ""
             if (code !in 200..299) {
-                throw IllegalStateException("Gemini request failed (HTTP $code).")
+                throw AgentProviderException(
+                    "Gemini request failed (HTTP $code).",
+                    retryable = code == 408 || code == 429 || code in 500..599
+                )
             }
             if (response.isBlank()) {
                 throw IllegalStateException("Gemini returned an empty response.")
             }
             return response
+        } catch (failure: java.io.IOException) {
+            throw AgentProviderException("Gemini network request failed.", retryable = true)
         } finally {
             connection.disconnect()
         }
