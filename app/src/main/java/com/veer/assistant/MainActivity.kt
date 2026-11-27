@@ -1848,6 +1848,25 @@ private fun HologramFace(
         ),
         label = "naturalFaceBlink"
     )
+    val energyAura by animateFloatAsState(
+        targetValue = when (expression) {
+            VeerFaceExpression.IDLE -> 0.18f
+            VeerFaceExpression.LISTENING -> 0.48f
+            VeerFaceExpression.THINKING -> 0.32f
+            VeerFaceExpression.SPEAKING -> 0.62f
+        },
+        animationSpec = tween(360, easing = FastOutSlowInEasing),
+        label = "faceEnergyAuraStrength"
+    )
+    val auraPulse by transition.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "faceEnergyAuraPulse"
+    )
     val faceGlowStrength by animateFloatAsState(
         targetValue = when (expression) {
             VeerFaceExpression.IDLE -> 0.16f
@@ -1928,6 +1947,20 @@ private fun HologramFace(
         val sy = size.height / 390f
         fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
 
+        // Reactive outer energy aura intensifies while VEER listens or speaks.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cyan.copy(alpha = energyAura * 0.34f),
+                    cyan.copy(alpha = energyAura * 0.14f),
+                    Color.Transparent
+                ),
+                center = p(180f, 190f),
+                radius = size.minDimension * 0.56f * auraPulse
+            ),
+            radius = size.minDimension * 0.56f * auraPulse,
+            center = p(180f, 190f)
+        )
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(cyan.copy(alpha = faceGlowStrength), cyan.copy(alpha = faceGlowStrength * 0.28f), Color.Transparent),
