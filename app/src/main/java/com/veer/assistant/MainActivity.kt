@@ -608,13 +608,12 @@ fun VeerApp() {
             var answer = ""
             try {
                 val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
-                val generation = JSONObject().put("maxOutputTokens", 900)
-                if (model == "gemini-3.8-flash") generation.put("thinkingConfig", JSONObject().put("thinkingLevel", "LOW"))
-                val body = JSONObject()
-                    .put("systemInstruction", JSONObject().put("parts", org.json.JSONArray().put(JSONObject().put("text", systemText))))
-                    .put("contents", nextContents)
-                    .put("generationConfig", generation)
-                    .put("tools", org.json.JSONArray().put(JSONObject().put("functionDeclarations", VeerGeminiToolSchema.functionDeclarations())))
+                val body = VeerGeminiContinuationRequest.build(
+                    model = model,
+                    systemText = systemText,
+                    contents = nextContents,
+                    functionDeclarations = VeerGeminiToolSchema.functionDeclarations()
+                ) ?: throw IllegalStateException("Invalid Gemini continuation request.")
                 val connection = (endpoint.openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 10000
