@@ -25,11 +25,33 @@ internal object VeerOpenAiAgentRequest {
             prompt.append("\n\nPrevious tool result:\n").append(it.take(1_500))
         }
         require(prompt.length <= MAX_REQUEST_CONTEXT_CHARS) { "Agent context exceeded VEER's request limit." }
+        val input: Any = if (turn.providerContext == null && turn.previousToolCallId == null && turn.previousToolResult == null) {
+            prompt.toString()
+        } else {
+            require(!turn.providerContext.isNullOrBlank()) { "OpenAI continuation context is missing." }
+            require(!turn.previousToolCallId.isNullOrBlank()) { "OpenAI tool call ID is missing." }
+            require(!turn.previousToolResult.isNullOrBlank()) { "OpenAI tool result is missing." }
+            val replay = JSONArray(turn.providerContext)
+            require(replay.length() > 0 && turn.providerContext.length <= MAX_REPLAY_CONTEXT_CHARS) {
+                "OpenAI replay context exceeded VEER's request limit."
+            }
+            JSONArray().put(JSONObject()
+                .put("type", "message")
+                .put("role", "user")
+                .put("content", prompt.toString()))
+                .also { items ->
+                    for (index in 0 until replay.length()) items.put(replay.get(index))
+                    items.put(JSONObject()
+                        .put("type", "function_call_output")
+                        .put("call_id", turn.previousToolCallId)
+                        .put("output", turn.previousToolResult.take(4_000)))
+                }
+        }
         return JSONObject()
             .put("model", model)
             .put("store", false)
             .put("instructions", INSTRUCTIONS)
-            .put("input", prompt.toString())
+            .put("input", input)
             .put("tools", functionTools())
             .put("tool_choice", "auto")
     }
