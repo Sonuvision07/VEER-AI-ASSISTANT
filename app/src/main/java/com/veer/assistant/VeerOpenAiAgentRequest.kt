@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /** Builds OpenAI Responses API input and strict function tools from VEER's trusted catalog. */
 internal object VeerOpenAiAgentRequest {
-    const val DEFAULT_MODEL = "gpt-6-luna"
+    const val DEFAULT_MODEL = "gpt-6.2-astra"
     const val MAX_REQUEST_CONTEXT_CHARS = 12_000
 
     private const val INSTRUCTIONS =
