@@ -33,4 +33,11 @@ internal object VeerAgentToolPolicy {
         val app = call.arguments[APP_ARGUMENT] ?: return false
         return app in allowedApps
     }
+
+    /**
+     * Converts a validated agent call into the existing app-action identifier.
+     * Null means reject; callers must not execute or show approval for it.
+     */
+    fun toPendingAppAction(call: AgentToolCall): String? =
+        if (isValid(call)) call.arguments[APP_ARGUMENT] else null
 }
