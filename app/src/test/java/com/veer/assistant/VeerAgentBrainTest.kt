@@ -121,7 +121,9 @@ class VeerAgentBrainTest {
         val tools = FakeTools()
         val brain = VeerAgentBrain(
             FakeGateway { provider, _ ->
-                if (provider == AiProvider.GEMINI) error("provider unavailable")
+                if (provider == AiProvider.GEMINI) {
+                    throw AgentProviderException("temporary provider unavailable", retryable = true)
+                }
                 AgentDecision("OpenAI reply")
             },
             tools,
