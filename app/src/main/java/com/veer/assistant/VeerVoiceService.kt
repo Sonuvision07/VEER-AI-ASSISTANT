@@ -26,6 +26,7 @@ class VeerVoiceService : Service() {
     private val replyGate = VeerVoiceReplyGate()
     private var consecutiveErrors = 0
     private val retryGate = VeerVoiceRetryGate()
+    private val sessionCallbackGate = VeerVoiceSessionCallbackGate()
     private var recognitionLanguageAttempt = 0
     private val wakeCommandWindow = VeerWakeCommandWindow()
 
@@ -244,7 +245,13 @@ class VeerVoiceService : Service() {
                 }
                 if (replyGate.canStartRecognition(stopping)) {
                     val delayMs = if (wakeCommandWindow.isActive(SystemClock.elapsedRealtime())) 350L else 700L
-                    handler.postDelayed({ startRecognition() }, delayMs)
+                    val callbackToken = sessionCallbackGate.currentToken()
+                    handler.postDelayed({
+                        if (sessionCallbackGate.isCurrent(callbackToken) &&
+                            replyGate.canStartRecognition(stopping)) {
+                            startRecognition()
+                        }
+                    }, delayMs)
                 }
             }
             override fun onPartialResults(partialResults: Bundle?) {}
@@ -275,11 +282,14 @@ class VeerVoiceService : Service() {
     }
 
     private fun scheduleRecognitionRetry() {
-        if (!retryGate.trySchedule(stopping, replyGate.isReplyInProgress())) return
+        val retryToken = retryGate.trySchedule(stopping, replyGate.isReplyInProgress()) ?: return
+        val sessionToken = sessionCallbackGate.currentToken()
         consecutiveErrors = VeerVoiceRetryPolicy.nextFailureCount(consecutiveErrors)
         val delayMs = VeerVoiceRetryPolicy.delayForFailureCount(consecutiveErrors)
         handler.postDelayed({
-            if (retryGate.onRetryFired() && replyGate.canStartRecognition(stopping)) {
+            if (retryGate.onRetryFired(retryToken) &&
+                sessionCallbackGate.isCurrent(sessionToken) &&
+                replyGate.canStartRecognition(stopping)) {
                 startRecognition()
             }
         }, delayMs)
@@ -287,6 +297,7 @@ class VeerVoiceService : Service() {
 
     private fun stopRecognition() {
         handler.removeCallbacksAndMessages(null)
+        sessionCallbackGate.invalidate()
         retryGate.cancel()
         // Invalidate callbacks before touching the recognizer: cancel/destroy may
         // synchronously trigger listener activity on some speech-service versions.
