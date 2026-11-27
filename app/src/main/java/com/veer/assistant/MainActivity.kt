@@ -230,6 +230,7 @@ fun VeerApp() {
     var attachedFileName by remember { mutableStateOf<String?>(null) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
+    var ttsSpeaking by remember { mutableStateOf(false) }
     var pendingTtsMessage by remember { mutableStateOf<String?>(null) }
     var activeTtsUtteranceId by remember { mutableStateOf<String?>(null) }
     var ttsUtteranceSequence by remember { mutableLongStateOf(0L) }
@@ -341,6 +342,7 @@ fun VeerApp() {
             // Invalidate a late onInit callback before shutting the engine down.
             if (tts === engine) tts = null
             ttsReady = false
+            ttsSpeaking = false
             pendingTtsMessage = null
             activeTtsUtteranceId = null
             engine.stop()
@@ -387,10 +389,15 @@ fun VeerApp() {
             val utteranceId = "VEER_REPLY_$ttsUtteranceSequence"
             activeTtsUtteranceId = utteranceId
             engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
+                override fun onStart(utteranceId: String?) {
+                    Handler(Looper.getMainLooper()).post {
+                        if (utteranceId == activeTtsUtteranceId) ttsSpeaking = true
+                    }
+                }
                 override fun onDone(utteranceId: String?) {
                     Handler(Looper.getMainLooper()).post {
                         if (utteranceId == activeTtsUtteranceId) {
+                            ttsSpeaking = false
                             activeTtsUtteranceId = null
                             resumeBackgroundVoiceIfEnabled()
                         }
@@ -400,6 +407,16 @@ fun VeerApp() {
                 override fun onError(utteranceId: String?) {
                     Handler(Looper.getMainLooper()).post {
                         if (utteranceId == activeTtsUtteranceId) {
+                            ttsSpeaking = false
+                            activeTtsUtteranceId = null
+                            resumeBackgroundVoiceIfEnabled()
+                        }
+                    }
+                }
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    Handler(Looper.getMainLooper()).post {
+                        if (utteranceId == activeTtsUtteranceId) {
+                            ttsSpeaking = false
                             activeTtsUtteranceId = null
                             resumeBackgroundVoiceIfEnabled()
                         }
@@ -408,6 +425,7 @@ fun VeerApp() {
             })
             val result = engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
             if (result == TextToSpeech.ERROR) {
+                ttsSpeaking = false
                 activeTtsUtteranceId = null
                 status = "VOICE OUTPUT ERROR"
                 resumeBackgroundVoiceIfEnabled()
@@ -415,6 +433,7 @@ fun VeerApp() {
         } catch (error: Exception) {
             // A disconnected or already-shutdown TTS engine must not leave the
             // background microphone paused while the service waits for a reply.
+            ttsSpeaking = false
             activeTtsUtteranceId = null
             status = "VOICE OUTPUT ERROR"
             Log.w("VEER", "Text-to-speech request failed", error)
@@ -1164,7 +1183,7 @@ fun VeerApp() {
                         TextButton(onClick = { keyDraft = apiKey; showSettings = true }) { Text("•••", color = Color.LightGray, fontSize = 20.sp) }
                     }
                     Spacer(Modifier.weight(1f))
-                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = loading || status.contains("LISTENING") || status.contains("HEARING"))
+                    HologramFace(Modifier.fillMaxWidth().aspectRatio(0.92f), active = loading || ttsSpeaking || status.contains("LISTENING") || status.contains("HEARING"), speaking = ttsSpeaking)
                     Spacer(Modifier.height(18.dp))
                     Text(when { loading -> "THINKING"; backgroundVoiceActive -> "BACKGROUND VOICE ACTIVE"; status.contains("LISTENING") || status.contains("HEARING") -> "LISTENING"; else -> "I'M HERE" },
                         color = Color(0xFF78DFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp)
@@ -1629,10 +1648,16 @@ private fun HologramCore(modifier: Modifier = Modifier, active: Boolean) {
 
 
 @Composable
-private fun HologramFace(modifier: Modifier = Modifier, active: Boolean) {
+private fun HologramFace(modifier: Modifier = Modifier, active: Boolean, speaking: Boolean = false) {
     val transition = rememberInfiniteTransition(label = "veer_face")
     val pulse by transition.animateFloat(0.96f, 1.025f,
         animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "facePulse")
+    val mouthOpen by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (speaking) 1f else 0f,
+        animationSpec = if (speaking) infiniteRepeatable(tween(170, easing = FastOutSlowInEasing), RepeatMode.Reverse) else tween(120),
+        label = "mouthLipSync"
+    )
     val cyan = if (active) Color(0xFF8AF8FF) else Color(0xFF28C8F5)
     Canvas(modifier = modifier) {
         val sx = size.width / 360f
@@ -1680,10 +1705,15 @@ private fun HologramFace(modifier: Modifier = Modifier, active: Boolean) {
         drawLine(cyan.copy(alpha = 0.75f), p(180f, 232f), p(187f, 226f), 1.6f*sx)
         // Mouth
         val mouth = androidx.compose.ui.graphics.Path().apply {
-            moveTo(145f*sx, 276f*sy)
-            cubicTo(163f*sx, 286f*sy, 197f*sx, 286f*sy, 215f*sx, 276f*sy)
-            moveTo(151f*sx, 280f*sy)
-            cubicTo(166f*sx, 300f*sy, 194f*sx, 300f*sy, 209f*sx, 280f*sy)
+            val opening = 2f + 15f * mouthOpen
+            moveTo(145f*sx, 278f*sy)
+            cubicTo(163f*sx, (278f + opening)*sy, 197f*sx, (278f + opening)*sy, 215f*sx, 278f*sy)
+            if (mouthOpen > 0.08f) {
+                cubicTo(202f*sx, (292f + opening)*sy, 158f*sx, (292f + opening)*sy, 145f*sx, 278f*sy)
+            } else {
+                cubicTo(163f*sx, 286f*sy, 197f*sx, 286f*sy, 215f*sx, 278f*sy)
+            }
+            close()
         }
         drawPath(mouth, cyan.copy(alpha = 0.9f), style = Stroke(1.7f*sx))
         // Jaw, neck and light scan lines
