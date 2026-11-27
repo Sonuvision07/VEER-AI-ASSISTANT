@@ -64,6 +64,13 @@ class VeerOpenAiToolCallParserTest {
         assertEquals("call_1", decision.providerCallId)
     }
 
+    @Test fun rejectsIncompleteResponsesApiFunctionCall() {
+        val incomplete = functionCall("youtube").put("status", "incomplete")
+        val decision = VeerOpenAiToolCallParser.parse(response(incomplete))
+        assertNull(decision?.toolCall)
+        assertTrue(decision?.message?.contains("incomplete tool call") == true)
+    }
+
     @Test fun rejectsUnknownAppAndUnsupportedTool() {
         val unknownApp = VeerOpenAiToolCallParser.parse(response(functionCall("attacker")))
         val unknownTool = VeerOpenAiToolCallParser.parse(response(
