@@ -74,6 +74,31 @@ class VeerAndroidAgentRuntimeTest {
         assertEquals("OpenAI fallback ready", result.message)
     }
 
+    @Test fun fallsBackToClaudeStructuredAdapterWhenEarlierProvidersUnavailableOrFail() {
+        var geminiAttempts = 0
+        var claudeKey: String? = null
+        val runtime = VeerAndroidAgentRuntime(
+            apiKeyProvider = { "gemini-key" },
+            claudeApiKeyProvider = { " claude-key " },
+            dispatchApprovedAction = { "unused: $it" },
+            transport = VeerGeminiAgentTransport { _, _ ->
+                geminiAttempts += 1
+                throw AgentProviderException("temporary Gemini outage", retryable = true)
+            },
+            claudeTransport = VeerClaudeAgentTransport { key, _ ->
+                claudeKey = key
+                """{"content":[{"type":"text","text":"Claude fallback ready"}]}"""
+            }
+        )
+
+        val result = runtime.brain.run(AgentTurn("hello", emptyList(), emptyList()))
+
+        assertEquals(2, geminiAttempts)
+        assertEquals("claude-key", claudeKey)
+        assertEquals(AiProvider.ANTHROPIC, result.provider)
+        assertEquals("Claude fallback ready", result.message)
+    }
+
     @Test fun cancellingApprovalPreventsAndroidDispatch() {
         val response = """{"candidates":[{"content":{"parts":[{"functionCall":{"name":"android.launch_app","args":{"app":"youtube"}}}]}}]}"""
         val dispatched = mutableListOf<String>()
