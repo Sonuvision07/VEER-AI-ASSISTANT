@@ -26,6 +26,41 @@ class VeerOpenAiToolCallParserTest {
         assertFalse(decision?.finished ?: true)
     }
 
+    @Test fun preservesResponseOutputAndRequiresCallIdForContinuation() {
+        val output = JSONObject().put("type", "reasoning").put("id", "rs_1")
+        val parsed = VeerOpenAiToolCallParser.parse(response(functionCall("youtube"), output))
+        val replay = JSONArray(parsed!!.providerContext)
+        assertEquals(2, replay.length())
+        assertEquals("call_1", parsed.providerCallId)
+        assertEquals("reasoning", replay.getJSONObject(1).getString("type"))
+
+        val missingId = JSONObject()
+            .put("type", "function_call")
+            .put("name", "android.launch_app")
+            .put("arguments", JSONObject().put("app", "youtube").toString())
+        val blocked = VeerOpenAiToolCallParser.parse(response(missingId))
+        assertNull(blocked?.toolCall)
+        assertTrue(blocked?.message?.contains("call ID") == true)
+    }
+
+    @Test fun addsPreviousFunctionOutputToReplayHistory() {
+        val prior = response(functionCall("youtube"))
+        val decision = VeerOpenAiToolCallParser.parse(
+            response(JSONObject().put("type", "message").put(
+                "content", JSONArray().put(JSONObject().put("type", "output_text").put("text", "Done"))
+            )),
+            previousContext = JSONArray(JSONObject(prior).getJSONArray("output").toString()).toString(),
+            previousCallId = "call_1",
+            previousToolResult = "App opened"
+        )
+        val replay = JSONArray(decision!!.providerContext)
+        assertEquals("function_call", replay.getJSONObject(0).getString("type"))
+        assertEquals("function_call_output", replay.getJSONObject(1).getString("type"))
+        assertEquals("call_1", replay.getJSONObject(1).getString("call_id"))
+        assertEquals("App opened", replay.getJSONObject(1).getString("output"))
+        assertEquals("message", replay.getJSONObject(2).getString("type"))
+    }
+
     @Test fun rejectsUnknownAppAndUnsupportedTool() {
         val unknownApp = VeerOpenAiToolCallParser.parse(response(functionCall("attacker")))
         val unknownTool = VeerOpenAiToolCallParser.parse(response(
