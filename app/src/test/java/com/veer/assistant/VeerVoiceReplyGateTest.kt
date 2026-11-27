@@ -56,4 +56,26 @@ class VeerVoiceReplyGateTest {
         gate.resumeAfterReply()
         assertTrue(gate.canStartRecognition(stopping = false))
     }
+
+    @Test
+    fun oldReplyTimeoutCannotResumeANewerReply() {
+        val gate = VeerVoiceReplyGate()
+        val oldToken = gate.beginReply()
+        val newToken = gate.beginReply()
+
+        assertFalse(gate.isCurrentReply(oldToken))
+        assertTrue(gate.isCurrentReply(newToken))
+        assertFalse(gate.canStartRecognition(stopping = false))
+    }
+
+    @Test
+    fun completedReplyInvalidatesItsTimeoutToken() {
+        val gate = VeerVoiceReplyGate()
+        val token = gate.beginReply()
+
+        gate.resumeAfterReply()
+
+        assertFalse(gate.isCurrentReply(token))
+        assertTrue(gate.canStartRecognition(stopping = false))
+    }
 }
