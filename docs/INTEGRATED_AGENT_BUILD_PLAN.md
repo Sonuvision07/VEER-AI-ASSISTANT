@@ -15,9 +15,13 @@ Move VEER from a chat UI with isolated launch commands toward a tool-using assis
 - Wake-word support only where OS and battery constraints allow.
 
 ## Phase 3: AI tool orchestration
-- Structured tool definitions, explicit tool dispatch and result feedback to the model.
-- Bounded task loops, timeout, retry and clear failure reporting.
-- Provider fallback and concise responses.
+- Provider-neutral structured tool definitions, explicit allowlisted dispatch, and actual tool-result feedback to the model.
+- Bounded five-step task loops, a 90-second deadline, cooperative cancellation, bounded transient-only provider retries, and clear stop reasons.
+- Exact-action approval and one-shot approval continuation for device changes and external side effects.
+- Structured-tool provider adapters: Gemini, OpenAI, Anthropic/Claude, Meta Llama through Groq, and xAI Grok.
+- Selected-provider-first fallback across configured adapters only; provider-specific continuation state is never replayed to a different provider.
+- Automated tests for adapter parsing/routing, fallback, approval, tool execution, cancellation, timeout, and loop limits.
+- Phase 3 code readiness is assessed by repository tests and CI. Physical-device voice/background/OEM checks belong to the separate Phase 2 checklist.
 
 ## Phase 4: PC and cloud agents
 - Paired Windows companion with signed pairing secret, reconnect, command queue and task status.
