@@ -1776,6 +1776,16 @@ private fun HologramFace(
         ),
         label = "naturalFaceBlink"
     )
+    val faceGlowStrength by animateFloatAsState(
+        targetValue = when (expression) {
+            VeerFaceExpression.IDLE -> 0.16f
+            VeerFaceExpression.LISTENING -> 0.27f
+            VeerFaceExpression.THINKING -> 0.22f
+            VeerFaceExpression.SPEAKING -> 0.34f
+        },
+        animationSpec = tween(420, easing = FastOutSlowInEasing),
+        label = "faceExpressionGlow"
+    )
     Canvas(modifier = modifier) {
         val sx = size.width / 360f
         val sy = size.height / 390f
@@ -1788,7 +1798,34 @@ private fun HologramFace(
             cubicTo(308f*sx, 88f*sy, 268f*sx, 20f*sy, 180f*sx, 24f*sy)
             close()
         }
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(cyan.copy(alpha = faceGlowStrength), cyan.copy(alpha = faceGlowStrength * 0.28f), Color.Transparent),
+                center = p(180f, 190f),
+                radius = size.minDimension * 0.49f
+            ),
+            radius = size.minDimension * 0.49f,
+            center = p(180f, 190f)
+        )
         drawCircle(cyan.copy(alpha = 0.07f), size.minDimension * 0.48f * pulse, p(180f, 190f))
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(cyan.copy(alpha = faceGlowStrength * 0.72f), Color.Transparent),
+                center = p(112f, 245f),
+                radius = 30f * sx
+            ),
+            radius = 30f * sx,
+            center = p(112f, 245f)
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(cyan.copy(alpha = faceGlowStrength * 0.72f), Color.Transparent),
+                center = p(248f, 245f),
+                radius = 30f * sx
+            ),
+            radius = 30f * sx,
+            center = p(248f, 245f)
+        )
         drawPath(head, cyan.copy(alpha = 0.12f), style = Stroke(2f*sx))
         // Fine luminous mesh gives the face its digital hologram appearance.
         for (row in 0..17) {
