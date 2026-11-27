@@ -82,4 +82,23 @@ class VeerAgentApprovalSessionTest {
         assertNull(session.current())
         assertNull(session.approve(request.id))
     }
+    @Test fun approvedCallIsExposedOnceThroughAgentApprovalGate() {
+        val session = VeerAgentApprovalSession()
+        val request = session.request(call())!!
+
+        assertEquals(call(), session.approve(request.id))
+        assertTrue(session.approved(call()))
+        assertFalse(session.approved(call()))
+    }
+
+    @Test fun differentCallCannotConsumeSessionApproval() {
+        val session = VeerAgentApprovalSession()
+        val request = session.request(call())!!
+        val different = call("camera")
+
+        assertEquals(call(), session.approve(request.id))
+        assertFalse(session.approved(different))
+        assertTrue(session.approved(call()))
+    }
+
 }
