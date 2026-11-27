@@ -2044,6 +2044,13 @@ private fun HologramFace(
         )
         drawCircle(cyan.copy(alpha = 0.22f), 7f * sx, sweepHead)
         drawCircle(cyan.copy(alpha = 0.88f), 2.5f * sx, sweepHead)
+        // A short radial beam connects the sweep center to its moving endpoint.
+        drawLine(
+            cyan.copy(alpha = 0.10f + hudSweepGlow * 0.16f),
+            p(180f, 190f),
+            sweepHead,
+            strokeWidth = 0.85f * sx
+        )
         // The radar sweep has a soft halo and a crisp leading edge.
         drawArc(
             cyan.copy(alpha = 0.12f + hudSweepGlow * 0.12f),
