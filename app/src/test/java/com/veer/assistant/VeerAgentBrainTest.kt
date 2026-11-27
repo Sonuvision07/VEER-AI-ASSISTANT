@@ -509,7 +509,8 @@ class VeerAgentBrainTest {
     @Test fun approvalContinuationExecutesOnlyExactCallOnce() {
         val tools = FakeTools()
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
-        val brain = VeerAgentBrain(FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) }, tools, FakeApproval(false))
+        val approval = FakeApproval(false)
+        val brain = VeerAgentBrain(FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) }, tools, approval)
         val pending = brain.run(turn())
         val continuation = pending.continuation!!
         approval.result = true
