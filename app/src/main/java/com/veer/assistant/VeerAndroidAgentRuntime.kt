@@ -17,7 +17,8 @@ internal class VeerAndroidAgentRuntime(
     openAiTransport: VeerOpenAiAgentTransport = VeerOpenAiHttpTransport(),
     claudeTransport: VeerClaudeAgentTransport = VeerClaudeHttpTransport(),
     llamaTransport: VeerCompatibleChatAgentTransport = VeerCompatibleChatAgentHttpTransport(),
-    grokTransport: VeerCompatibleChatAgentTransport = VeerCompatibleChatAgentHttpTransport()
+    grokTransport: VeerCompatibleChatAgentTransport = VeerCompatibleChatAgentHttpTransport(),
+    providerOrder: List<AiProvider> = defaultProviderOrder
 ) {
     internal val brain = VeerAgentBrain(
         gateway = VeerMultiProviderModelGateway(
@@ -37,6 +38,19 @@ internal class VeerAndroidAgentRuntime(
         ),
         tools = VeerAndroidAppToolExecutor(dispatchApprovedAction),
         approval = approvalSession,
-        providerOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.LLAMA, AiProvider.GROK)
+        providerOrder = providerOrder
     )
+
+    companion object {
+        val defaultProviderOrder = listOf(AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.LLAMA, AiProvider.GROK)
+
+        fun providerOrderForSelection(selection: String): List<AiProvider> = when (selection) {
+            "GEMINI" -> listOf(AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.LLAMA, AiProvider.GROK)
+            "OPENAI" -> listOf(AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.ANTHROPIC, AiProvider.LLAMA, AiProvider.GROK)
+            "CLAUDE" -> listOf(AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.LLAMA, AiProvider.GROK)
+            "LLAMA" -> listOf(AiProvider.LLAMA, AiProvider.GROK, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC)
+            "GROK" -> listOf(AiProvider.GROK, AiProvider.LLAMA, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC)
+            else -> defaultProviderOrder
+        }
+    }
 }
