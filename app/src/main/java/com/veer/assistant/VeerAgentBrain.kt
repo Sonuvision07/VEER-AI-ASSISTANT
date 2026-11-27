@@ -101,7 +101,7 @@ class VeerAgentBrain(
     private val gateway: ModelGateway,
     private val tools: AgentToolExecutor,
     private val approval: AgentApprovalGate,
-    private val providerOrder: List<AiProvider> = listOf(
+    providerOrder: List<AiProvider> = listOf(
         AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC
     ),
     private val maxToolSteps: Int = 5,
@@ -112,6 +112,13 @@ class VeerAgentBrain(
     private val maxProviderAttempts: Int = 2,
     private val nanoTime: () -> Long = System::nanoTime
 ) {
+    @Volatile private var providerOrder: List<AiProvider> = providerOrder.toList()
+
+    fun setProviderOrder(order: List<AiProvider>) {
+        require(order.isNotEmpty() && order.distinct().size == order.size) { "Provider order must be non-empty and unique." }
+        providerOrder = order.toList()
+    }
+
     private val continuationOwnerToken = Any()
 
     init {
