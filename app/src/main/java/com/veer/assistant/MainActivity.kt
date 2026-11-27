@@ -216,6 +216,7 @@ fun VeerApp() {
     var showClearChatConfirm by remember { mutableStateOf(false) }
     var showApproval by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf("") }
+    var pendingAgentToolCall by remember { mutableStateOf<AgentToolCall?>(null) }
     var pendingMusicUrl by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var voiceMode by remember { mutableStateOf(false) }
@@ -703,8 +704,22 @@ fun VeerApp() {
         val approvalPhrase = VeerApprovalPhrase.parse(clean)
         if (showApproval && approvalPhrase != VeerApprovalPhrase.Decision.NONE) {
             if (approvalPhrase == VeerApprovalPhrase.Decision.APPROVE) {
-                runApprovedAction(pendingAction)
+                val agentCall = pendingAgentToolCall
+                val approvedAction = if (agentCall != null) {
+                    VeerAgentToolPolicy.toPendingAppAction(agentCall)
+                        ?.takeIf { it == pendingAction }
+                } else pendingAction
+                pendingAgentToolCall = null
+                if (approvedAction.isNullOrBlank()) {
+                    pendingAction = ""
+                    pendingMusicUrl = null
+                    showApproval = false
+                    addReply("Boss, pending approval request verify nahi hui. Action run nahi kiya.")
+                } else {
+                    runApprovedAction(approvedAction)
+                }
             } else {
+                pendingAgentToolCall = null
                 pendingAction = ""
                 pendingMusicUrl = null
                 showApproval = false
@@ -746,12 +761,24 @@ fun VeerApp() {
                 val query=clean.replace(Regex("(?i)^(gaana|song|music)\\s*(chalao|play)?\\s*"),"").trim()
                 pendingMusicUrl = if (query.isBlank()) null else "https://music.youtube.com/search?q=" + Uri.encode(query)
                 pendingAction = "music"
+                pendingAgentToolCall = null
                 showApproval = true
             }
             VeerCommandRouter.route(clean) != null -> {
                 val routed = VeerCommandRouter.route(clean)!!
-                pendingAction = routed.action
-                showApproval = true
+                val agentCall = AgentToolCall(
+                    name = VeerAgentToolPolicy.ANDROID_LAUNCH_APP,
+                    arguments = mapOf("app" to routed.action),
+                    risk = AgentRisk.DEVICE_CHANGE
+                )
+                val validatedAction = VeerAgentToolPolicy.toPendingAppAction(agentCall)
+                if (validatedAction == null) {
+                    addReply("Boss, is app action ko safety policy ne block kar diya.")
+                } else {
+                    pendingAgentToolCall = agentCall
+                    pendingAction = validatedAction
+                    showApproval = true
+                }
             }
             else -> {
                 val image = attachedImageBase64
@@ -1241,11 +1268,16 @@ fun VeerApp() {
     }
 
     if (showApproval) {
-        val actionLabel = VeerAgentApprovalPresentation.actionLabel(pendingAction)
-            ?: "Action chalana"
+        val agentCall = pendingAgentToolCall
+        val actionLabel = if (agentCall != null) {
+            VeerAgentApprovalPresentation.actionLabel(agentCall)
+        } else {
+            VeerAgentApprovalPresentation.actionLabel(pendingAction)
+        } ?: "Action chalana"
         AlertDialog(
             onDismissRequest = {
                 showApproval = false
+                pendingAgentToolCall = null
                 pendingAction = ""
                 pendingMusicUrl = null
                 addReply("Permission request cancel kar di.")
@@ -1253,10 +1285,26 @@ fun VeerApp() {
             title = { Text("VEER Permission") },
             text = { Text("Boss, kya aap VEER ko ye action karne ki permission dete hain?\n\n$actionLabel") },
             confirmButton = {
-                TextButton(onClick = { runApprovedAction(pendingAction) }) { Text("APPROVE") }
+                TextButton(onClick = {
+                    val currentCall = pendingAgentToolCall
+                    val approvedAction = if (currentCall != null) {
+                        VeerAgentToolPolicy.toPendingAppAction(currentCall)
+                            ?.takeIf { it == pendingAction }
+                    } else pendingAction
+                    pendingAgentToolCall = null
+                    if (approvedAction.isNullOrBlank()) {
+                        pendingAction = ""
+                        pendingMusicUrl = null
+                        showApproval = false
+                        addReply("Boss, pending approval request verify nahi hui. Action run nahi kiya.")
+                    } else {
+                        runApprovedAction(approvedAction)
+                    }
+                }) { Text("APPROVE") }
             },
             dismissButton = {
                 TextButton(onClick = {
+                    pendingAgentToolCall = null
                     pendingAction = ""
                     pendingMusicUrl = null
                     showApproval = false
