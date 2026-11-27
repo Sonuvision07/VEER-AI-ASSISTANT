@@ -17,7 +17,7 @@ internal class VeerMuseHttpTransport(
 ) : VeerMuseAgentTransport {
     override fun generate(apiKey: String, turn: AgentTurn): String {
         require(apiKey.isNotBlank()) { "Meta Muse API key unavailable." }
-        val body = VeerOpenAiAgentRequest.build(turn, model).toString()
+        val body = VeerOpenAiAgentRequest.build(turn, model).apply { remove("store") }.toString()
         val connection = connectionFactory(URL(ENDPOINT))
         try {
             connection.requestMethod = "POST"
