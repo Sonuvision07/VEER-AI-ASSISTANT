@@ -63,6 +63,39 @@ class VeerAgentBrainTest {
         assertEquals("call_abc", received?.previousToolCallId)
     }
 
+    @Test fun clearsProviderSpecificContinuationWhenFallingBackToAnotherProvider() {
+        val tools = FakeTools()
+        var openAiAvailabilityChecks = 0
+        var fallbackTurn: AgentTurn? = null
+        val gateway = object : ModelGateway {
+            override fun isAvailable(provider: AiProvider): Boolean = when (provider) {
+                AiProvider.OPENAI -> ++openAiAvailabilityChecks == 1
+                AiProvider.GEMINI -> true
+                else -> false
+            }
+            override fun decide(provider: AiProvider, turn: AgentTurn): AgentDecision {
+                if (provider == AiProvider.OPENAI) {
+                    return AgentDecision(
+                        "Run", call("read", AgentRisk.READ_ONLY), finished = false,
+                        providerContext = "[{}]", providerCallId = "openai_call"
+                    )
+                }
+                fallbackTurn = turn
+                return AgentDecision("Fallback finished")
+            }
+        }
+        val brain = VeerAgentBrain(
+            gateway, tools, FakeApproval(false),
+            providerOrder = listOf(AiProvider.OPENAI, AiProvider.GEMINI)
+        )
+        val result = brain.run(turn())
+        assertEquals(AiProvider.GEMINI, result.provider)
+        assertEquals("done", fallbackTurn?.previousToolResult)
+        assertEquals(null, fallbackTurn?.providerContext)
+        assertEquals(null, fallbackTurn?.previousToolCallId)
+        assertEquals(null, fallbackTurn?.providerContextProvider)
+    }
+
     @Test fun readOnlyToolRunsWithoutApproval() {
         val tools = FakeTools()
         val approval = FakeApproval(false)
