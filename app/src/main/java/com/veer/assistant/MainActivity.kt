@@ -1883,8 +1883,13 @@ private fun HologramFace(
         val eyeTop = 166f - currentEyeHeight / 2f
         drawOval(cyan.copy(alpha = 0.9f), p(91f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
         drawOval(cyan.copy(alpha = 0.9f), p(201f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
-        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(125f + gazeOffset + if (expression == VeerFaceExpression.IDLE) idleGazeX else 0f, 166f + gazeVerticalOffset + if (expression == VeerFaceExpression.IDLE) idleGazeY else 0f))
-        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(235f + gazeOffset + if (expression == VeerFaceExpression.IDLE) idleGazeX else 0f, 166f + gazeVerticalOffset + if (expression == VeerFaceExpression.IDLE) idleGazeY else 0f))
+        val leftPupil = p(125f + gazeOffset + if (expression == VeerFaceExpression.IDLE) idleGazeX else 0f, 166f + gazeVerticalOffset + if (expression == VeerFaceExpression.IDLE) idleGazeY else 0f)
+        val rightPupil = p(235f + gazeOffset + if (expression == VeerFaceExpression.IDLE) idleGazeX else 0f, 166f + gazeVerticalOffset + if (expression == VeerFaceExpression.IDLE) idleGazeY else 0f)
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, leftPupil)
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, rightPupil)
+        // Small white glints add depth while fading naturally during each blink.
+        drawCircle(Color.White.copy(alpha = 0.82f * blink), 1.45f*sx, leftPupil + Offset(-1.5f*sx, -1.6f*sy))
+        drawCircle(Color.White.copy(alpha = 0.82f * blink), 1.45f*sx, rightPupil + Offset(-1.5f*sx, -1.6f*sy))
         // Nose
         drawLine(cyan.copy(alpha = 0.75f), p(180f, 168f), p(173f, 226f), 1.6f*sx)
         drawLine(cyan.copy(alpha = 0.75f), p(173f, 226f), p(180f, 232f), 1.6f*sx)
