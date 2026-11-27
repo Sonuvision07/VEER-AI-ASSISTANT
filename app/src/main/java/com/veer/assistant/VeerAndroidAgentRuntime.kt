@@ -2,7 +2,7 @@ package com.veer.assistant
 
 /**
  * Composition root for VEER's Android agent runtime.
- * Gemini and OpenAI use independent structured adapters and API-key providers;
+ * Gemini, OpenAI and Claude use independent structured adapters and API-key providers;
  * the brain decides fallback only among adapters that report availability.
  */
 internal class VeerAndroidAgentRuntime(
@@ -12,14 +12,15 @@ internal class VeerAndroidAgentRuntime(
     claudeApiKeyProvider: () -> String? = { null },
     internal val approvalSession: VeerAgentApprovalSession = VeerAgentApprovalSession(),
     transport: VeerGeminiAgentTransport = VeerGeminiHttpTransport(),
-    openAiTransport: VeerOpenAiAgentTransport = VeerOpenAiHttpTransport()
+    openAiTransport: VeerOpenAiAgentTransport = VeerOpenAiHttpTransport(),
+    claudeTransport: VeerClaudeAgentTransport = VeerClaudeHttpTransport()
 ) {
     internal val brain = VeerAgentBrain(
         gateway = VeerMultiProviderModelGateway(
             mapOf(
                 AiProvider.GEMINI to VeerGeminiModelGateway(apiKeyProvider, transport),
                 AiProvider.OPENAI to VeerOpenAiModelGateway(openAiApiKeyProvider, openAiTransport),
-                AiProvider.ANTHROPIC to VeerClaudeModelGateway(claudeApiKeyProvider, VeerClaudeHttpTransport())
+                AiProvider.ANTHROPIC to VeerClaudeModelGateway(claudeApiKeyProvider, claudeTransport)
             )
         ),
         tools = VeerAndroidAppToolExecutor(dispatchApprovedAction),
