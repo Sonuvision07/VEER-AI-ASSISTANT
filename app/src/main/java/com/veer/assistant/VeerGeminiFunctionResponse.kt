@@ -21,6 +21,12 @@ internal object VeerGeminiFunctionResponse {
         val combined = JSONArray()
         for (index in 0 until existingContents.length()) {
             val turn = existingContents.optJSONObject(index) ?: return null
+            val role = turn.optString("role")
+            // Gemini conversation history may contain only user/model turns.
+            // Tool results are represented as user turns with functionResponse parts.
+            if ((role != "user" && role != "model") || turn.optJSONArray("parts") == null) {
+                return null
+            }
             combined.put(JSONObject(turn.toString()))
         }
         for (index in 0 until followUpTurns.length()) {
