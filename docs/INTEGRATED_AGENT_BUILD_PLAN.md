@@ -18,7 +18,7 @@ Move VEER from a chat UI with isolated launch commands toward a tool-using assis
 - Provider-neutral structured tool definitions, explicit allowlisted dispatch, and actual tool-result feedback to the model.
 - Bounded five-step task loops, a 90-second deadline, cooperative cancellation, bounded transient-only provider retries, and clear stop reasons.
 - Exact-action approval and one-shot approval continuation for device changes and external side effects.
-- Structured-tool provider adapters: Gemini, OpenAI, Anthropic/Claude, Meta Llama through Groq, and xAI Grok.
+- Structured-tool provider adapters: Gemini, OpenAI, Anthropic/Claude, Meta Muse Spark through Meta Model API, Meta Llama through Groq, and xAI Grok.
 - Selected-provider-first fallback across configured adapters only; provider-specific continuation state is never replayed to a different provider.
 - Automated tests for adapter parsing/routing, fallback, approval, tool execution, cancellation, timeout, and loop limits.
 - Phase 3 code readiness is assessed by repository tests and CI. Physical-device voice/background/OEM checks belong to the separate Phase 2 checklist.
