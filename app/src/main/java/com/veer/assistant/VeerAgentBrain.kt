@@ -43,13 +43,18 @@ private fun cancelledAgentResult(provider: AiProvider?, steps: Int) = AgentRunRe
     "VEER ne task cancel kar diya. Koi naya action start nahi kiya gaya.", provider, steps
 )
 
+private fun timedOutAgentResult(provider: AiProvider?, steps: Int) = AgentRunResult(
+    "VEER task timeout ke karan ruk gaya. Koi naya action start nahi kiya gaya.", provider, steps
+)
+
 class AgentApprovalContinuation internal constructor(
     val turn: AgentTurn,
     val provider: AiProvider,
     val call: AgentToolCall,
     val completedSteps: Int,
     internal val ownerToken: Any,
-    internal val cancellationToken: AgentCancellationToken
+    internal val cancellationToken: AgentCancellationToken,
+    internal val deadlineNanos: Long
 ) {
     internal var consumed: Boolean = false
 }
@@ -92,7 +97,9 @@ class VeerAgentBrain(
     private val maxToolSteps: Int = 5,
     private val maxToolResultChars: Int = 4_000,
     private val maxToolArgumentChars: Int = 8_000,
-    private val maxToolNameChars: Int = 128
+    private val maxToolNameChars: Int = 128,
+    private val taskTimeoutMillis: Long = 90_000,
+    private val nanoTime: () -> Long = System::nanoTime
 ) {
     private val continuationOwnerToken = Any()
 
@@ -101,19 +108,27 @@ class VeerAgentBrain(
         require(maxToolResultChars > 0) { "maxToolResultChars must be positive" }
         require(maxToolArgumentChars > 0) { "maxToolArgumentChars must be positive" }
         require(maxToolNameChars > 0) { "maxToolNameChars must be positive" }
+        require(taskTimeoutMillis > 0) { "taskTimeoutMillis must be positive" }
     }
     fun run(
         initialTurn: AgentTurn,
         cancellationToken: AgentCancellationToken = AgentCancellationToken()
-    ): AgentRunResult = runFromTurn(
-        initialTurn, completedSteps = 0, initialProvider = null, cancellationToken = cancellationToken
-    )
+    ): AgentRunResult {
+        val timeoutNanos = taskTimeoutMillis.coerceAtMost(Long.MAX_VALUE / 1_000_000L) * 1_000_000L
+        val now = nanoTime()
+        val deadline = if (Long.MAX_VALUE - now < timeoutNanos) Long.MAX_VALUE else now + timeoutNanos
+        return runFromTurn(
+            initialTurn, completedSteps = 0, initialProvider = null,
+            cancellationToken = cancellationToken, deadlineNanos = deadline
+        )
+    }
 
     private fun runFromTurn(
         initialTurn: AgentTurn,
         completedSteps: Int,
         initialProvider: AiProvider?,
-        cancellationToken: AgentCancellationToken
+        cancellationToken: AgentCancellationToken,
+        deadlineNanos: Long
     ): AgentRunResult {
         var turn = initialTurn
         var lastProvider: AiProvider? = initialProvider
@@ -121,8 +136,10 @@ class VeerAgentBrain(
 
         while (steps < maxToolSteps) {
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
-            val decision = requestDecision(turn, cancellationToken)
+            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
+            val decision = requestDecision(turn, cancellationToken, deadlineNanos)
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
+            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
             if (decision == null) return AgentRunResult(
                 "VEER ka AI engine abhi available nahi hai. Provider connection check karein.",
                 lastProvider, steps
@@ -192,17 +209,23 @@ class VeerAgentBrain(
                         lastProvider, steps,
                         stoppedForApproval = true,
                         pendingApproval = action,
-                        continuation = AgentApprovalContinuation(turn, decision.first, action, steps, continuationOwnerToken, cancellationToken)
+                        continuation = AgentApprovalContinuation(
+                            turn, decision.first, action, steps, continuationOwnerToken,
+                            cancellationToken, deadlineNanos
+                        )
                     )
                 }
             }
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
+            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
             val rawResult = try {
                 tools.execute(action)
             } catch (_: Exception) {
                 // Tool exceptions may contain credentials or private arguments; never pass them to the model.
                 "Tool execution failed. VEER ne action ko safely stop kar diya."
             }
+            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
+            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps + 1)
             // Bound tool output before adding it to the next model request.
             val result = if (rawResult.length > maxToolResultChars) {
                 rawResult.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
@@ -240,6 +263,7 @@ class VeerAgentBrain(
         val action = continuation.call
         val cancellationToken = continuation.cancellationToken
         if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
+        if (nanoTime() >= continuation.deadlineNanos) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
         val invalid = action.name.isBlank() ||
             action.name != action.name.trim() ||
             action.name.any { it.isISOControl() } ||
@@ -282,6 +306,7 @@ class VeerAgentBrain(
             )
         }
         if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
+        if (nanoTime() >= continuation.deadlineNanos) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
         continuation.consumed = true
 
         val raw = try {
@@ -289,6 +314,8 @@ class VeerAgentBrain(
         } catch (_: Exception) {
             "Tool execution failed. VEER ne action ko safely stop kar diya."
         }
+        if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps + 1)
+        if (nanoTime() >= continuation.deadlineNanos) return timedOutAgentResult(continuation.provider, continuation.completedSteps + 1)
         val bounded = if (raw.length > maxToolResultChars) {
             raw.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
         } else raw
@@ -298,21 +325,23 @@ class VeerAgentBrain(
             continuation.turn.copy(previousToolResult = bounded),
             completedSteps = continuation.completedSteps + 1,
             initialProvider = continuation.provider,
-            cancellationToken = cancellationToken
+            cancellationToken = cancellationToken,
+            deadlineNanos = continuation.deadlineNanos
         )
     }
 
     private fun requestDecision(
         turn: AgentTurn,
-        cancellationToken: AgentCancellationToken
+        cancellationToken: AgentCancellationToken,
+        deadlineNanos: Long
     ): Pair<AiProvider, AgentDecision>? {
         for (provider in providerOrder) {
-            if (cancellationToken.isCancelled()) return null
+            if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
             try {
                 if (!gateway.isAvailable(provider)) continue
-                if (cancellationToken.isCancelled()) return null
+                if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
                 val decision = gateway.decide(provider, turn)
-                if (cancellationToken.isCancelled()) return null
+                if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
                 return provider to decision
             } catch (_: Exception) {
                 // Availability checks and requests can both fail; try the next provider.
