@@ -459,6 +459,7 @@ class VeerAgentBrainTest {
     @Test fun approvedToolResultIsFedBackIntoTheSameAgentTask() {
         val tools = FakeTools()
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val approval = FakeApproval(false)
         var receivedToolResult: String? = null
         val brain = VeerAgentBrain(
             FakeGateway { _, nextTurn ->
@@ -470,7 +471,7 @@ class VeerAgentBrainTest {
                 }
             },
             tools,
-            FakeApproval(false)
+            approval
         )
 
         val pending = brain.run(turn())
@@ -486,6 +487,7 @@ class VeerAgentBrainTest {
     @Test fun approvalResumeStillHonorsTheGlobalToolStepLimit() {
         val tools = FakeTools()
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val approval = FakeApproval(false)
         var decisionCalls = 0
         val brain = VeerAgentBrain(
             FakeGateway { _, _ ->
@@ -493,11 +495,12 @@ class VeerAgentBrainTest {
                 AgentDecision("Please approve", requested, finished = false)
             },
             tools,
-            FakeApproval(false),
+            approval,
             maxToolSteps = 1
         )
 
         val pending = brain.run(turn())
+        approval.result = true
         val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
 
         assertEquals(1, decisionCalls)
