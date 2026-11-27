@@ -56,9 +56,20 @@ class VeerGeminiToolCallParserTest {
         assertTrue(decision?.message?.contains("zyada tool calls") == true)
     }
 
-    @Test fun returnsNullForNormalTextResponse() {
+    @Test fun parsesNormalTextResponseAsFinishedDecision() {
+        val decision = VeerGeminiToolCallParser.parse(
+            """{"candidates":[{"content":{"parts":[{"text":"Hello"},{"text":"Boss"}]}}]}"""
+        )
+
+        assertEquals("Hello\nBoss", decision?.message)
+        assertNull(decision?.toolCall)
+        assertTrue(decision?.finished ?: false)
+    }
+
+    @Test fun returnsNullForEmptyOrMalformedResponse() {
         assertNull(VeerGeminiToolCallParser.parse(
-            """{"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}"""
+            """{"candidates":[{"content":{"parts":[{"text":"  "}]}}]}"""
         ))
+        assertNull(VeerGeminiToolCallParser.parse("not-json"))
     }
 }
