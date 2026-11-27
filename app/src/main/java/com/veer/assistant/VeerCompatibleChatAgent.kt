@@ -125,14 +125,17 @@ internal class VeerCompatibleChatAgent(
         return try {
             val root = JSONObject(raw)
             val choices = root.optJSONArray("choices") ?: return null
-            val message = choices.optJSONObject(0)?.optJSONObject("message") ?: return null
+            val choice = choices.optJSONObject(0) ?: return null
+            val message = choice.optJSONObject("message") ?: return null
             val calls = message.optJSONArray("tool_calls")
             if (calls == null || calls.length() == 0) {
                 val text = message.optString("content").trim()
                 return text.takeIf { it.isNotEmpty() }?.let { AgentDecision(it) }
             }
+            if (choice.optString("finish_reason") != "tool_calls") return AgentDecision("VEER ne incomplete tool response receive kiya; action block kar diya.")
             if (calls.length() != 1) return AgentDecision("VEER ne ek se zyada tool calls receive kiye; safety ke liye sab block kar diye.")
             val item = calls.optJSONObject(0) ?: return null
+            if (item.optString("type") != "function") return AgentDecision("VEER ne invalid tool call type receive kiya; action block kar diya.")
             val id = item.optString("id").takeIf { it.isNotBlank() }
                 ?: return AgentDecision("VEER ko tool call ID nahi mila; action block kar diya.")
             val function = item.optJSONObject("function") ?: return null
