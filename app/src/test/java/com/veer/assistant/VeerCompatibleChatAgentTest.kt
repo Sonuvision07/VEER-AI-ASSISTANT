@@ -116,4 +116,22 @@ class VeerCompatibleChatAgentTest {
         assertTrue(result?.finished ?: false)
         assertTrue(result?.message?.contains("incomplete", ignoreCase = true) == true)
     }
+    @Test fun fallbackRequestCarriesPreviousProviderToolResult() {
+        var request = ""
+        val adapter = VeerCompatibleChatAgent(
+            AiProvider.LLAMA, "https://api.groq.com/openai/v1/chat/completions",
+            "llama-3.3-70b-versatile", { "test-key" },
+            VeerCompatibleChatAgentTransport { _, _, _, body ->
+                request = body
+                """{"choices":[{"message":{"role":"assistant","content":"continued"}}]}"""
+            }
+        )
+        adapter.decide(AiProvider.LLAMA, AgentTurn(
+            userRequest = "continue task", memory = emptyList(), recentConversation = emptyList(),
+            previousToolResult = "The approved action succeeded on the previous provider."
+        ))
+        val messages = JSONObject(request).getJSONArray("messages")
+        assertTrue(messages.getJSONObject(1).getString("content").contains("The approved action succeeded"))
+    }
+
 }
