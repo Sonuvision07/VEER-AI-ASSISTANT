@@ -161,7 +161,7 @@ class VeerAgentBrain(
                         lastProvider, steps,
                         stoppedForApproval = true,
                         pendingApproval = action,
-                        continuation = AgentApprovalContinuation(turn, lastProvider, action, steps)
+                        continuation = AgentApprovalContinuation(turn, decision.first, action, steps)
                     )
                 }
             }
