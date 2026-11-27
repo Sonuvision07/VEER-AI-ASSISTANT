@@ -1714,6 +1714,22 @@ private fun HologramFace(
         animationSpec = tween(220),
         label = "faceExpressionGaze"
     )
+    val blink by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = androidx.compose.animation.core.keyframes {
+                durationMillis = 4800
+                1f at 0
+                1f at 4300
+                0.12f at 4380
+                1f at 4460
+                1f at 4800
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "naturalFaceBlink"
+    )
     Canvas(modifier = modifier) {
         val sx = size.width / 360f
         val sy = size.height / 390f
@@ -1751,11 +1767,12 @@ private fun HologramFace(
         val browLift = if (expression == VeerFaceExpression.LISTENING) 7f else 0f
         drawLine(cyan, p(88f, 145f - browLift), p(150f, 139f - browLift), 2.3f*sx)
         drawLine(cyan, p(210f, 139f - browLift), p(272f, 145f - browLift), 2.3f*sx)
-        val eyeTop = 166f - eyeHeight / 2f
-        drawOval(cyan.copy(alpha = 0.9f), p(91f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, eyeHeight*sy), style = Stroke(1.8f*sx))
-        drawOval(cyan.copy(alpha = 0.9f), p(201f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, eyeHeight*sy), style = Stroke(1.8f*sx))
-        drawCircle(cyan, 5f*sx, p(125f + gazeOffset, 166f))
-        drawCircle(cyan, 5f*sx, p(235f + gazeOffset, 166f))
+        val currentEyeHeight = eyeHeight * blink
+        val eyeTop = 166f - currentEyeHeight / 2f
+        drawOval(cyan.copy(alpha = 0.9f), p(91f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
+        drawOval(cyan.copy(alpha = 0.9f), p(201f, eyeTop), androidx.compose.ui.geometry.Size(68f*sx, currentEyeHeight*sy), style = Stroke(1.8f*sx))
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(125f + gazeOffset, 166f))
+        drawCircle(cyan.copy(alpha = blink), 5f*sx, p(235f + gazeOffset, 166f))
         // Nose
         drawLine(cyan.copy(alpha = 0.75f), p(180f, 168f), p(173f, 226f), 1.6f*sx)
         drawLine(cyan.copy(alpha = 0.75f), p(173f, 226f), p(180f, 232f), 1.6f*sx)
