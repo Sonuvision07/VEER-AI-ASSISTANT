@@ -46,6 +46,33 @@ class VeerGeminiFunctionResponseTest {
         assertEquals("model", original.getString("role"))
     }
 
+
+    @Test fun appendsToolTurnsAfterOriginalUserConversationWithoutLosingHistory() {
+        val history = org.json.JSONArray().put(
+            JSONObject().put("role", "user").put(
+                "parts", org.json.JSONArray().put(JSONObject().put("text", "Open YouTube"))
+            )
+        )
+        val combined = VeerGeminiFunctionResponse.appendToConversation(
+            history, modelContent(), "android.launch_app", "opened"
+        )
+        assertNotNull(combined)
+        assertEquals(3, combined!!.length())
+        assertEquals("Open YouTube", combined.getJSONObject(0)
+            .getJSONArray("parts").getJSONObject(0).getString("text"))
+        assertEquals("model", combined.getJSONObject(1).getString("role"))
+        assertEquals("user", combined.getJSONObject(2).getString("role"))
+    }
+
+    @Test fun rejectsMalformedExistingConversationWhenAppendingToolTurns() {
+        val history = org.json.JSONArray().put("not-an-object")
+        assertNull(
+            VeerGeminiFunctionResponse.appendToConversation(
+                history, modelContent(), "android.launch_app", "opened"
+            )
+        )
+    }
+
     @Test fun rejectsFunctionNameThatDoesNotMatchOriginalCall() {
         assertNull(
             VeerGeminiFunctionResponse.buildContents(
