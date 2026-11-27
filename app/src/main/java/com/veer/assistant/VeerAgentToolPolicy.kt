@@ -19,6 +19,9 @@ internal object VeerAgentToolPolicy {
 
     fun supports(name: String): Boolean = name == ANDROID_LAUNCH_APP
 
+    /** Stable allowlist exposed to model-schema builders; callers cannot mutate it. */
+    fun allowedAppIds(): List<String> = allowedApps.sorted()
+
     fun riskFor(name: String): AgentRisk? =
         if (supports(name)) AgentRisk.DEVICE_CHANGE else null
 
