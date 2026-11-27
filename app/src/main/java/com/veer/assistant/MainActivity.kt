@@ -206,6 +206,8 @@ fun VeerApp() {
     var llamaKeyDraft by remember { mutableStateOf(llamaApiKey) }
     var grokApiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("grok_api_key", "") ?: "")) }
     var grokKeyDraft by remember { mutableStateOf(grokApiKey) }
+    var museApiKey by remember { mutableStateOf(decryptApiKey(prefs.getString("muse_api_key", "") ?: "")) }
+    var museKeyDraft by remember { mutableStateOf(museApiKey) }
     var selectedProvider by remember { mutableStateOf(prefs.getString("ai_provider", "AUTO") ?: "AUTO") }
     var pcAgentUrl by remember { mutableStateOf(prefs.getString("pc_agent_url", "") ?: "") }
     var pcAgentUrlDraft by remember { mutableStateOf(pcAgentUrl) }
@@ -578,6 +580,7 @@ fun VeerApp() {
             claudeApiKeyProvider = { claudeApiKey },
             llamaApiKeyProvider = { llamaApiKey },
             grokApiKeyProvider = { grokApiKey },
+            museApiKeyProvider = { museApiKey },
             dispatchApprovedAction = { action ->
                 val completed = java.util.concurrent.CountDownLatch(1)
                 val outcome = java.util.concurrent.atomic.AtomicReference<String>()
@@ -919,6 +922,25 @@ fun VeerApp() {
     fun askMetaLlama(question: String) { if (attachedText.isNullOrBlank()) { askAgentBrain(question); return }; val key=llamaApiKey.trim(); if(key.isEmpty()){addReply("Meta Llama API key Settings mein add karein.");showSettings=true;return}; loading=true;status="CONNECTING TO LLAMA...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\n"){it.first+": "+it.second}+"\n"+(attachedText?.takeIf{it.isNotBlank()}?.let{"Attached document text:\n"+it+"\n\n"}?:"")+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.groq.com/openai/v1/chat/completions",key,"llama-3.3-70b-versatile",prompt)}catch(e:Exception){answer="Meta Llama error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Meta Llama error:")&&providerFallback?.invoke("LLAMA",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
     fun askGrok(question: String) { if (attachedText.isNullOrBlank()) { askAgentBrain(question); return }; val key=grokApiKey.trim(); if(key.isEmpty()){addReply("Grok (xAI) API key Settings mein add karein.");showSettings=true;return};loading=true;status="CONNECTING TO GROK...";val prompt=messages.dropLast(1).takeLast(8).joinToString("\n"){it.first+": "+it.second}+"\n"+(attachedText?.takeIf{it.isNotBlank()}?.let{"Attached document text:\n"+it+"\n\n"}?:"")+question;Thread{var answer="";try{answer=VeerExtraAiClient.chat("https://api.x.ai/v1/chat/completions",key,"grok-3-mini",prompt)}catch(e:Exception){answer="Grok error: "+(e.message?: "connection failed")};Handler(Looper.getMainLooper()).post{val moved=answer.startsWith("Grok error:")&&providerFallback?.invoke("GROK",question,null)==true;if(!moved){loading=false;addReply(answer)}}}.start() }
 
+    fun askMuse(question: String) {
+        if (attachedText.isNullOrBlank()) { askAgentBrain(question); return }
+        val key = museApiKey.trim()
+        if (key.isEmpty()) { addReply("Boss, Meta Muse API key Settings mein add karein."); showSettings = true; return }
+        loading = true
+        status = "CONNECTING TO META MUSE..."
+        val prompt = messages.dropLast(1).takeLast(8).joinToString("\n") { it.first + ": " + it.second } +
+            "\nAttached document text:\n" + attachedText.orEmpty().take(12_000) + "\n\n" + question
+        Thread {
+            var answer = ""
+            try { answer = VeerExtraAiClient.chat("https://api.meta.ai/v1/chat/completions", key, "muse-spark-1.3", prompt) }
+            catch (failure: Exception) { answer = "Meta Muse error: " + (failure.message ?: "connection failed") }
+            Handler(Looper.getMainLooper()).post {
+                val moved = answer.startsWith("Meta Muse error:") && providerFallback?.invoke("MUSE", question, null) == true
+                if (!moved) { loading = false; addReply(answer) }
+            }
+        }.start()
+    }
+
     fun askGemini(question: String, imageBase64: String? = null) {
         val key = apiKey.trim()
         if (key.isEmpty()) {
@@ -1053,10 +1075,13 @@ fun VeerApp() {
 
     providerFallback = { failedProvider, question, image ->
         val preferred = when (selectedProvider) {
-            "GEMINI" -> listOf("GEMINI", "OPENAI", "CLAUDE", "LLAMA", "GROK")
-            "CLAUDE" -> listOf("CLAUDE", "OPENAI", "GEMINI", "LLAMA", "GROK")
-            "OPENAI" -> listOf("OPENAI", "GEMINI", "CLAUDE", "LLAMA", "GROK")
-            else -> listOf("OPENAI", "GEMINI", "CLAUDE", "LLAMA", "GROK")
+            "GEMINI" -> listOf("GEMINI", "OPENAI", "CLAUDE", "MUSE", "LLAMA", "GROK")
+            "CLAUDE" -> listOf("CLAUDE", "OPENAI", "GEMINI", "MUSE", "LLAMA", "GROK")
+            "OPENAI" -> listOf("OPENAI", "GEMINI", "CLAUDE", "MUSE", "LLAMA", "GROK")
+            "MUSE" -> listOf("MUSE", "GEMINI", "OPENAI", "CLAUDE", "LLAMA", "GROK")
+            "LLAMA" -> listOf("LLAMA", "GROK", "MUSE", "GEMINI", "OPENAI", "CLAUDE")
+            "GROK" -> listOf("GROK", "LLAMA", "MUSE", "GEMINI", "OPENAI", "CLAUDE")
+            else -> listOf("OPENAI", "GEMINI", "CLAUDE", "MUSE", "LLAMA", "GROK")
         }
         if (failedProvider !in fallbackAttempted) fallbackAttempted.add(failedProvider)
         val next = preferred.firstOrNull { provider ->
@@ -1066,6 +1091,7 @@ fun VeerApp() {
                 "CLAUDE" -> claudeApiKey.isNotBlank() && image == null
                 "LLAMA" -> llamaApiKey.isNotBlank() && image == null
                 "GROK" -> grokApiKey.isNotBlank() && image == null
+                "MUSE" -> museApiKey.isNotBlank() && image == null
                 else -> false
             }
         }
@@ -1078,6 +1104,7 @@ fun VeerApp() {
                 "CLAUDE" -> askClaude(question)
                 "LLAMA" -> askMetaLlama(question)
                 "GROK" -> askGrok(question)
+                "MUSE" -> askMuse(question)
             }
             true
         }
@@ -1210,7 +1237,7 @@ fun VeerApp() {
                     attachedImageBase64 = null; attachedText = null; attachedFileName = null; attachedMimeType = "image/jpeg"
                     return
                 }
-                if (!localAiReady && apiKey.isBlank() && openAiApiKey.isBlank() && claudeApiKey.isBlank() && llamaApiKey.isBlank() && grokApiKey.isBlank()) {
+                if (!localAiReady && apiKey.isBlank() && openAiApiKey.isBlank() && claudeApiKey.isBlank() && llamaApiKey.isBlank() && grokApiKey.isBlank() && museApiKey.isBlank()) {
                     addReply(if (localModelInstalled) "Offline AI model phone mein hai, lekin activate nahi hua. Settings kholkar ACTIVATE OFFLINE AI dabayein." else "VEER ka apna offline AI model abhi install nahi hai. Settings mein 347 MB model download karein; iske liye API key nahi chahiye.")
                     showSettings = true
                     return
@@ -1240,6 +1267,12 @@ fun VeerApp() {
                         else if (llamaApiKey.isNotBlank() && image == null) askMetaLlama(clean)
                         else if (grokApiKey.isNotBlank() && image == null) askGrok(clean)
                         else addReply("Boss, selected provider ki API key Settings mein add karein.")
+                    }
+                    "MUSE" -> {
+                        if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
+                        else if (image != null && apiKey.isNotBlank()) askGemini(clean, image)
+                        else if (image != null) addReply("Boss, Muse image input is not enabled in this VEER path yet. Gemini ya OpenAI key add karein.")
+                        else askMuse(clean)
                     }
                     "LLAMA" -> {
                         if (image != null && openAiApiKey.isNotBlank()) askOpenAI(clean, image)
@@ -1985,9 +2018,9 @@ fun VeerApp() {
                     ) { Text("REMOVE PC CONNECTION") }
                     Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Box {
-                        TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; "LLAMA" -> "Meta Llama"; "GROK" -> "Grok"; else -> "AUTO (fallback order)" }) }
+                        TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; "LLAMA" -> "Meta Llama"; "GROK" -> "Grok"; "MUSE" -> "Meta Muse Spark"; else -> "AUTO (fallback order)" }) }
                         DropdownMenu(expanded = showProviderMenu, onDismissRequest = { showProviderMenu = false }) {
-                            listOf("AUTO", "GEMINI", "OPENAI", "CLAUDE", "LLAMA", "GROK").forEach { provider ->
+                            listOf("AUTO", "GEMINI", "OPENAI", "CLAUDE", "MUSE", "LLAMA", "GROK").forEach { provider ->
                                 DropdownMenuItem(text = { Text(when (provider) { "AUTO" -> "AUTO (available keys)"; else -> provider }) }, onClick = { selectedProvider = provider; showProviderMenu = false })
                             }
                         }
@@ -1997,6 +2030,8 @@ fun VeerApp() {
                     OutlinedTextField(value = claudeKeyDraft, onValueChange = { claudeKeyDraft = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Claude API key (optional)") }, visualTransformation = PasswordVisualTransformation())
                     OutlinedTextField(value = llamaKeyDraft, onValueChange = { llamaKeyDraft = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Meta Llama (via Groq) API key (optional)") }, visualTransformation = PasswordVisualTransformation())
                     OutlinedTextField(value = grokKeyDraft, onValueChange = { grokKeyDraft = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Grok / xAI API key (optional)") }, visualTransformation = PasswordVisualTransformation())
+                    OutlinedTextField(value = museKeyDraft, onValueChange = { museKeyDraft = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Meta Muse Spark API key (optional)") }, visualTransformation = PasswordVisualTransformation())
+                    Text("Meta Model API pay-as-you-go hai; usage charge ho sakta hai. Key phone par encrypted save hoti hai.", color = Color.Gray, fontSize = 11.sp)
                     Text("Claude API billing alag hoti hai. API usage paid ho sakti hai; key encrypted local storage mein rahegi.", color = Color.Gray, fontSize = 11.sp)
                     OutlinedTextField(
                         value = keyDraft,
@@ -2019,6 +2054,7 @@ fun VeerApp() {
                     } else { openAiApiKey = ""; prefs.edit().remove("openai_api_key").apply() }
                     val llamaCandidate=llamaKeyDraft.trim();if(llamaCandidate.isNotEmpty()){val enc=encryptApiKey(llamaCandidate);if(enc!=null){llamaApiKey=llamaCandidate;prefs.edit().putString("llama_api_key",enc).apply()}else{messages.add("VEER" to "Meta Llama key encrypt fail.");return@TextButton}}else{llamaApiKey="";prefs.edit().remove("llama_api_key").apply()}
                     val grokCandidate=grokKeyDraft.trim();if(grokCandidate.isNotEmpty()){val enc=encryptApiKey(grokCandidate);if(enc!=null){grokApiKey=grokCandidate;prefs.edit().putString("grok_api_key",enc).apply()}else{messages.add("VEER" to "Grok key encrypt fail.");return@TextButton}}else{grokApiKey="";prefs.edit().remove("grok_api_key").apply()}
+                    val museCandidate=museKeyDraft.trim();if(museCandidate.isNotEmpty()){val enc=encryptApiKey(museCandidate);if(enc!=null){museApiKey=museCandidate;prefs.edit().putString("muse_api_key",enc).apply()}else{messages.add("VEER" to "Meta Muse key encrypt fail.");return@TextButton}}else{museApiKey="";prefs.edit().remove("muse_api_key").apply()}
                     val claudeCandidate = claudeKeyDraft.trim()
                     if (claudeCandidate.isNotEmpty()) {
                         val encryptedClaude = encryptApiKey(claudeCandidate)
@@ -2046,7 +2082,7 @@ fun VeerApp() {
                 }) { Text("SAVE") }
             },
             dismissButton = {
-                TextButton(onClick = { keyDraft = ""; apiKey = ""; openAiKeyDraft = ""; openAiApiKey = ""; claudeKeyDraft = ""; claudeApiKey = ""; llamaKeyDraft = ""; llamaApiKey = ""; grokKeyDraft = ""; grokApiKey = ""; prefs.edit().remove("gemini_api_key").remove("openai_api_key").remove("claude_api_key").remove("llama_api_key").remove("grok_api_key").apply(); showSettings = false }) { Text("REMOVE KEYS") }
+                TextButton(onClick = { keyDraft = ""; apiKey = ""; openAiKeyDraft = ""; openAiApiKey = ""; claudeKeyDraft = ""; claudeApiKey = ""; llamaKeyDraft = ""; llamaApiKey = ""; grokKeyDraft = ""; grokApiKey = ""; museKeyDraft = ""; museApiKey = ""; prefs.edit().remove("gemini_api_key").remove("openai_api_key").remove("claude_api_key").remove("llama_api_key").remove("grok_api_key").remove("muse_api_key").apply(); showSettings = false }) { Text("REMOVE KEYS") }
             }
         )
     }
