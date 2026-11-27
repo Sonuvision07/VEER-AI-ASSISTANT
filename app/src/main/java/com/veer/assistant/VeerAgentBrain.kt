@@ -13,7 +13,7 @@ enum class AiProvider { GEMINI, OPENAI, ANTHROPIC }
 enum class AgentRisk { READ_ONLY, DEVICE_CHANGE, EXTERNAL_SIDE_EFFECT, DESTRUCTIVE }
 
 /** Safe, provider-neutral failure classification used by bounded retry policy. */
-class AgentProviderException(message: String, val retryable: Boolean) : RuntimeException(message)
+class AgentProviderException(message: String, val retryable: Boolean) : IllegalStateException(message)
 
 data class AgentToolCall(
     val name: String,
