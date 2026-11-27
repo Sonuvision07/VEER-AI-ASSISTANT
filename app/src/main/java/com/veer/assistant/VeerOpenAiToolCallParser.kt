@@ -1,5 +1,6 @@
 package com.veer.assistant
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Parses OpenAI Responses API output into the same validated decision contract as Gemini. */
