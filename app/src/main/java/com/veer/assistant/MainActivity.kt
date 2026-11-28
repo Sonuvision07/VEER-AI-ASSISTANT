@@ -2858,7 +2858,7 @@ fun VeerApp() {
                                                 calendarMutationPatch = patch.toString()
                                                 calendarMutationAction = VeerCalendarEventMutation.Action.UPDATE.name
                                                 calendarMutationEventId = event.id
-                                                calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.UPDATE, event.id, patch)
+                                                calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.UPDATE, event.id, event.etag, patch)
                                                 calendarMutationStatus = "UPDATE PREVIEW — title will change to: $clean. Nothing has been saved."
                                             } catch (error: Exception) { calendarMutationSnapshot = ""; calendarMutationStatus = error.message ?: "Invalid event title" }
                                         }, modifier = Modifier.weight(1f)) { Text("PREVIEW UPDATE") }
@@ -2866,7 +2866,7 @@ fun VeerApp() {
                                             calendarMutationPatch = ""
                                             calendarMutationAction = VeerCalendarEventMutation.Action.CANCEL.name
                                             calendarMutationEventId = event.id
-                                            calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.CANCEL, event.id)
+                                            calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.CANCEL, event.id, event.etag)
                                             calendarMutationStatus = "CANCELLATION PREVIEW — this event will be deleted from your primary calendar. Nothing has been changed."
                                         }, modifier = Modifier.weight(1f)) { Text("PREVIEW CANCEL") }
                                     }
@@ -2918,7 +2918,7 @@ fun VeerApp() {
                                                 localAiScope.launch {
                                                     try {
                                                         withContext(Dispatchers.IO) {
-                                                            VeerCalendarEventMutation.execute(token, action, target, patch, snapshot)
+                                                            VeerCalendarEventMutation.execute(token, action, target, event.etag, patch, snapshot)
                                                         }
                                                         if (action == VeerCalendarEventMutation.Action.CANCEL) {
                                                             VeerCalendarReminderScheduler.cancelForEvent(context, target)
