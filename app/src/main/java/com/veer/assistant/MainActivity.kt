@@ -2920,6 +2920,10 @@ fun VeerApp() {
                                                         withContext(Dispatchers.IO) {
                                                             VeerCalendarEventMutation.execute(token, action, target, patch, snapshot)
                                                         }
+                                                        if (action == VeerCalendarEventMutation.Action.CANCEL) {
+                                                            VeerCalendarReminderScheduler.cancelForEvent(context, target)
+                                                            calendarReminders = VeerCalendarReminderStore.list(context)
+                                                        }
                                                         calendarMutationStatus = if (action == VeerCalendarEventMutation.Action.CANCEL) "Event cancelled successfully." else "Event updated successfully."
                                                         calendarEvents = emptyList()
                                                         calendarNextPageToken = ""
