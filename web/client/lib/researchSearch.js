@@ -36,7 +36,8 @@ async function readBoundedResponse(response) {
     throw new ResearchSearchError("Search provider response is too large", 502);
   }
   if (!response.body?.getReader) {
-    const raw = await readBoundedResponse(response);
+    const raw = await response.text();
+    if (Buffer.byteLength(raw, "utf8") > MAX_RESPONSE_BYTES) throw new ResearchSearchError("Search provider response is too large", 502);
     return raw;
   }
   const reader = response.body.getReader();
@@ -123,10 +124,7 @@ export async function searchWeb(body, { env = process.env, fetchImpl = fetch, no
         response?.status === 429 ? 429 : 502,
       );
     }
-    const raw = await response.text();
-    if (Buffer.byteLength(raw, "utf8") > MAX_RESPONSE_BYTES) {
-      throw new ResearchSearchError("Search provider response is too large", 502);
-    }
+    const raw = await readBoundedResponse(response);
     let payload;
     try { payload = JSON.parse(raw); } catch {
       throw new ResearchSearchError("Search provider returned invalid JSON", 502);
