@@ -23,6 +23,38 @@ export function validateResearchInput(body) {
   return { query: body.query.trim(), sources };
 }
 
+async function readBoundedProviderResponse(response, limit = 128 * 1024) {
+  const declared = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(declared) && declared > limit) {
+    throw new ResearchSearchError("Research AI response too large", 502);
+  }
+  if (!response.body?.getReader) {
+    const raw = await response.text();
+    if (Buffer.byteLength(raw, "utf8") > limit) {
+      throw new ResearchSearchError("Research AI response too large", 502);
+    }
+    return raw;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        throw new ResearchSearchError("Research AI response too large", 502);
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return Buffer.concat(chunks, total).toString("utf8");
+  } finally {
+    reader.releaseLock?.();
+  }
+}
+
 export async function synthesizeResearch(body, { env=process.env, fetchImpl=fetch }={}) {
   const { query, sources } = validateResearchInput(body);
   const key = env.GEMINI_API_KEY;
