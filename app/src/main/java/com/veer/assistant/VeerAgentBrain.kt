@@ -209,11 +209,11 @@ class VeerAgentBrain(
     ): AgentRunResult {
         fun finish(result: AgentRunResult, status: AgentTaskStatus): AgentRunResult {
             val snapshot = taskLifecycle.transition(taskSession, status, result.message)
-            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status, lastToolOutcome = result.lastToolOutcome ?: lastOutcome)
         }
+        var lastOutcome = initialOutcome
         taskLifecycle.transition(taskSession, AgentTaskStatus.RUNNING)
         var turn = initialTurn
-        var lastOutcome = initialOutcome
         var lastProvider: AiProvider? = initialProvider
         var steps = completedSteps
 
@@ -306,8 +306,8 @@ class VeerAgentBrain(
                     ), AgentTaskStatus.WAITING_APPROVAL)
                 }
             }
-            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
-            if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
+            if (cancellationToken.isCancelled()) return finish(cancelledAgentResult(lastProvider, steps), AgentTaskStatus.CANCELLED)
+            if (nanoTime() >= deadlineNanos) return finish(timedOutAgentResult(lastProvider, steps), AgentTaskStatus.FAILED)
             var dispatchFailed = false
             val rawResult = try {
                 tools.execute(action)
@@ -321,6 +321,7 @@ class VeerAgentBrain(
             } catch (_: Exception) {
                 AgentToolOutcome.uncertain("Independent verification failed; effect is unconfirmed.")
             }
+            taskSession.context.add("Tool outcome status: ${lastOutcome?.status?.name ?: "UNAVAILABLE"}")
             if (cancellationToken.isCancelled()) return finish(cancelledAgentResult(lastProvider, steps + 1), AgentTaskStatus.CANCELLED)
             if (nanoTime() - deadlineNanos >= 0L) return finish(timedOutAgentResult(lastProvider, steps + 1), AgentTaskStatus.FAILED)
             // Bound tool output before adding it to the next model request.
