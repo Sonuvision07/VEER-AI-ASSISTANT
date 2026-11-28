@@ -467,22 +467,29 @@ fun VeerApp() {
         drivePreviewText = ""
         driveContentStatus = "Fetching selected file in temporary memory..."
         localAiScope.launch {
+            var fetchedBytes: ByteArray? = null
             try {
                 val content = withContext(Dispatchers.IO) {
                     VeerDriveClient.fetchSelectedContent(token, file.id, file.mimeType, file.sizeBytes)
                 }
+                fetchedBytes = content.bytes
+                if (driveSelectedFile?.id != file.id) return@launch
                 driveContentBytes = content.bytes
                 val preview = withContext(Dispatchers.Default) {
                     VeerDrivePreview.createPreview(content.bytes, content.contentType)
                 }
+                if (driveSelectedFile?.id != file.id) {
+                    drivePreviewText = ""
+                    return@launch
+                }
                 drivePreviewText = preview.text
-                driveContentBytes = null
                 driveContentStatus = preview.message
             } catch (error: Exception) {
-                driveContentBytes = null
                 drivePreviewText = ""
                 driveContentStatus = "File preview failed: " + (error.message ?: "Unsupported, malformed or unavailable file")
             } finally {
+                fetchedBytes?.fill(0)
+                driveContentBytes = null
                 driveContentBusy = false
                 drivePendingContentFile = null
             }
@@ -3168,10 +3175,13 @@ fun VeerApp() {
                             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                                 Text(file.name.ifBlank { "(Unnamed file)" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                                 Text(file.mimeType + if (file.sizeBytes != null) " · ${file.sizeBytes} bytes" else "", fontSize = 10.sp, color = Color.Gray)
-                                TextButton(onClick = { driveContentBytes = null; drivePreviewText = ""; driveContentStatus = ""; driveSelectedFile = file }, enabled = !driveBusy) { Text("FILE DETAILS") }
+                                TextButton(onClick = { driveContentBytes = null; drivePreviewText = ""; driveContentStatus = ""; driveSelectedFile = file }, enabled = !driveBusy && !driveContentBusy) { Text("FILE DETAILS") }
                                 if (file.mimeType == "application/vnd.google-apps.folder") {
                                     TextButton(onClick = {
                                         driveSelectedFile = null
+                                        driveContentBytes = null
+                                        drivePreviewText = ""
+                                        driveContentStatus = ""
                                         driveParentId = file.id
                                         driveFiles = emptyList()
                                         drivePageToken = ""
