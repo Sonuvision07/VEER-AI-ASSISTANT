@@ -2231,7 +2231,7 @@ fun VeerApp() {
                     ) { Text("REMOVE PC CONNECTION") }
                     Divider()
                     Text("VEER CLOUD TASKS", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
-                    Text("Vercel + Neon cloud queue. Test ek harmless health task create karke database mein save aur read-back verify karega. Isse task execute nahi hoga.", fontSize = 11.sp, color = Color.Gray)
+                    Text("Vercel + Neon cloud queue. Test harmless health task create, read-back aur bounded cloud executor run verify karega.", fontSize = 11.sp, color = Color.Gray)
                     OutlinedTextField(value = cloudApiUrlDraft, onValueChange = { cloudApiUrlDraft = it }, enabled = !cloudApiChecking, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("VEER cloud HTTPS address") })
                     OutlinedTextField(value = cloudApiTokenDraft, onValueChange = { cloudApiTokenDraft = it }, enabled = !cloudApiChecking, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cloud API bearer token") }, visualTransformation = PasswordVisualTransformation())
                     Text("Cloud API: $cloudApiStatus", fontSize = 11.sp, color = if (cloudApiStatus.startsWith("Connected")) Color(0xFF58D68D) else Color.Gray)
@@ -2239,23 +2239,26 @@ fun VeerApp() {
                         val base = try { VeerCloudTaskClient.normalizeBaseUrl(cloudApiUrlDraft) } catch (error: Exception) { cloudApiStatus = error.message ?: "Enter a valid cloud HTTPS address"; return@Button }
                         val token = try { VeerCloudTaskClient.validateToken(cloudApiTokenDraft) } catch (error: Exception) { cloudApiStatus = error.message ?: "Check the cloud API token"; return@Button }
                         cloudApiChecking = true
-                        cloudApiStatus = "Testing authenticated cloud API and database..."
+                        cloudApiStatus = "Testing authenticated cloud API, Neon persistence and executor..."
                         localAiScope.launch {
                             try {
-                                val task = withContext(Dispatchers.IO) {
+                                withContext(Dispatchers.IO) {
                                     val client = VeerCloudTaskClient(base, token)
                                     val created = client.enqueueTask("health", JSONObject(), UUID.randomUUID().toString())
                                     val fetched = client.getTask(created.taskId)
-                                    require(fetched.taskId == created.taskId && fetched.owner == created.owner && fetched.operation == "health" && fetched.payloadSha256 == created.payloadSha256) { "Cloud task read-back did not match the created task" }
-                                    fetched
+                                    require(fetched.taskId == created.taskId && fetched.owner == created.owner && fetched.operation == "health" && fetched.payloadSha256 == created.payloadSha256 && fetched.state == "queued") { "Cloud task read-back did not match the created task" }
+                                    val executed = client.runTask(created.taskId)
+                                    require(executed.taskId == created.taskId && executed.state == "completed" && executed.result?.optBoolean("ok", false) == true) { "Cloud health task did not complete successfully" }
+                                    val verified = client.getTask(created.taskId)
+                                    require(verified.state == "completed" && verified.result?.optBoolean("ok", false) == true) { "Completed cloud task could not be verified by read-back" }
                                 }
                                 val encrypted = encryptSecret(token, VEER_CLOUD_TOKEN_ALIAS)
-                                if (encrypted == null) cloudApiStatus = "API works, but token encryption failed; not saved"
-                                else if (!prefs.edit().putString("cloud_api_url", base).putString("cloud_api_token", encrypted).commit()) cloudApiStatus = "API works, but secure settings could not be saved"
+                                if (encrypted == null) cloudApiStatus = "API and executor work, but token encryption failed; not saved"
+                                else if (!prefs.edit().putString("cloud_api_url", base).putString("cloud_api_token", encrypted).commit()) cloudApiStatus = "API and executor work, but secure settings could not be saved"
                                 else {
                                     cloudApiUrl = base; cloudApiUrlDraft = base; cloudApiToken = token; cloudApiTokenDraft = token
-                                    cloudApiStatus = "Connected — API auth + Neon task write/read verified; executor not deployed"
-                                    messages.add("VEER" to "Cloud API aur Neon database ka authenticated task write/read test pass hua. Ye test task execute nahi hua.")
+                                    cloudApiStatus = "Connected — auth + Neon write/read + executor run verified"
+                                    messages.add("VEER cloud connection, Neon task persistence aur health executor ka live test pass hua.")
                                 }
                             } catch (error: Exception) { cloudApiStatus = "Cloud test failed: " + (error.message ?: "Check Vercel token and deployment") }
                             finally { cloudApiChecking = false }
