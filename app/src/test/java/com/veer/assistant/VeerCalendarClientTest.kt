@@ -11,6 +11,7 @@ class VeerCalendarClientTest {
     @Test fun parsesTimedEventAndSafeCalendarLink() {
         val event = VeerCalendarClient.parseEvent(JSONObject()
             .put("id", "evt_123")
+            .put("etag", "\"v1\"")
             .put("summary", "Team meeting")
             .put("description", "Agenda")
             .put("location", "Office")
@@ -19,6 +20,7 @@ class VeerCalendarClientTest {
             .put("start", JSONObject().put("dateTime", "2026-11-29T10:00:00+05:30").put("timeZone", "Asia/Kolkata"))
             .put("end", JSONObject().put("dateTime", "2026-11-29T10:30:00+05:30").put("timeZone", "Asia/Kolkata")))
         assertEquals("Team meeting", event.summary)
+        assertEquals("\"v1\"", event.etag)
         assertEquals("Asia/Kolkata", event.start.timeZone)
         assertFalse(event.start.isAllDay)
         assertTrue(event.htmlLink.startsWith("https://calendar.google.com/"))
@@ -53,5 +55,15 @@ class VeerCalendarClientTest {
             .put("end", JSONObject().put("date", "2026-11-30")))
         assertEquals(4000, event.summary.length)
         assertEquals(4000, event.description.length)
+    }
+    @Test fun invalidOrMissingEtagCannotBeUsedForMutations() {
+        val missing = VeerCalendarClient.parseEvent(JSONObject()
+            .put("id", "no_etag")
+            .put("start", JSONObject().put("date", "2026-11-29"))
+            .put("end", JSONObject().put("date", "2026-11-30")))
+        assertEquals("", missing.etag)
+        assertEquals("", VeerCalendarClient.parseStrongEtag("*"))
+        assertEquals("", VeerCalendarClient.parseStrongEtag("W/\"weak\""))
+        assertEquals("", VeerCalendarClient.parseStrongEtag("\"bad\r\netag\""))
     }
 }
