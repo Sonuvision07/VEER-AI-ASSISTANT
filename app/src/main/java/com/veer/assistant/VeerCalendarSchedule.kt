@@ -85,7 +85,9 @@ object VeerCalendarSchedule {
             DaySummary(date, intervals.count { it.start.toLocalDate() == date || (it.start < date.plusDays(1).atStartOfDay() && it.end > date.atStartOfDay()) }, gaps)
         }
 
-        return Result(counted, days, days.flatMap { it.freeWindows }, complete)
+        // A single malformed event makes the entire window uncertain: never expose partial free slots.
+        val safeDays = if (complete) days else days.map { it.copy(freeWindows = emptyList()) }
+        return Result(counted, safeDays, safeDays.flatMap { it.freeWindows }, complete)
     }
 
     private fun toLocalInterval(
