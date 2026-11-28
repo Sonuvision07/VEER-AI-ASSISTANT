@@ -2500,6 +2500,9 @@ fun VeerApp() {
                                     gmailAuthorizationClient.revokeAccess(VeerGmailAuthorization.revokeRequest(accountEmail))
                                         .addOnSuccessListener {
                                             gmailAccessToken = null
+                                            gmailComposeAuthorized = false
+                                            gmailComposeAuthorizationPending = false
+                                            gmailDraftStatus = "Gmail disconnected"
                                             gmailConnected = false
                                             gmailEmail = ""
                                             gmailInboxItems = emptyList()
