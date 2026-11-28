@@ -76,6 +76,32 @@ class VeerDriveClientTest {
         }
     }
 
+    @Test fun buildsBoundedContentFetchAndWorkspaceExportRequests() {
+        val pdf = VeerDriveClient.buildContentRequest("file_123", "application/pdf", 1024)
+        assertEquals("https://www.googleapis.com/drive/v3/files/file_123?alt=media", pdf.first)
+        assertEquals("application/pdf", pdf.second)
+        assertFalse(pdf.third)
+
+        val doc = VeerDriveClient.buildContentRequest(
+            "doc_123", "application/vnd.google-apps.document", null
+        )
+        assertTrue(doc.first.contains("/files/doc_123/export?mimeType=text%2Fplain"))
+        assertEquals("text/plain", doc.second)
+        assertTrue(doc.third)
+    }
+
+    @Test fun rejectsUnsupportedTypesOversizedFilesAndUnsafeIdsForContent() {
+        assertThrows(IllegalArgumentException::class.java) {
+            VeerDriveClient.buildContentRequest("file_1", "application/zip", 100)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            VeerDriveClient.buildContentRequest("file_1", "text/plain", 2_097_153)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            VeerDriveClient.buildContentRequest("../bad", "text/plain", 10)
+        }
+    }
+
     @Test fun boundsMetadataAndHandlesShortcutSafely() {
         val file = VeerDriveClient.parseFile(JSONObject()
             .put("id", "shortcut")
