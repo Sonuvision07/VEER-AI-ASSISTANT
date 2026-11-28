@@ -420,7 +420,7 @@ class VeerAgentBrain(
                 } catch (failure: AgentProviderException) {
                     // Only explicitly transient provider failures may be retried.
                     // Authentication, request validation and malformed responses fall back.
-                    if (!failure.retryable) break
+                    if (!AgentRecoveryPolicy.shouldRetryProvider(failure, attempt + 1, maxProviderAttempts)) break
                 } catch (_: Exception) {
                     // Unknown failures are not assumed transient; try the next provider.
                     break
