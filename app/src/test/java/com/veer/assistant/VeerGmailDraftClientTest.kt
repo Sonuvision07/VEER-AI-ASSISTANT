@@ -10,7 +10,7 @@ class VeerGmailDraftClientTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun rejectsHeaderInjectionInSubject() {
-        VeerGmailDraftClient.createDraft("temporary-token", "user@example.com", "Hello\\r\\nBcc: attacker@example.com", "Body")
+        VeerGmailDraftClient.createDraft("temporary-token", "user@example.com", "Hello\r\nBcc: attacker@example.com", "Body")
     }
 
     @Test(expected = IllegalArgumentException::class)
