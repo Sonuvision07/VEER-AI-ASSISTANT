@@ -310,6 +310,16 @@ fun VeerApp() {
     val localAiScope = rememberCoroutineScope()
     val gmailAuthorizationClient = remember(context) { Identity.getAuthorizationClient(context) }
     val calendarAuthorizationClient = remember(context) { Identity.getAuthorizationClient(context) }
+    val driveAuthorizationClient = remember(context) { Identity.getAuthorizationClient(context) }
+    var driveConnected by remember { mutableStateOf(prefs.getBoolean("drive_connected", false)) }
+    var driveEmail by remember { mutableStateOf(prefs.getString("drive_email", "") ?: "") }
+    var driveAccessToken by remember { mutableStateOf<String?>(null) }
+    var driveBusy by remember { mutableStateOf(false) }
+    var driveQuery by remember { mutableStateOf("") }
+    var driveParentId by remember { mutableStateOf<String?>(null) }
+    var drivePageToken by remember { mutableStateOf("") }
+    var driveFiles by remember { mutableStateOf<List<VeerDriveClient.DriveFile>>(emptyList()) }
+    var driveStatus by remember { mutableStateOf(if (driveConnected) "Connected — refresh access to search" else "Not connected") }
     var calendarConnected by remember { mutableStateOf(prefs.getBoolean("calendar_connected", false)) }
     var calendarEmail by remember { mutableStateOf(prefs.getString("calendar_email", "") ?: "") }
     var calendarAccessToken by remember { mutableStateOf<String?>(null) }
@@ -443,6 +453,41 @@ fun VeerApp() {
             gmailSendAuthorizationPending = false
             gmailStatus = "Google authorization cancelled"
             gmailBusy = false
+        }
+    }
+    val driveAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            try {
+                val authorization = driveAuthorizationClient.getAuthorizationResultFromIntent(result.data!!)
+                val token = authorization.accessToken
+                if (token.isNullOrBlank()) {
+                    driveStatus = "Google did not return Drive metadata access"
+                    driveBusy = false
+                } else {
+                    driveAccessToken = token
+                    driveStatus = "Verifying Google account..."
+                    localAiScope.launch {
+                        try {
+                            val email = withContext(Dispatchers.IO) { VeerGmailAuthorization.fetchEmail(token) }
+                            require(VeerDriveAuthorization.isValidVerifiedEmailShape(email)) { "Google account email could not be verified" }
+                            driveEmail = email
+                            driveConnected = true
+                            driveStatus = "Connected — Drive metadata access only"
+                            prefs.edit().putBoolean("drive_connected", true).putString("drive_email", email).apply()
+                        } catch (error: Exception) {
+                            driveAccessToken = null
+                            driveConnected = false
+                            driveStatus = "Drive account verification failed: " + (error.message ?: "Try again")
+                        } finally { driveBusy = false }
+                    }
+                }
+            } catch (error: Exception) {
+                driveStatus = "Drive authorization failed: " + (error.message ?: "Try again")
+                driveBusy = false
+            }
+        } else {
+            driveStatus = "Google Drive authorization cancelled"
+            driveBusy = false
         }
     }
     fun acceptCalendarAccessToken(token: String) {
@@ -2983,6 +3028,120 @@ fun VeerApp() {
                         }, enabled = !calendarBusy) { Text("DISCONNECT & REVOKE CALENDAR ACCESS", color = Color(0xFFFF8A80)) }
                     }
                     Divider()
+                    Divider()
+                    Text("GOOGLE DRIVE", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                    Text("Pehle sirf file/folder metadata access. File ka content kholne par alag permission maangi jayegi. VEER password/OTP nahi maangta; token disk par save nahi hota.", fontSize = 11.sp, color = Color.Gray)
+                    Text(if (driveEmail.isNotBlank() && driveConnected) "Drive: $driveEmail" else "Drive: ${if (driveConnected) "Connected" else "Not connected"}", fontSize = 12.sp, color = if (driveConnected) Color(0xFF58D68D) else Color.Gray)
+                    Text(driveStatus, fontSize = 11.sp, color = Color.Gray)
+                    Button(onClick = {
+                        driveBusy = true
+                        driveStatus = "Requesting Google Drive metadata permission..."
+                        driveAuthorizationClient.authorize(VeerDriveAuthorization.metadataAuthorizationRequest())
+                            .addOnSuccessListener { authorization ->
+                                if (authorization.hasResolution()) {
+                                    val pending = authorization.pendingIntent
+                                    if (pending == null) {
+                                        driveStatus = "Google Drive consent screen could not be opened"
+                                        driveBusy = false
+                                    } else driveAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                } else {
+                                    val token = authorization.accessToken
+                                    if (token.isNullOrBlank()) {
+                                        driveStatus = "Google did not return Drive metadata access"
+                                        driveBusy = false
+                                    } else {
+                                        driveAccessToken = token
+                                        driveStatus = "Verifying Google account..."
+                                        localAiScope.launch {
+                                            try {
+                                                val email = withContext(Dispatchers.IO) { VeerGmailAuthorization.fetchEmail(token) }
+                                                require(VeerDriveAuthorization.isValidVerifiedEmailShape(email)) { "Google account email could not be verified" }
+                                                driveEmail = email
+                                                driveConnected = true
+                                                driveStatus = "Connected — Drive metadata access only"
+                                                prefs.edit().putBoolean("drive_connected", true).putString("drive_email", email).apply()
+                                            } catch (error: Exception) {
+                                                driveAccessToken = null
+                                                driveConnected = false
+                                                driveStatus = "Drive account verification failed: " + (error.message ?: "Try again")
+                                            } finally { driveBusy = false }
+                                        }
+                                    }
+                                }
+                            }
+                            .addOnFailureListener { error ->
+                                driveStatus = "Drive authorization failed: " + (error.message ?: "Try again")
+                                driveBusy = false
+                            }
+                    }, enabled = !driveBusy, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (driveBusy) "CONNECTING..." else if (driveConnected) "REFRESH DRIVE ACCESS" else "CONNECT GOOGLE DRIVE")
+                    }
+                    if (driveConnected) {
+                        OutlinedTextField(value = driveQuery, onValueChange = { driveQuery = it.take(200) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search Drive file names") })
+                        Button(onClick = {
+                            val token = driveAccessToken
+                            if (token.isNullOrBlank()) {
+                                driveStatus = "Session expired. Refresh Drive access first."
+                            } else {
+                                driveBusy = true
+                                driveFiles = emptyList()
+                                drivePageToken = ""
+                                driveStatus = "Searching Drive metadata..."
+                                localAiScope.launch {
+                                    try {
+                                        val page = withContext(Dispatchers.IO) { VeerDriveClient.listFiles(token, driveQuery, driveParentId, 25) }
+                                        driveFiles = page.files
+                                        drivePageToken = page.nextPageToken
+                                        driveStatus = if (page.files.isEmpty()) "No files found" else "${page.files.size} files loaded" + if (page.nextPageToken.isNotBlank()) " · More results available" else ""
+                                    } catch (error: Exception) {
+                                        driveStatus = "Drive search failed: " + (error.message ?: "Reconnect Drive")
+                                    } finally { driveBusy = false }
+                                }
+                            }
+                        }, enabled = !driveBusy, modifier = Modifier.fillMaxWidth()) { Text(if (driveBusy) "SEARCHING..." else "SEARCH DRIVE") }
+                        if (driveParentId != null) {
+                            TextButton(onClick = {
+                                driveParentId = null
+                                driveFiles = emptyList()
+                                drivePageToken = ""
+                                driveStatus = "Root folder selected. Press SEARCH DRIVE."
+                            }, enabled = !driveBusy) { Text("BACK TO MY DRIVE") }
+                        }
+                        driveFiles.forEach { file ->
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                                Text(file.name.ifBlank { "(Unnamed file)" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                Text(file.mimeType + if (file.sizeBytes != null) " · ${file.sizeBytes} bytes" else "", fontSize = 10.sp, color = Color.Gray)
+                                if (file.mimeType == "application/vnd.google-apps.folder") {
+                                    TextButton(onClick = {
+                                        driveParentId = file.id
+                                        driveFiles = emptyList()
+                                        drivePageToken = ""
+                                        driveStatus = "Folder selected. Press SEARCH DRIVE."
+                                    }, enabled = !driveBusy) { Text("OPEN FOLDER") }
+                                }
+                            }
+                            Divider()
+                        }
+                        if (drivePageToken.isNotBlank()) {
+                            Button(onClick = {
+                                val token = driveAccessToken
+                                if (token.isNullOrBlank()) driveStatus = "Refresh Drive access first."
+                                else {
+                                    driveBusy = true
+                                    localAiScope.launch {
+                                        try {
+                                            val page = withContext(Dispatchers.IO) { VeerDriveClient.listFiles(token, driveQuery, driveParentId, 25, drivePageToken) }
+                                            driveFiles = driveFiles + page.files
+                                            drivePageToken = page.nextPageToken
+                                            driveStatus = "${driveFiles.size} files loaded"
+                                        } catch (error: Exception) {
+                                            driveStatus = "More results failed: " + (error.message ?: "Try again")
+                                        } finally { driveBusy = false }
+                                    }
+                                }
+                            }, enabled = !driveBusy, modifier = Modifier.fillMaxWidth()) { Text("LOAD MORE DRIVE FILES") }
+                        }
+                    }
                     Text("GMAIL ASSISTANT", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
                     Text("Google ke official consent screen se Gmail read-only permission connect hogi. VEER password nahi maangta aur access token disk par save nahi karta.", fontSize = 11.sp, color = Color.Gray)
                     Text(if (gmailEmail.isNotBlank() && gmailConnected) "Gmail: $gmailEmail" else "Gmail: ${if (gmailConnected) "Connected" else "Not connected"}", fontSize = 12.sp, color = if (gmailConnected) Color(0xFF58D68D) else Color.Gray)
