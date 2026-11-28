@@ -17,6 +17,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile Windows agent
-        run: python -m py_compile windows/veer_pc_agent.py
+        run: python -m py_compile windows/veer_pc_agent.py windows/veer_cloud_worker.py windows/veer_cloud_store.py windows/veer_cloud_service.py
       - name: Run security and API tests
         run: python -m unittest discover -s windows -p "test_*.py" -v
