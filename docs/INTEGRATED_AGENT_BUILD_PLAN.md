@@ -38,3 +38,7 @@ Move VEER from a chat UI with isolated launch commands toward a tool-using assis
 - Treat webpages and files as untrusted input, not instructions.
 - Report the actual action outcome; do not claim completion without verification.
 - Accessibility must be manually enabled and can be disabled at any time.
+
+## Phase 9 — Agent Reliability & Autonomous Task Execution (proposed)
+- See `docs/PHASE-9-AGENT-RELIABILITY-PLAN.md` for the scoped implementation steps and acceptance criteria.
+- Keep the existing chat UI and APK icon unchanged; phase acceptance requires automated checks and separate device testing.
