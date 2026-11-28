@@ -46,6 +46,15 @@ class AgentTaskHistoryTest {
         } catch (_: IllegalArgumentException) { }
     }
 
+    @Test fun storedReasonsAreSanitizedAndBounded() {
+        val history = AgentTaskHistory()
+        history.record(snapshot("reason", 2L).copy(reason = "private\\n" + "x".repeat(300)))
+        val reason = history.get("reason")?.reason ?: ""
+        assertTrue(reason.length <= 160)
+        assertFalse(reason.contains("\\n"))
+        assertTrue(reason.startsWith("private"))
+    }
+
     @Test fun clearRemovesAllRecordsAndReturnedSnapshotsAreCopies() {
         val history = AgentTaskHistory()
         history.record(snapshot("one", 2L))
