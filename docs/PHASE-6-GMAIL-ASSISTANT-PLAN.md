@@ -79,6 +79,7 @@ Add an optional Gmail assistant to VEER without changing the existing chat UI or
 - **Step 2 — Google OAuth connect/disconnect:** implemented; real Google consent/device acceptance remains pending.
 - **Step 3 — Gmail read-only API client:** implemented with bounded requests and tests.
 - **Step 4 — inbox listing and search:** implemented; real mailbox/device acceptance remains pending.
-- **Step 5 — local email summary and priority:** implemented as deterministic on-device triage. Gmail IMPORTANT/STARRED labels and a small set of urgency phrases raise priority with an explicit reason. This is not an LLM-generated summary or a phishing verdict; users should verify the original email. Email text is treated as untrusted data, and nothing is sent or modified.
+- **Step 5 — local email summary and priority:** implemented as deterministic on-device triage using Gmail labels and urgency phrases. It is not an LLM-generated summary.
+- **Step 6 — suspicious email indicators:** implemented as advisory, on-device checks for credential/OTP requests, pressure language, shortened links, raw-IP links, punycode links, malformed links, embedded URL user-info, and selected brand display-name/domain mismatches. Results are signals only, not a definitive phishing verdict. No mailbox content is uploaded to VEER servers.
 
-Step 5 requires no cloud AI key and does not transmit email content to VEER servers. The summary is generated only from messages already loaded by the user.
+Steps 5–6 do not send, modify, delete, or forward email. Users must inspect the original message and verify links/senders independently. Real Google consent and physical-device acceptance remain pending.
