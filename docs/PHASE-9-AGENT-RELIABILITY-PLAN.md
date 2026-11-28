@@ -24,6 +24,14 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+## Step 4 acceptance criteria
+- Cancellation is idempotent and can notify active operations through one-shot callbacks.
+- Listener registration is race-safe; listeners added after cancellation run immediately.
+- Listener failures do not prevent remaining callbacks.
+- Callers can unregister callbacks when operations finish.
+- Agent orchestration rechecks cancellation before dispatching a tool; tests cover cancellation during validation and approval continuation.
+- Network transports must register a disconnect/abort callback before this step is considered fully device-verified; current synchronous provider adapters remain a follow-up integration/test item.
+
 ## Step 3 acceptance criteria
 - Keep only a bounded number of lifecycle snapshots in an in-memory history.
 - Replace an existing task record by task ID without creating duplicate entries.
