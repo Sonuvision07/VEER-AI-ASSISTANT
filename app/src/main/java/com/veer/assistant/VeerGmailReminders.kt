@@ -108,7 +108,7 @@ object VeerGmailReminderScheduler {
     }
     private fun alarmIntent(context: Context, reminder: VeerGmailReminder): PendingIntent {
         val intent = Intent(context, VeerGmailReminderReceiver::class.java)
-            .setData(Uri.parse("veer://gmail-reminder/\${reminder.id}"))
+            .setData(Uri.parse("veer://gmail-reminder/" + reminder.id + ""))
             .putExtra("reminder_id", reminder.id)
         return PendingIntent.getBroadcast(context, reminder.id.hashCode(), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -132,7 +132,7 @@ class VeerGmailReminderReceiver : BroadcastReceiver() {
         val openApp = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, VeerGmailReminderScheduler.CHANNEL_ID)
-            else @Suppress("DEPRECATION") Notification.Builder(context)
+            else Notification.Builder(context)
         val notification = builder.setSmallIcon(com.veer.assistant.R.mipmap.ic_launcher)
             .setContentTitle("Email follow-up reminder")
             .setContentText("Open VEER to review your reminder.")
