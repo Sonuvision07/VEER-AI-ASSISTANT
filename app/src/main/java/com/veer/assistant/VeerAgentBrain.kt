@@ -221,8 +221,8 @@ class VeerAgentBrain(
             if (cancellationToken.isCancelled()) return finish(cancelledAgentResult(lastProvider, steps), AgentTaskStatus.CANCELLED)
             if (nanoTime() - deadlineNanos >= 0L) return finish(timedOutAgentResult(lastProvider, steps), AgentTaskStatus.FAILED)
             val decision = requestDecision(turn, cancellationToken, deadlineNanos)
-            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
-            if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps)
+            if (cancellationToken.isCancelled()) return finish(cancelledAgentResult(lastProvider, steps), AgentTaskStatus.CANCELLED)
+            if (nanoTime() - deadlineNanos >= 0L) return finish(timedOutAgentResult(lastProvider, steps), AgentTaskStatus.FAILED)
             if (decision == null) return finish(AgentRunResult(
                 "VEER ka AI engine abhi available nahi hai. Provider connection check karein.",
                 lastProvider, steps
@@ -287,7 +287,7 @@ class VeerAgentBrain(
                     false
                 }
                 if (!approved) {
-                    return AgentRunResult(
+                    return finish(AgentRunResult(
                         decision.second.message.ifBlank { "Is action ke liye aapki approval zaroori hai." },
                         lastProvider, steps,
                         stoppedForApproval = true,
@@ -300,9 +300,10 @@ class VeerAgentBrain(
                             ), decision.first, action, steps, continuationOwnerToken,
                             cancellationToken, deadlineNanos,
                             minOf(deadlineNanos, nanoTime() + approvalTimeoutMillis.coerceAtMost((Long.MAX_VALUE / 2) / 1_000_000L) * 1_000_000L),
-                            java.util.UUID.randomUUID().toString()
+                            java.util.UUID.randomUUID().toString(),
+                            taskSession
                         )
-                    )
+                    ), AgentTaskStatus.WAITING_APPROVAL)
                 }
             }
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
@@ -320,8 +321,8 @@ class VeerAgentBrain(
             } catch (_: Exception) {
                 AgentToolOutcome.uncertain("Independent verification failed; effect is unconfirmed.")
             }
-            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps + 1)
-            if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps + 1)
+            if (cancellationToken.isCancelled()) return finish(cancelledAgentResult(lastProvider, steps + 1), AgentTaskStatus.CANCELLED)
+            if (nanoTime() - deadlineNanos >= 0L) return finish(timedOutAgentResult(lastProvider, steps + 1), AgentTaskStatus.FAILED)
             // Bound tool output before adding it to the next model request.
             val outcomeNote = when (lastOutcome?.status) {
                 AgentOutcomeStatus.VERIFIED -> "[VEER outcome: independently verified]"
@@ -342,10 +343,10 @@ class VeerAgentBrain(
                 providerContextProvider = decision.first.takeIf { decision.second.providerContext != null }
             )
         }
-        return AgentRunResult(
+        return finish(AgentRunResult(
             "VEER ne safety limit ke liye task ko ${maxToolSteps} tool steps ke baad roka. Aage badhne ke liye task ko review karein.",
             lastProvider, steps, lastToolOutcome = lastOutcome
-        )
+        ), AgentTaskStatus.FAILED)
     }
 
 
