@@ -313,8 +313,10 @@ class VeerAgentBrain(
                 AgentOutcomeStatus.UNCERTAIN -> "[VEER outcome: uncertain; do not claim completion]"
                 null -> "[VEER outcome: unavailable]"
             }
-            val result = (rawResult + "\n" + outcomeNote).let { value ->
-                if (value.length > maxToolResultChars) value.take(maxToolResultChars) + "\n[Tool result truncated by VEER]" else value
+            val result = buildString {
+                append(rawResult.take(maxToolResultChars))
+                if (rawResult.length > maxToolResultChars) append("\n[Tool result truncated by VEER]")
+                append("\n").append(outcomeNote)
             }
             steps += 1
             turn = turn.copy(
@@ -424,8 +426,10 @@ class VeerAgentBrain(
             AgentOutcomeStatus.ATTEMPTED -> "[VEER outcome: attempted, not verified]"
             AgentOutcomeStatus.UNCERTAIN -> "[VEER outcome: uncertain; do not claim completion]"
         }
-        val bounded = (raw + "\n" + outcomeNote).let { value ->
-            if (value.length > maxToolResultChars) value.take(maxToolResultChars) + "\n[Tool result truncated by VEER]" else value
+        val bounded = buildString {
+            append(raw.take(maxToolResultChars))
+            if (raw.length > maxToolResultChars) append("\n[Tool result truncated by VEER]")
+            append("\n").append(outcomeNote)
         }
         // Feed the real execution result back to the model and continue the same
         // bounded task. The approval continuation remains one-shot.
