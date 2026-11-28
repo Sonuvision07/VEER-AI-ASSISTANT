@@ -8,10 +8,10 @@ package com.veer.assistant
  * exact call. This adapter independently revalidates the closed argument schema.
  */
 internal class VeerAndroidAppToolExecutor(
-    private val dispatchApprovedAction: (String) -> String,
     private val outcomeVerifier: (AgentToolCall, String) -> AgentToolOutcome = { _, _ ->
         AgentToolOutcome.uncertain("No independent Android postcondition verifier is configured.")
-    }
+    },
+    private val dispatchApprovedAction: (String) -> String
 ) : AgentToolExecutor {
     override fun supports(name: String): Boolean =
         VeerAgentToolPolicy.supports(name)
