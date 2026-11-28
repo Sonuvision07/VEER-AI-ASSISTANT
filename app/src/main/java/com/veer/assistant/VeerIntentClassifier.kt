@@ -62,6 +62,10 @@ object VeerIntentClassifier {
             .trim()
         if (normalized.isEmpty()) return false
 
+        if (normalized in setOf("open", "launch", "start", "kholo", "khol do", "kholna", "chalao")) {
+            return true
+        }
+
         val openingPrefixes = listOf(
             "open ", "launch ", "start ", "please open ", "please launch ",
             "please start ", "hey veer open ", "veer open ", "kholo ",
