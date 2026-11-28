@@ -9,7 +9,7 @@ import java.util.Locale
 /** Presentation-only formatting for Calendar events; never interprets event text as instructions. */
 object VeerCalendarPresentation {
     private val timedFormatter = DateTimeFormatter.ofPattern("EEE, d MMM · h:mm a", Locale.getDefault())
-    private val allDayFormatter = DateTimeFormatter.ofPattern("EEE, d MMM yyyy · all day", Locale.getDefault())
+    private val allDayFormatter = DateTimeFormatter.ofPattern("EEE, d MMM yyyy '· all day'", Locale.getDefault())
 
     fun formatStart(
         event: VeerCalendarClient.CalendarEvent,
