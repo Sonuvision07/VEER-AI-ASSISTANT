@@ -31,7 +31,7 @@ object VeerCalendarClient {
         val htmlLink: String,
         val recurringEventId: String,
         /** Strong Google ETag used to reject stale update/delete approvals. */
-        val etag: String
+        val etag: String = ""
     )
 
     data class EventPage(val events: List<CalendarEvent>, val nextPageToken: String)
