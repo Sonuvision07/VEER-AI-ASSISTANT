@@ -342,6 +342,8 @@ fun VeerApp() {
                 val accessToken = authorization.accessToken
                 if (accessToken.isNullOrBlank()) {
                     gmailStatus = "Google did not return Gmail access. Try connecting again."
+                    gmailComposeAuthorizationPending = false
+                    gmailSendAuthorizationPending = false
                     gmailBusy = false
                 } else {
                     gmailAccessToken = accessToken
@@ -357,12 +359,16 @@ fun VeerApp() {
                             prefs.edit().putBoolean("gmail_connected", true).putString("gmail_email", email).apply()
                         } catch (error: Exception) {
                             gmailAccessToken = null
+                            gmailComposeAuthorizationPending = false
+                            gmailSendAuthorizationPending = false
                             gmailStatus = "Account verification failed: " + (error.message ?: "Try again")
                         } finally { gmailBusy = false }
                     }
                 }
             } catch (error: Exception) {
                 gmailStatus = "Google authorization failed: " + (error.message ?: "Try again")
+                gmailComposeAuthorizationPending = false
+                gmailSendAuthorizationPending = false
                 gmailBusy = false
             }
         } else {
