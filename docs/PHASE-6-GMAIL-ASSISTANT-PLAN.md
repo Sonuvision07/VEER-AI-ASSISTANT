@@ -50,7 +50,7 @@ Add an optional Gmail assistant to VEER without changing the existing chat UI or
 | 5 | Email summarization and priority | Summaries grounded in fetched messages; priority reasons shown |
 | 6 | Suspicious email/phishing indicators | Advisory warnings with evidence; no definitive guarantees |
 | 7 | Draft creation | Incremental Gmail compose permission; draft saved only to Gmail Drafts; nothing sent |
-| 8 | Explicit send approval workflow | Recipient/subject/body shown; exact approval required before send |
+| 8 | Explicit send approval workflow | Separate send scope; immutable recipient/subject/body preview; explicit final send confirmation |
 | 9 | Follow-up reminders and optional background summaries | Opt-in scheduling, notification controls, battery/network bounds |
 | 10 | CI, privacy/security tests and device acceptance | Android/Web/Windows regression CI green; OAuth and real Gmail flow tested on device |
 
@@ -69,7 +69,8 @@ Add an optional Gmail assistant to VEER without changing the existing chat UI or
 - Pagination, empty inbox, network timeout, rate limit, malformed API response and large message cases.
 - Email prompt-injection attempts must be treated as message content, never instructions.
 - Draft creation must never call the send endpoint.
-- Send must fail unless exact-draft approval is present; edits invalidate approval.
+- Send must fail unless exact-message approval is present; edits after review must not change the approved snapshot.
+- Send scope is requested separately from read-only and compose scopes; canceling the review must not send.
 - Ensure tokens and email content do not appear in logs, crash reports, or analytics.
 - Existing chat, attachments, voice, Phase 4 PC/cloud agent and Phase 5 research flows remain regression-tested.
 
@@ -82,4 +83,4 @@ Add an optional Gmail assistant to VEER without changing the existing chat UI or
 - **Step 5 — local email summary and priority:** implemented as deterministic on-device triage using Gmail labels and urgency phrases. It is not an LLM-generated summary.
 - **Step 6 — suspicious email indicators:** implemented as advisory, on-device checks for credential/OTP requests, pressure language, shortened links, raw-IP links, punycode links, malformed links, embedded URL user-info, and selected brand display-name/domain mismatches. Results are signals only, not a definitive phishing verdict. No mailbox content is uploaded to VEER servers.\n- **Step 7 — Gmail draft creation:** adds a separate incremental Gmail compose permission and a bounded recipient/subject/body form. VEER uses Gmail's drafts endpoint only; it has no send call in this feature. The draft is saved to Gmail Drafts and the user is told that nothing was sent. Real Google consent and physical-device acceptance remain pending.
 
-Steps 5–6 do not send, modify, delete, or forward email. Users must inspect the original message and verify links/senders independently. Real Google consent and physical-device acceptance remain pending.
+- **Step 8 — explicit send approval:** adds a separate incremental Gmail send scope and a review dialog showing the exact recipient, subject, and complete body snapshot. Only the final explicit SEND EMAIL action calls Gmail's send endpoint; CANCEL does not send. The send client validates the exact snapshot and never sends from background work. Real Google consent and physical-device acceptance remain pending.\n\nSteps 5–6 do not send, modify, delete, or forward email. Users must inspect the original message and verify links/senders independently. Real Google consent and physical-device acceptance remain pending.
