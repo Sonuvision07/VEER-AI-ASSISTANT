@@ -14,6 +14,7 @@ internal class VeerClaudeHttpTransport(
         require(apiKey.isNotBlank())
         val body=VeerClaudeAgentRequest.build(turn,model).toString()
         val conn=connectionFactory(URL("https://api.anthropic.com/v1/messages"))
+        val cancellationRegistration = turn.cancellationToken?.onCancel { conn.disconnect() }
         try{
             conn.requestMethod="POST";conn.connectTimeout=10_000;conn.readTimeout=25_000;conn.doOutput=true
             conn.setRequestProperty("Content-Type","application/json; charset=UTF-8")
@@ -25,6 +26,6 @@ internal class VeerClaudeHttpTransport(
             if(response.isBlank())throw IllegalStateException("Anthropic returned empty response.")
             return response
         }catch(e:IOException){throw AgentProviderException("Anthropic network request failed.",true)}
-        finally{conn.disconnect()}
+        finally{cancellationRegistration?.close();conn.disconnect()}
     }
 }
