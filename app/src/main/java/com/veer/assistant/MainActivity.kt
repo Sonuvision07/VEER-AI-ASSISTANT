@@ -296,9 +296,9 @@ fun VeerApp() {
                 context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
                     stream.write(latestResearchReport.toByteArray(Charsets.UTF_8))
                 } ?: throw java.io.IOException("Unable to open selected document")
-                messages.add("VEER" to "Research report selected location par save ho gayi.")
+                android.widget.Toast.makeText(context, "Research report saved.", android.widget.Toast.LENGTH_SHORT).show()
             } catch (error: Exception) {
-                messages.add("VEER" to "Report save nahi ho paayi: " + (error.message ?: "Storage error"))
+                android.widget.Toast.makeText(context, "Report save failed: " + (error.message ?: "Storage error"), android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
