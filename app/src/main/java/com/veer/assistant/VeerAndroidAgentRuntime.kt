@@ -42,7 +42,7 @@ internal class VeerAndroidAgentRuntime(
                 )
             )
         ),
-        tools = VeerAndroidAppToolExecutor(dispatchApprovedAction, outcomeVerifier),
+        tools = VeerAndroidAppToolExecutor(outcomeVerifier, dispatchApprovedAction),
         approval = approvalSession,
         providerOrder = providerOrder
     )
