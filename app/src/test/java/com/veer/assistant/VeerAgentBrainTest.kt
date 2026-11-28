@@ -1047,4 +1047,64 @@ class VeerAgentBrainTest {
         assertTrue(result.message.contains("cancel", ignoreCase = true))
         assertFalse(executed)
     }
+
+    @Test fun approvalIdsAreUniqueAcrossPendingActions() {
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Approve", requested, finished = false) },
+            FakeTools(),
+            FakeApproval(false)
+        )
+
+        val first = brain.run(turn())
+        val second = brain.run(turn())
+
+        assertTrue(first.stoppedForApproval)
+        assertTrue(second.stoppedForApproval)
+        assertNotEquals(first.continuation!!.approvalId, second.continuation!!.approvalId)
+    }
+
+    @Test fun mismatchedApprovedCallCannotDispatchTool() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val different = call("delete", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Approve", requested, finished = false) },
+            tools,
+            FakeApproval(true)
+        )
+
+        val pending = brain.run(turn())
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, different)
+
+        assertTrue(resumed.message.contains("mismatched", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+    }
+
+    @Test fun successfullyConsumedApprovalCannotBeReplayed() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        var decisions = 0
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisions += 1
+                if (decisions == 1) AgentDecision("Approve", requested, finished = false)
+                else AgentDecision("Done", finished = true)
+            },
+            tools,
+            FakeApproval(true)
+        )
+
+        val pending = brain.run(turn())
+        val continuation = pending.continuation!!
+        val first = brain.resumeAfterApproval(continuation, requested)
+        val countAfterFirst = tools.executed.size
+        val second = brain.resumeAfterApproval(continuation, requested)
+
+        assertEquals(1, countAfterFirst)
+        assertEquals(countAfterFirst, tools.executed.size)
+        assertTrue(second.message.contains("stale", ignoreCase = true))
+        assertFalse(first.stoppedForApproval)
+    }
+
 }
