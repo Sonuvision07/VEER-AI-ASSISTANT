@@ -333,6 +333,24 @@ fun VeerApp() {
     var calendarWriteAccessToken by remember { mutableStateOf<String?>(null) }
     var calendarWriteAuthorizationPending by remember { mutableStateOf(false) }
     var calendarWriteStatus by remember { mutableStateOf("Event saving is not authorized") }
+    var calendarReminders by remember { mutableStateOf(VeerCalendarReminderStore.list(context)) }
+    var calendarReminderPendingEvent by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var calendarReminderStatus by remember { mutableStateOf("Reminders are off until you choose an event") }
+    val calendarReminderPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val pending = calendarReminderPendingEvent
+        calendarReminderPendingEvent = null
+        if (granted && pending != null) {
+            try {
+                VeerCalendarReminderScheduler.schedule(context, pending.first, pending.second)
+                calendarReminders = VeerCalendarReminderStore.list(context)
+                calendarReminderStatus = "10-minute local reminder scheduled."
+            } catch (error: Exception) {
+                calendarReminderStatus = "Reminder could not be scheduled: " + (error.message ?: "Try again")
+            }
+        } else if (!granted) {
+            calendarReminderStatus = "Notification permission denied. No reminder was scheduled."
+        }
+    }
     var calendarMutationTitle by remember { mutableStateOf("") }
     var calendarMutationAction by remember { mutableStateOf("") }
     var calendarMutationPatch by remember { mutableStateOf("") }
@@ -2792,6 +2810,38 @@ fun VeerApp() {
                                     if (event.location.isNotBlank()) Text("Location: ${event.location}", fontSize = 11.sp, color = Color.LightGray)
                                     if (event.description.isNotBlank()) Text(event.description, fontSize = 11.sp, color = Color.LightGray)
                                     Text("Status: ${event.status.ifBlank { "unknown" }}", fontSize = 10.sp, color = Color.Gray)
+                                    if (!event.start.isAllDay) {
+                                        val eventReminder = calendarReminders.firstOrNull { it.eventId == event.id }
+                                        if (eventReminder == null) {
+                                            OutlinedButton(onClick = {
+                                                val start = event.start.dateTime
+                                                if (start.isBlank()) {
+                                                    calendarReminderStatus = "This event has no supported timed start."
+                                                } else if (Build.VERSION.SDK_INT >= 33 &&
+                                                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                                    calendarReminderPendingEvent = event.id to start
+                                                    calendarReminderPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                                } else {
+                                                    try {
+                                                        VeerCalendarReminderScheduler.schedule(context, event.id, start)
+                                                        calendarReminders = VeerCalendarReminderStore.list(context)
+                                                        calendarReminderStatus = "10-minute local reminder scheduled."
+                                                    } catch (error: Exception) {
+                                                        calendarReminderStatus = "Reminder could not be scheduled: " + (error.message ?: "Try again")
+                                                    }
+                                                }
+                                            }, enabled = !calendarBusy, modifier = Modifier.fillMaxWidth()) { Text("REMIND ME 10 MINUTES BEFORE") }
+                                        } else {
+                                            OutlinedButton(onClick = {
+                                                VeerCalendarReminderScheduler.cancel(context, eventReminder.id)
+                                                calendarReminders = VeerCalendarReminderStore.list(context)
+                                                calendarReminderStatus = "Reminder cancelled."
+                                            }, enabled = !calendarBusy, modifier = Modifier.fillMaxWidth()) { Text("CANCEL LOCAL REMINDER") }
+                                        }
+                                        Text(calendarReminderStatus, fontSize = 10.sp, color = Color.Gray)
+                                    } else {
+                                        Text("Local reminder unavailable for all-day events in this release.", fontSize = 10.sp, color = Color.Gray)
+                                    }
                                     OutlinedTextField(
                                         value = calendarMutationTitle,
                                         onValueChange = { calendarMutationTitle = it; calendarMutationSnapshot = ""; calendarMutationAction = ""; calendarMutationStatus = "Title changed — prepare a fresh preview." },
@@ -2897,7 +2947,11 @@ fun VeerApp() {
                                 calendarStatus = "Revoking Calendar access..."
                                 calendarAuthorizationClient.revokeAccess(VeerCalendarAuthorization.revokeRequest(email))
                                     .addOnSuccessListener {
+                                        VeerCalendarReminderScheduler.cancelAll(context)
+                                        calendarReminders = emptyList()
+                                        calendarReminderStatus = "Calendar reminders cleared after disconnect."
                                         calendarAccessToken = null
+                                        calendarWriteAccessToken = null
                                         calendarConnected = false
                                         calendarEmail = ""
                                         calendarEvents = emptyList()
