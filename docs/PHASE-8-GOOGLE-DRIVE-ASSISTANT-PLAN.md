@@ -74,7 +74,8 @@ Google Drive access must use Google's official Android OAuth authorization flow 
 - **Step 2 — incremental OAuth scope policy:** implemented and merged; metadata scope is separate from user-initiated content-read scope.
 - **Step 3 — bounded read-only Drive API client:** implemented and merged; metadata-only GET operations, bounded pagination and response handling.
 - **Step 4 — Drive search and folder browser:** implemented and merged in PR #67; Android, Web and Windows CI passed. Real Google OAuth and live Drive search still require device acceptance.
-- **Step 5 — file details and safe open links:** implementation in progress on `phase8/google-drive-file-details`; adds selected-file metadata display and opens only HTTPS links already allowlisted to Google Drive/Docs hosts by the client. Automated CI pending.
-- **Steps 6–10:** not started.
+- **Step 5 — file details and safe open links:** implemented and merged in PR #68; Android, Web and Windows CI passed. Details include available metadata and only allowlisted Google Drive/Docs HTTPS links.
+- **Step 6 — explicit content-read permission and bounded fetch/export:** implementation in progress on `phase8/google-drive-content-access`; content scope is requested only from the selected-file Open action. Fetch is limited to supported text/CSV/PDF and Google Workspace export formats, with a 2 MiB cap and memory-only handling. Automated CI pending.
+- **Steps 7–10:** not started.
 
-**Release status:** Phase 8 implementation is in progress. No file content is fetched in Steps 1–5. Real Google OAuth and physical-device acceptance remain separate release gates even after CI passes.
+**Release status:** Phase 8 implementation is in progress. Steps 1–5 do not fetch file content. Step 6 adds a selected-file-only bounded in-memory fetch; preview/text extraction is reserved for Step 7. Real Google OAuth and physical-device acceptance remain separate release gates even after CI passes.
