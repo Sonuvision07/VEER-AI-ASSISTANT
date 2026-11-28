@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import hmac
 import json
 import re
 from typing import Any, Mapping, Protocol
@@ -67,7 +68,7 @@ class CloudTaskRequest:
         if not isinstance(payload_hash, str) or not _SHA256.fullmatch(payload_hash):
             raise CloudTaskError("Invalid payload hash")
         actual_hash = hashlib.sha256(encoded).hexdigest()
-        if not hashlib.compare_digest(actual_hash, payload_hash.lower()):
+        if not hmac.compare_digest(actual_hash, payload_hash.lower()):
             raise CloudTaskError("Payload hash does not match exact task payload")
         approval = raw.get("approval_sha256")
         if approval is not None and (not isinstance(approval, str) or not _SHA256.fullmatch(approval)):
