@@ -52,3 +52,9 @@ Must be tested on an Android phone with a real Google account before describing 
 
 ## Release decision
 Automated CI may be marked complete after the Step 10 workflows pass. Physical-device acceptance remains a release gate and must not be inferred from CI.
+
+
+## Follow-up fail-closed schedule fix
+- Calendar page parsing now rejects the entire page when any event item is malformed instead of silently dropping it. This prevents an unreadable busy event from appearing as free time.
+- Starting a fresh agenda load clears previously loaded events, pagination state and prior schedule summary, preventing stale data from being reused after a failed refresh.
+- Added a unit test proving a malformed item fails the whole page.
