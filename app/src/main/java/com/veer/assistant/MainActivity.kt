@@ -288,6 +288,20 @@ private fun VeerOutlineIcon(kind: String, modifier: Modifier = Modifier, tint: C
 @Composable
 fun VeerApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var latestResearchReport by remember { mutableStateOf("") }
+    val researchSaveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val destination = result.data?.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && destination != null) {
+            try {
+                context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
+                    stream.write(latestResearchReport.toByteArray(Charsets.UTF_8))
+                } ?: throw java.io.IOException("Unable to open selected document")
+                android.widget.Toast.makeText(context, "Research report saved.", android.widget.Toast.LENGTH_SHORT).show()
+            } catch (error: Exception) {
+                android.widget.Toast.makeText(context, "Report save failed: " + (error.message ?: "Storage error"), android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     val veerFont = remember { FontFamily(Font(R.font.inter_variable, weight = FontWeight.Normal)) }
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
     val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
@@ -1241,6 +1255,89 @@ fun VeerApp() {
         messages.add("BOSS" to messageWithAttachment)
         fallbackAttempted.clear()
 
+        // Explicit opt-in research commands keep ordinary chat and the established UI unchanged.
+        val researchMode = when {
+            clean.startsWith("research:", ignoreCase = true) -> "research"
+            clean.startsWith("web research:", ignoreCase = true) -> "research"
+            clean.startsWith("search:", ignoreCase = true) -> "search"
+            clean.startsWith("web search:", ignoreCase = true) -> "search"
+            else -> null
+        }
+        if (researchMode != null) {
+            val researchQuery = clean.substringAfter(':').trim()
+            if (researchQuery.isBlank() || researchQuery.length > 500) {
+                addReply("Boss, research query 1–500 characters ka hona chahiye.")
+            } else if (cloudApiUrl.isBlank() || cloudApiToken.isBlank()) {
+                addReply("Boss, Web Search ke liye Settings mein VEER Cloud URL aur API token configure karein.")
+                showSettings = true
+            } else {
+                latestResearchReport = ""
+                loading = true
+                status = if (researchMode == "research") "SEARCHING AND RESEARCHING..." else "SEARCHING THE WEB..."
+                val baseUrl = cloudApiUrl
+                val token = cloudApiToken
+                Thread {
+                    var reply = ""
+                    var completedResearchReport = ""
+                    try {
+                        val client = VeerResearchClient(baseUrl, token)
+                        val results = client.search(researchQuery, 5)
+                        if (results.length() == 0) {
+                            reply = "Boss, is query ke liye koi verified web source nahi mila."
+                        } else if (researchMode == "search") {
+                            val lines = (0 until results.length()).mapNotNull { index ->
+                                val item = results.optJSONObject(index) ?: return@mapNotNull null
+                                val title = item.optString("title").take(180)
+                                val url = item.optString("url").take(2048)
+                                val snippet = item.optString("snippet").take(400)
+                                if (url.isBlank()) null else "• $title\n$snippet\n$url"
+                            }
+                            reply = if (lines.isEmpty()) "Boss, search se valid sources nahi mile." else "Web Search results:\n\n" + lines.joinToString("\n\n")
+                        } else {
+                            val sources = org.json.JSONArray()
+                            for (index in 0 until minOf(results.length(), 5)) {
+                                val item = results.optJSONObject(index) ?: continue
+                                val title = item.optString("title")
+                                val url = item.optString("url")
+                                val snippet = item.optString("snippet")
+                                if (title.isNotBlank() && url.isNotBlank() && snippet.isNotBlank()) {
+                                    sources.put(JSONObject().put("title", title).put("url", url).put("snippet", snippet))
+                                }
+                            }
+                            if (sources.length() == 0) {
+                                reply = "Boss, search sources mein research ke liye valid text nahi mila."
+                            } else {
+                                val report = client.synthesize(researchQuery, sources)
+                                val citations = report.optJSONArray("citations") ?: org.json.JSONArray()
+                                val sourceLines = (0 until citations.length()).mapNotNull { index ->
+                                    val source = citations.optJSONObject(index) ?: return@mapNotNull null
+                                    val id = source.optString("id")
+                                    val title = source.optString("title")
+                                    val url = source.optString("url")
+                                    if (url.isBlank()) null else "[$id] $title\n$url"
+                                }
+                                completedResearchReport = VeerResearchReport.format(researchQuery, report.optString("answer", "Research response empty hai."), citations)
+                                reply = completedResearchReport +
+                                    if (sourceLines.isEmpty()) "" else "\n\nSources:\n" + sourceLines.joinToString("\n")
+                            }
+                        }
+                    } catch (error: Exception) {
+                        reply = "Boss, Web Research abhi complete nahi ho paayi: " +
+                            (error.message?.take(180) ?: "Cloud connection ya provider configuration check karein.")
+                    }
+                    Handler(Looper.getMainLooper()).post {
+                        loading = false
+                        if (completedResearchReport.isNotBlank()) latestResearchReport = completedResearchReport
+                        addReply(reply)
+                    }
+                }.start()
+            }
+            attachedImageBase64 = null
+            attachedText = null
+            attachedFileName = null
+            return
+        }
+
         // Route the message to the selected real provider/agent. Keep the existing UI unchanged.
         when {
             imageForRequest != null && selectedProvider !in listOf("OPENAI", "GEMINI") -> {
@@ -1705,6 +1802,25 @@ fun VeerApp() {
                             Text("Veer soch raha hai…", color = uiMuted, fontSize = 13.sp)
                         }
                     }
+                }
+            }
+
+            if (latestResearchReport.isNotBlank()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = {
+                        try {
+                            context.startActivity(Intent.createChooser(VeerResearchExport.shareIntent(latestResearchReport), "Share VEER research report"))
+                        } catch (error: Exception) {
+                            messages.add("VEER" to "Share open nahi ho paaya: " + (error.message ?: "No compatible app"))
+                        }
+                    }) { Text("SHARE REPORT", color = uiAccent, fontSize = 11.sp) }
+                    TextButton(onClick = {
+                        researchSaveLauncher.launch(VeerResearchExport.createDocumentIntent())
+                    }) { Text("SAVE .MD", color = uiAccent, fontSize = 11.sp) }
                 }
             }
 
