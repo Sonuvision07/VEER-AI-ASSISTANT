@@ -90,7 +90,7 @@ export async function createTask(sql, owner, body) {
   if (inserted.length) return { task: toTask(inserted[0]), created: true };
   const existing = await sql`SELECT * FROM veer_cloud_tasks WHERE idempotency_key=${key} LIMIT 1`;
   const row = existing[0];
-  if (!row || row.owner !== owner || row.payload_sha256 !== hash) {
+  if (!row || row.owner !== owner || row.operation !== operation || row.payload_sha256 !== hash) {
     throw new CloudTaskError("Idempotency key is already bound to another task", 409);
   }
   return { task: toTask(row), created: false };
