@@ -47,6 +47,17 @@ class VeerCalendarClientTest {
         assertEquals("", event.htmlLink)
     }
 
+    @Test fun malformedEventInPageFailsClosedInsteadOfBeingSilentlyDropped() {
+        val items = org.json.JSONArray()
+            .put(JSONObject().put("id", "valid")
+                .put("start", JSONObject().put("date", "2026-11-29"))
+                .put("end", JSONObject().put("date", "2026-11-30")))
+            .put(JSONObject().put("id", "../invalid"))
+        assertThrows(IllegalArgumentException::class.java) {
+            VeerCalendarClient.parseEventItems(items, 25)
+        }
+    }
+
     @Test fun eventTextIsBounded() {
         val longText = "x".repeat(6000)
         val event = VeerCalendarClient.parseEvent(JSONObject()
