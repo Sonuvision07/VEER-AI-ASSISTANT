@@ -37,6 +37,39 @@ class VeerAndroidAppToolExecutorTest {
         assertEquals("queued:youtube", result)
     }
 
+    @Test fun verifierReceivesExactCallAndDispatchResult() {
+        val call = validCall()
+        var observedCall: AgentToolCall? = null
+        var observedResult: String? = null
+        val executor = VeerAndroidAppToolExecutor(
+            dispatchApprovedAction = { "queued:$it" },
+            outcomeVerifier = { action, result ->
+                observedCall = action
+                observedResult = result
+                AgentToolOutcome.verified("Independent app-state check passed.")
+            }
+        )
+
+        val dispatch = executor.execute(call)
+        val outcome = executor.verifyOutcome(call, dispatch)
+
+        assertEquals(call, observedCall)
+        assertEquals("queued:youtube", observedResult)
+        assertEquals(AgentOutcomeStatus.VERIFIED, outcome.status)
+        assertEquals("Independent app-state check passed.", outcome.evidenceSummary)
+    }
+
+    @Test fun defaultVerifierNeverTreatsDispatchTextAsProof() {
+        val executor = VeerAndroidAppToolExecutor { "Successfully launched!" }
+        val call = validCall()
+        val dispatch = executor.execute(call)
+
+        val outcome = executor.verifyOutcome(call, dispatch)
+
+        assertEquals(AgentOutcomeStatus.UNCERTAIN, outcome.status)
+        assertTrue(outcome.evidenceSummary!!.contains("No independent"))
+    }
+
     @Test fun invalidCallNeverReachesDispatcher() {
         var dispatchCount = 0
         val executor = VeerAndroidAppToolExecutor {
