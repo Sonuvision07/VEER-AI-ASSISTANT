@@ -13,8 +13,9 @@ object VeerCalendarEventMutation {
 
     enum class Action { UPDATE, CANCEL }
 
-    fun approvalSnapshot(action: Action, eventId: String, patch: JSONObject? = null): String {
+    fun approvalSnapshot(action: Action, eventId: String, etag: String, patch: JSONObject? = null): String {
         requireSafeEventId(eventId)
+        requireStrongEtag(etag)
         require((action == Action.UPDATE) == (patch != null)) {
             "An update requires reviewed fields; cancellation must not include a payload"
         }
@@ -22,6 +23,7 @@ object VeerCalendarEventMutation {
         return JSONObject()
             .put("action", action.name)
             .put("eventId", eventId)
+            .put("etag", etag)
             .put("patch", patch?.let { JSONObject(it.toString()) } ?: JSONObject.NULL)
             .toString()
     }
@@ -29,15 +31,18 @@ object VeerCalendarEventMutation {
     internal fun requireExactApproval(
         action: Action,
         eventId: String,
+        etag: String,
         patch: JSONObject?,
         approvedSnapshot: String
     ) {
+        requireSafeEventId(eventId)
+        requireStrongEtag(etag)
         require(approvedSnapshot.isNotBlank() && approvedSnapshot.length <= 16_384) {
             "Review the change and approve it before continuing"
         }
         val approved = runCatching { JSONObject(approvedSnapshot) }
             .getOrElse { throw IllegalArgumentException("Event change approval is invalid") }
-        require(approvalSnapshot(action, eventId, patch) == approved.toString()) {
+        require(approvalSnapshot(action, eventId, etag, patch) == approved.toString()) {
             "Event details changed after review. Review and approve the updated change."
         }
     }
@@ -46,6 +51,7 @@ object VeerCalendarEventMutation {
         accessToken: String,
         action: Action,
         eventId: String,
+        etag: String,
         patch: JSONObject?,
         approvedSnapshot: String
     ): JSONObject {
@@ -53,7 +59,7 @@ object VeerCalendarEventMutation {
             accessToken.none { it.isWhitespace() || it.isISOControl() }) {
             "A temporary Google Calendar write token is required"
         }
-        requireExactApproval(action, eventId, patch, approvedSnapshot)
+        requireExactApproval(action, eventId, etag, patch, approvedSnapshot)
         val connection = (URL(API_ROOT + eventId).openConnection() as HttpURLConnection).apply {
             requestMethod = if (action == Action.UPDATE) "POST" else "DELETE"
             connectTimeout = 5000
@@ -62,6 +68,7 @@ object VeerCalendarEventMutation {
             useCaches = false
             setRequestProperty("Authorization", "Bearer $accessToken")
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("If-Match", etag)
             if (action == Action.UPDATE) {
                 // Android HttpURLConnection does not reliably accept PATCH as a request method.
                 // Google APIs support method override for clients limited to POST/GET.
@@ -75,6 +82,9 @@ object VeerCalendarEventMutation {
                 connection.outputStream.use { it.write(patch!!.toString().toByteArray(Charsets.UTF_8)) }
             }
             val status = connection.responseCode
+            if (status == HttpURLConnection.HTTP_PRECON_FAILED) {
+                throw IOException("This Calendar event changed after it was loaded. Refresh the agenda and review the change again.")
+            }
             if (status !in 200..299) throw IOException("Google Calendar event change failed (HTTP $status)")
             if (status == HttpURLConnection.HTTP_NO_CONTENT || action == Action.CANCEL) return JSONObject()
             val declared = connection.getHeaderField("Content-Length")?.toLongOrNull()
@@ -95,6 +105,13 @@ object VeerCalendarEventMutation {
             return JSONObject(String(bytes, Charsets.UTF_8))
         } finally {
             connection.disconnect()
+        }
+    }
+
+    private fun requireStrongEtag(value: String) {
+        require(value.length in 2..256 && value.first() == '"' && value.last() == '"' &&
+            value == value.trim() && value.none { it.isISOControl() }) {
+            "A current Google Calendar event version is required; refresh the agenda"
         }
     }
 
