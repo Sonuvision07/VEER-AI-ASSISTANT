@@ -64,14 +64,21 @@ object VeerCalendarClient {
         }
         val json = request("$API_ROOT/calendars/primary/events$query", accessToken)
         val items = json.optJSONArray("items") ?: JSONArray()
-        val events = (0 until minOf(items.length(), maxResults)).mapNotNull { i ->
-            val item = items.optJSONObject(i) ?: return@mapNotNull null
-            runCatching { parseEvent(item) }.getOrNull()
-        }
+        // Fail the entire page closed: silently dropping a malformed event could create a false free-time slot.
+        val events = parseEventItems(items, maxResults)
         val next = json.optString("nextPageToken").takeIf {
             it.isNotBlank() && it.length <= MAX_PAGE_TOKEN && it.none(Char::isISOControl)
         }.orEmpty()
         return EventPage(events, next)
+    }
+
+    internal fun parseEventItems(items: JSONArray, maxResults: Int): List<CalendarEvent> {
+        require(maxResults in 1..MAX_RESULTS)
+        return (0 until minOf(items.length(), maxResults)).map { index ->
+            val item = items.optJSONObject(index)
+                ?: throw IllegalArgumentException("Calendar page contains a malformed event item")
+            parseEvent(item)
+        }
     }
 
     internal fun parseEvent(json: JSONObject): CalendarEvent {
