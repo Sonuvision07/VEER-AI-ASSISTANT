@@ -1277,6 +1277,7 @@ fun VeerApp() {
                 val token = cloudApiToken
                 Thread {
                     var reply = ""
+                    var completedResearchReport = ""
                     try {
                         val client = VeerResearchClient(baseUrl, token)
                         val results = client.search(researchQuery, 5)
@@ -1314,7 +1315,8 @@ fun VeerApp() {
                                     val url = source.optString("url")
                                     if (url.isBlank()) null else "[$id] $title\n$url"
                                 }
-                                latestResearchReport = VeerResearchReport.format(researchQuery, report.optString("answer", "Research response empty hai."), citations)\n                                reply = latestResearchReport +
+                                completedResearchReport = VeerResearchReport.format(researchQuery, report.optString("answer", "Research response empty hai."), citations)
+                                reply = completedResearchReport +
                                     if (sourceLines.isEmpty()) "" else "\n\nSources:\n" + sourceLines.joinToString("\n")
                             }
                         }
@@ -1324,6 +1326,7 @@ fun VeerApp() {
                     }
                     Handler(Looper.getMainLooper()).post {
                         loading = false
+                        if (completedResearchReport.isNotBlank()) latestResearchReport = completedResearchReport
                         addReply(reply)
                     }
                 }.start()
