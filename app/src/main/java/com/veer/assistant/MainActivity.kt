@@ -314,6 +314,9 @@ fun VeerApp() {
     var gmailAccessToken by remember { mutableStateOf<String?>(null) }
     var gmailStatus by remember { mutableStateOf(if (gmailConnected) "Connected — authorize again when using Gmail" else "Not connected") }
     var gmailBusy by remember { mutableStateOf(false) }
+    var gmailSearchQuery by remember { mutableStateOf("") }
+    var gmailMessages by remember { mutableStateOf<List<VeerGmailClient.Message>>(emptyList()) }
+    var gmailInboxLoading by remember { mutableStateOf(false) }
     val gmailAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
             try {
@@ -2503,6 +2506,54 @@ fun VeerApp() {
                             }
                         }, enabled = !gmailBusy, modifier = Modifier.fillMaxWidth()) {
                             Text("DISCONNECT & REVOKE GMAIL ACCESS")
+                        }
+                    }
+                    if (gmailConnected) {
+                        Text("INBOX & SEARCH", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF00B8D4))
+                        OutlinedTextField(
+                            value = gmailSearchQuery,
+                            onValueChange = { gmailSearchQuery = it.take(500) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("Gmail search (e.g. is:unread)") },
+                            enabled = !gmailInboxLoading
+                        )
+                        Button(
+                            onClick = {
+                                val token = gmailAccessToken
+                                if (token.isNullOrBlank()) {
+                                    gmailStatus = "Tap REFRESH GMAIL ACCESS first, then load inbox."
+                                } else {
+                                    gmailInboxLoading = true
+                                    gmailStatus = "Searching Gmail read-only..."
+                                    localAiScope.launch {
+                                        try {
+                                            val loaded = withContext(Dispatchers.IO) {
+                                                VeerGmailClient.listMessages(token, gmailSearchQuery.trim(), 10)
+                                                    .map { ref -> VeerGmailClient.getMessage(token, ref.id) }
+                                            }
+                                            gmailMessages = loaded
+                                            gmailStatus = "Loaded ${loaded.size} email(s) — read-only"
+                                        } catch (error: Exception) {
+                                            gmailStatus = "Gmail inbox failed: " + (error.message ?: "Reconnect and retry")
+                                        } finally { gmailInboxLoading = false }
+                                    }
+                                }
+                            },
+                            enabled = !gmailInboxLoading && !gmailBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (gmailInboxLoading) "LOADING..." else "LOAD / SEARCH INBOX") }
+                        if (gmailMessages.isEmpty()) {
+                            Text("Inbox results will appear here. Connect or refresh access, then load inbox.", fontSize = 11.sp, color = Color.Gray)
+                        } else {
+                            gmailMessages.forEach { email ->
+                                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                                    Text(email.subject.ifBlank { "(No subject)" }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    Text(email.from.ifBlank { "Unknown sender" } + "  •  " + email.date, fontSize = 10.sp, color = Color(0xFF8FA3B8))
+                                    Text(email.snippet.ifBlank { email.bodyText.take(240) }, fontSize = 11.sp, color = Color.LightGray, maxLines = 3)
+                                    Divider(color = Color(0x334FC3F7))
+                                }
+                            }
                         }
                     }
                     Divider()
