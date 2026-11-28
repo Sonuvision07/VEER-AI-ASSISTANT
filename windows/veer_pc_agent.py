@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import heapq
 import json
 import os
@@ -13,6 +14,8 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+from veer_task_queue import DurableTaskQueue, TaskConflict, TaskNotFound, TaskRejected
 
 MAX_BODY = 64 * 1024
 TOKEN_MIN_LENGTH = 40
@@ -82,7 +85,7 @@ def safe_path(workspace: Path, raw: str) -> Path:
     return target
 
 
-def _handler_for(workspace: Path, token: str):
+def _handler_for(workspace: Path, token: str, task_queue: DurableTaskQueue):
     class Handler(BaseHTTPRequestHandler):
         server_version = "VEER-PC-Agent/0.2"
         sys_version = ""
@@ -138,6 +141,15 @@ def _handler_for(workspace: Path, token: str):
                     "version": "0.2",
                     "time": datetime.now(timezone.utc).isoformat(),
                 })
+            if route.path.startswith("/tasks/"):
+                task_id = route.path[len("/tasks/"):].strip("/")
+                if not task_id or "/" in task_id:
+                    return self.send_json(404, {"ok": False, "error": "Not found"})
+                try:
+                    task = task_queue.get(task_id)
+                    return self.send_json(200, {"ok": True, "task": asdict(task)})
+                except TaskNotFound:
+                    return self.send_json(404, {"ok": False, "error": "Task not found"})
             if route.path != "/files":
                 return self.send_json(404, {"ok": False, "error": "Not found"})
 
@@ -160,8 +172,12 @@ def _handler_for(workspace: Path, token: str):
                     "path": folder.relative_to(workspace).as_posix(),
                     "items": items,
                 })
-            except ValueError as error:
+            except (ValueError, TaskRejected) as error:
                 return self.send_json(400, {"ok": False, "error": str(error)})
+            except TaskNotFound:
+                return self.send_json(404, {"ok": False, "error": "Task not found"})
+            except TaskConflict as error:
+                return self.send_json(409, {"ok": False, "error": str(error)})
             except OSError:
                 return self.send_json(500, {"ok": False, "error": "Unable to read workspace folder"})
 
@@ -170,11 +186,28 @@ def _handler_for(workspace: Path, token: str):
                 return self.send_json(401, {"ok": False, "error": "Unauthorized"})
 
             route = urlparse(self.path).path
-            if route not in ("/open-url", "/write-text"):
-                return self.send_json(404, {"ok": False, "error": "Not found"})
-
             try:
                 data = self.body()
+                if route == "/tasks":
+                    operation = data.get("operation")
+                    payload = data.get("payload", {})
+                    idempotency_key = data.get("idempotency_key") or self.headers.get("Idempotency-Key", "")
+                    task = task_queue.enqueue(operation, payload, idempotency_key)
+                    return self.send_json(202, {"ok": True, "task": asdict(task)})
+                if route.startswith("/tasks/") and route.endswith("/approve"):
+                    task_id = route[len("/tasks/"):-len("/approve")].strip("/")
+                    if not task_id or "/" in task_id:
+                        return self.send_json(404, {"ok": False, "error": "Not found"})
+                    task = task_queue.approve_task(task_id, data.get("payload_sha256", ""))
+                    return self.send_json(200, {"ok": True, "task": asdict(task)})
+                if route.startswith("/tasks/") and route.endswith("/cancel"):
+                    task_id = route[len("/tasks/"):-len("/cancel")].strip("/")
+                    if not task_id or "/" in task_id:
+                        return self.send_json(404, {"ok": False, "error": "Not found"})
+                    task = task_queue.cancel(task_id)
+                    return self.send_json(200, {"ok": True, "task": asdict(task)})
+                if route not in ("/open-url", "/write-text"):
+                    return self.send_json(404, {"ok": False, "error": "Not found"})
                 if route == "/open-url":
                     url = str(data.get("url", "")).strip()
                     if not url or any(ord(char) < 32 for char in url):
@@ -246,7 +279,9 @@ def create_server(
     active_token = token if token is not None else load_token(root)
     if not valid_token(active_token):
         raise ValueError("VEER bearer token must be at least 40 characters and contain no whitespace or control characters")
-    server = VeerHTTPServer((host, port), _handler_for(workspace, active_token))
+    task_queue = DurableTaskQueue(root / "tasks.sqlite3")
+    server = VeerHTTPServer((host, port), _handler_for(workspace, active_token, task_queue))
+    server.veer_task_queue = task_queue
     server.veer_workspace = workspace
     server.veer_token_file = root / "agent.token"
     return server
