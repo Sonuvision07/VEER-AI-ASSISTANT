@@ -47,6 +47,7 @@ class VeerAndroidAgentRuntimeTest {
         assertEquals(1, resumed.steps)
         assertFalse(resumed.stoppedForApproval)
         assertFalse(runtime.approvalSession.approved(call))
+        assertEquals(AgentTaskStatus.COMPLETED, runtime.taskLifecycle.snapshots().single().status)
     }
 
     @Test fun fallsBackToOpenAiStructuredAdapterWhenGeminiHasTransientFailure() {
