@@ -307,6 +307,7 @@ fun VeerApp() {
     }
     val veerFont = remember { FontFamily(Font(R.font.inter_variable, weight = FontWeight.Normal)) }
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
+    val localAiScope = rememberCoroutineScope()
     val gmailAuthorizationClient = remember(context) { Identity.getAuthorizationClient(context) }
     var gmailConnected by remember { mutableStateOf(prefs.getBoolean("gmail_connected", false)) }
     var gmailEmail by remember { mutableStateOf(prefs.getString("gmail_email", "") ?: "") }
@@ -347,7 +348,6 @@ fun VeerApp() {
         }
     }
     val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
-    val localAiScope = rememberCoroutineScope()
     val cyan = Color(0xFF00E5FF)
     val dark = Color(0xFF050B16)
 
