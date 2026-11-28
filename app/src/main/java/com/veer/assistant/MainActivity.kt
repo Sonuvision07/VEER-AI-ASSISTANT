@@ -333,6 +333,12 @@ fun VeerApp() {
     var calendarWriteAccessToken by remember { mutableStateOf<String?>(null) }
     var calendarWriteAuthorizationPending by remember { mutableStateOf(false) }
     var calendarWriteStatus by remember { mutableStateOf("Event saving is not authorized") }
+    var calendarMutationTitle by remember { mutableStateOf("") }
+    var calendarMutationAction by remember { mutableStateOf("") }
+    var calendarMutationPatch by remember { mutableStateOf("") }
+    var calendarMutationSnapshot by remember { mutableStateOf("") }
+    var calendarMutationEventId by remember { mutableStateOf("") }
+    var calendarMutationStatus by remember { mutableStateOf("Select an event to prepare an update or cancellation") }
     var calendarDraftError by remember { mutableStateOf("") }
     var gmailConnected by remember { mutableStateOf(prefs.getBoolean("gmail_connected", false)) }
     var gmailEmail by remember { mutableStateOf(prefs.getString("gmail_email", "") ?: "") }
@@ -2770,6 +2776,12 @@ fun VeerApp() {
                             Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF101B2B), RoundedCornerShape(10.dp)).padding(10.dp)) {
                                 TextButton(onClick = {
                                     selectedCalendarEventId = if (selectedCalendarEventId == event.id) "" else event.id
+                                    calendarMutationTitle = event.summary
+                                    calendarMutationAction = ""
+                                    calendarMutationPatch = ""
+                                    calendarMutationSnapshot = ""
+                                    calendarMutationEventId = ""
+                                    calendarMutationStatus = "Prepare and review a change before approving it."
                                 }, modifier = Modifier.fillMaxWidth()) {
                                     Column(modifier = Modifier.fillMaxWidth()) {
                                         Text(event.summary.ifBlank { "(No title)" }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
@@ -2780,6 +2792,99 @@ fun VeerApp() {
                                     if (event.location.isNotBlank()) Text("Location: ${event.location}", fontSize = 11.sp, color = Color.LightGray)
                                     if (event.description.isNotBlank()) Text(event.description, fontSize = 11.sp, color = Color.LightGray)
                                     Text("Status: ${event.status.ifBlank { "unknown" }}", fontSize = 10.sp, color = Color.Gray)
+                                    OutlinedTextField(
+                                        value = calendarMutationTitle,
+                                        onValueChange = { calendarMutationTitle = it; calendarMutationSnapshot = ""; calendarMutationAction = ""; calendarMutationStatus = "Title changed — prepare a fresh preview." },
+                                        label = { Text("Updated event title") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Button(onClick = {
+                                            try {
+                                                val clean = calendarMutationTitle.trim()
+                                                require(clean.isNotEmpty() && clean.length <= 200 && clean.none { it.isISOControl() }) { "Title is required (maximum 200 characters)" }
+                                                val patch = org.json.JSONObject().put("summary", clean)
+                                                calendarMutationPatch = patch.toString()
+                                                calendarMutationAction = VeerCalendarEventMutation.Action.UPDATE.name
+                                                calendarMutationEventId = event.id
+                                                calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.UPDATE, event.id, patch)
+                                                calendarMutationStatus = "UPDATE PREVIEW — title will change to: $clean. Nothing has been saved."
+                                            } catch (error: Exception) { calendarMutationSnapshot = ""; calendarMutationStatus = error.message ?: "Invalid event title" }
+                                        }, modifier = Modifier.weight(1f)) { Text("PREVIEW UPDATE") }
+                                        Button(onClick = {
+                                            calendarMutationPatch = ""
+                                            calendarMutationAction = VeerCalendarEventMutation.Action.CANCEL.name
+                                            calendarMutationEventId = event.id
+                                            calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.CANCEL, event.id)
+                                            calendarMutationStatus = "CANCELLATION PREVIEW — this event will be deleted from your primary calendar. Nothing has been changed."
+                                        }, modifier = Modifier.weight(1f)) { Text("PREVIEW CANCEL") }
+                                    }
+                                    Text(calendarMutationStatus, fontSize = 11.sp, color = Color(0xFFFFD180))
+                                    if (calendarMutationSnapshot.isNotBlank() && calendarMutationEventId == event.id) {
+                                        Button(onClick = {
+                                            if (calendarWriteAccessToken != null) {
+                                                calendarMutationStatus = "Write permission is ready. Review the preview, then approve below."
+                                            } else {
+                                                calendarWriteAuthorizationPending = true
+                                                calendarBusy = true
+                                                calendarMutationStatus = "Requesting Google Calendar write permission..."
+                                                calendarAuthorizationClient.authorize(VeerCalendarAuthorization.writeAuthorizationRequest())
+                                                    .addOnSuccessListener { authorization ->
+                                                        if (authorization.hasResolution()) {
+                                                            val pending = authorization.pendingIntent
+                                                            if (pending == null) {
+                                                                calendarWriteAuthorizationPending = false
+                                                                calendarBusy = false
+                                                                calendarMutationStatus = "Google consent screen could not be opened."
+                                                            } else calendarAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                                        } else {
+                                                            val token = authorization.accessToken
+                                                            calendarWriteAuthorizationPending = false
+                                                            calendarBusy = false
+                                                            if (token.isNullOrBlank()) calendarMutationStatus = "Google did not return write access."
+                                                            else { calendarWriteAccessToken = token; calendarMutationStatus = "Write permission granted. Final approval is still required." }
+                                                        }
+                                                    }
+                                                    .addOnFailureListener { error ->
+                                                        calendarWriteAuthorizationPending = false
+                                                        calendarBusy = false
+                                                        calendarMutationStatus = "Write permission not granted: " + (error.message ?: "Try again")
+                                                    }
+                                            }
+                                        }, enabled = !calendarBusy, modifier = Modifier.fillMaxWidth()) { Text("REQUEST / CHECK WRITE PERMISSION") }
+                                        Button(onClick = {
+                                            val token = calendarWriteAccessToken
+                                            val action = runCatching { VeerCalendarEventMutation.Action.valueOf(calendarMutationAction) }.getOrNull()
+                                            val patch = if (calendarMutationPatch.isBlank()) null else runCatching { org.json.JSONObject(calendarMutationPatch) }.getOrNull()
+                                            val snapshot = calendarMutationSnapshot
+                                            val target = calendarMutationEventId
+                                            if (token.isNullOrBlank() || action == null || target != event.id || snapshot.isBlank()) {
+                                                calendarMutationStatus = "Write permission and a fresh matching preview are required."
+                                            } else {
+                                                calendarMutationSnapshot = ""
+                                                calendarBusy = true
+                                                calendarMutationStatus = "Applying only the change you explicitly approved..."
+                                                localAiScope.launch {
+                                                    try {
+                                                        withContext(Dispatchers.IO) {
+                                                            VeerCalendarEventMutation.execute(token, action, target, patch, snapshot)
+                                                        }
+                                                        calendarMutationStatus = if (action == VeerCalendarEventMutation.Action.CANCEL) "Event cancelled successfully." else "Event updated successfully."
+                                                        calendarEvents = emptyList()
+                                                        calendarNextPageToken = ""
+                                                        selectedCalendarEventId = ""
+                                                        calendarMutationEventId = ""
+                                                        calendarAgendaStatus = "Calendar changed. Reload the agenda to verify."
+                                                    } catch (error: Exception) {
+                                                        calendarMutationStatus = "Change failed or response was uncertain: " + (error.message ?: "Check Google Calendar before retrying")
+                                                    } finally { calendarBusy = false }
+                                                }
+                                            }
+                                        }, enabled = !calendarBusy && calendarWriteAccessToken != null && calendarMutationSnapshot.isNotBlank() && calendarMutationEventId == event.id, modifier = Modifier.fillMaxWidth()) {
+                                            Text(if (calendarMutationAction == VeerCalendarEventMutation.Action.CANCEL.name) "I APPROVE — CANCEL THIS EVENT" else "I APPROVE — UPDATE THIS EVENT")
+                                        }
+                                    }
                                 }
                             }
                         }
