@@ -51,19 +51,19 @@ export async function executeCloudOperation(task, workspace) {
 
 export async function runCloudTask(sql, owner, taskId) {
   if (typeof taskId !== "string" || !TASK_ID.test(taskId)) throw new CloudTaskError("Invalid task ID");
-  await sql\`CREATE TABLE IF NOT EXISTS veer_cloud_workspace_files (
+  await sql`CREATE TABLE IF NOT EXISTS veer_cloud_workspace_files (
     owner TEXT NOT NULL, path TEXT NOT NULL, content TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(owner,path)
-  )\`;
-  const claimed = await sql\`
+  )`;
+  const claimed = await sql`
     UPDATE veer_cloud_tasks SET state='running',updated_at=NOW()
-    WHERE task_id=\${taskId} AND owner=\${owner} AND state='queued'
+    WHERE task_id=${taskId} AND owner=${owner} AND state='queued'
       AND expires_at>NOW()
       AND (operation NOT IN ('create_text_file','open_url') OR approval_consumed=TRUE)
     RETURNING *
-  \`;
+  `;
   if (!claimed.length) {
-    const rows = await sql\`SELECT state FROM veer_cloud_tasks WHERE task_id=\${taskId} AND owner=\${owner} LIMIT 1\`;
+    const rows = await sql`SELECT state FROM veer_cloud_tasks WHERE task_id=${taskId} AND owner=${owner} LIMIT 1`;
     if (!rows.length) throw new CloudTaskError("Task not found", 404);
     throw new CloudTaskError("Task is not queued, approved, or has expired", 409);
   }
@@ -73,22 +73,22 @@ export async function runCloudTask(sql, owner, taskId) {
       { operation: row.operation, payload: row.payload },
       {
         async listFiles() {
-          const rows = await sql\`SELECT path,octet_length(content) AS bytes,created_at FROM veer_cloud_workspace_files WHERE owner=\${owner} ORDER BY path LIMIT 200\`;
+          const rows = await sql`SELECT path,octet_length(content) AS bytes,created_at FROM veer_cloud_workspace_files WHERE owner=${owner} ORDER BY path LIMIT 200`;
           return rows.map((file) => ({ path: file.path, bytes: Number(file.bytes), created_at: new Date(file.created_at).toISOString() }));
         },
         async createFile(path, content) {
-          const rows = await sql\`INSERT INTO veer_cloud_workspace_files(owner,path,content) VALUES (\${owner},\${path},\${content}) ON CONFLICT(owner,path) DO NOTHING RETURNING path\`;
+          const rows = await sql`INSERT INTO veer_cloud_workspace_files(owner,path,content) VALUES (${owner},${path},${content}) ON CONFLICT(owner,path) DO NOTHING RETURNING path`;
           if (!rows.length) throw new CloudTaskError("A file already exists at this workspace path", 409);
           return rows[0];
         },
       },
     );
-    const finished = await sql\`UPDATE veer_cloud_tasks SET state='completed',result=\${JSON.stringify(result)}::jsonb,error=NULL,updated_at=NOW() WHERE task_id=\${taskId} AND owner=\${owner} AND state='running' RETURNING *\`;
+    const finished = await sql`UPDATE veer_cloud_tasks SET state='completed',result=${JSON.stringify(result)}::jsonb,error=NULL,updated_at=NOW() WHERE task_id=${taskId} AND owner=${owner} AND state='running' RETURNING *`;
     if (!finished.length) throw new CloudTaskError("Task completion could not be committed", 409);
     return finished[0];
   } catch (error) {
     const safeMessage = error instanceof CloudTaskError ? error.message.slice(0, 240) : "Cloud task execution failed";
-    await sql\`UPDATE veer_cloud_tasks SET state='failed',error=\${safeMessage},updated_at=NOW() WHERE task_id=\${taskId} AND owner=\${owner} AND state='running'\`;
+    await sql`UPDATE veer_cloud_tasks SET state='failed',error=${safeMessage},updated_at=NOW() WHERE task_id=${taskId} AND owner=${owner} AND state='running'`;
     throw error;
   }
 }
