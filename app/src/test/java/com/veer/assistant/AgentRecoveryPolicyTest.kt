@@ -32,19 +32,6 @@ class AgentRecoveryPolicyTest {
     }
 
     @Test fun neverAutomaticallyReplaysToolCalls() {
-        for (risk in AgentRisk.values()) {
-            assertFalse(AgentRecoveryPolicy.shouldAutomaticallyRetryTool(
-                risk = risk,
-                idempotent = true,
-                outcomeVerifiedNotApplied = true,
-                approvalFresh = true
-            ))
-            assertFalse(AgentRecoveryPolicy.shouldAutomaticallyRetryTool(
-                risk = risk,
-                idempotent = false,
-                outcomeVerifiedNotApplied = false,
-                approvalFresh = false
-            ))
-        }
+        assertFalse(AgentRecoveryPolicy.shouldAutomaticallyRetryTool())
     }
 }
