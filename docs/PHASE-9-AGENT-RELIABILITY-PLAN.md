@@ -24,6 +24,13 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+## Step 10 audit status (2026-11-28)
+- Final source-level audit recorded in `docs/PHASE-9-FINAL-REGRESSION-SECURITY-AUDIT.md`.
+- Step 9 Web and Windows workflows passed; Android CI was not returned for the Step 9 commit.
+- Transport-level cancellation and end-to-end independent outcome verification remain integration gaps.
+- Final Android unit tests/Debug APK artifact and physical-device acceptance remain pending.
+- Phase 9 is **not complete** until dependent PRs are integrated, remaining gaps are addressed, and Android/device acceptance is verified.
+
 ## Step 9 acceptance criteria
 - Run deterministic unit tests for task state/history/context, retry policy, cancellation and approval lifecycle.
 - Verify mismatched, expired, cross-instance and replayed approvals cannot dispatch a tool.
