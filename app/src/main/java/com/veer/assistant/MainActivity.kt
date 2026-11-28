@@ -2215,6 +2215,10 @@ fun VeerApp() {
                             pcAgentStatus = "Not configured"
                             pcWorkspacePreview = null
                             pcWorkspaceStatus = ""
+                            pcTaskCurrent = null
+                            pcTaskStatus = ""
+                            showPcTaskApproval = false
+                            showPcTaskCancelConfirm = false
                         },
                         enabled = !pcAgentChecking
                     ) { Text("REMOVE PC CONNECTION") }
