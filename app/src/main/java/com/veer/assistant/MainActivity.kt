@@ -336,8 +336,22 @@ fun VeerApp() {
     var gmailDraftBusy by remember { mutableStateOf(false) }
     var gmailDraftStatus by remember { mutableStateOf("No draft created") }
     var gmailReminders by remember { mutableStateOf(VeerGmailReminderStore.list(context)) }
+    var gmailPendingReminder by remember { mutableStateOf<Pair<String, Long>?>(null) }
     val gmailReminderPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) android.widget.Toast.makeText(context, "Reminder notification permission denied.", android.widget.Toast.LENGTH_SHORT).show()
+        val pending = gmailPendingReminder
+        gmailPendingReminder = null
+        if (granted && pending != null) {
+            try {
+                VeerGmailReminderScheduler.schedule(context, pending.first, pending.second)
+                gmailReminders = VeerGmailReminderStore.list(context)
+                gmailInboxStatus = "Follow-up reminder scheduled."
+            } catch (error: Exception) {
+                gmailInboxStatus = "Reminder could not be scheduled: " + (error.message ?: "Try again")
+            }
+        } else if (!granted) {
+            gmailInboxStatus = "Notification permission denied. No reminder was scheduled."
+            android.widget.Toast.makeText(context, "Reminder notification permission denied.", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
     val gmailAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
@@ -2787,6 +2801,7 @@ fun VeerApp() {
                                         listOf("1 DAY" to 24L * 60 * 60 * 1000, "3 DAYS" to 3L * 24 * 60 * 60 * 1000, "1 WEEK" to 7L * 24 * 60 * 60 * 1000).forEach { (label, delay) ->
                                             TextButton(onClick = {
                                                 if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                                    gmailPendingReminder = email.id to delay
                                                     gmailReminderPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                                 } else {
                                                     try {
