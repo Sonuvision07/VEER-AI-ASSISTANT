@@ -85,7 +85,7 @@ class CloudServiceRuntimeTests(unittest.TestCase):
         status, cancelled = self.call("POST", "/tasks/" + task["task_id"] + "/cancel")
         self.assertEqual(200, status)
         self.assertEqual("cancelled", cancelled["task"]["state"])
-        self.assertEqual(200, self.call("POST", "/tasks", make_request("health", {}, "task_2234567890abcd", "idem-key-2234567890"))[0])
+        self.assertEqual(202, self.call("POST", "/tasks", make_request("health", {}, "task_2234567890abcd", "idem-key-2234567890"))[0])
 
     def test_body_limits_and_route_validation(self):
         status, _ = self.call("POST", "/tasks", b"x" * 21000)
