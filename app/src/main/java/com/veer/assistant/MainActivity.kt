@@ -322,6 +322,7 @@ fun VeerApp() {
     var driveSelectedFile by remember { mutableStateOf<VeerDriveClient.DriveFile?>(null) }
     var drivePendingContentFile by remember { mutableStateOf<VeerDriveClient.DriveFile?>(null) }
     var driveContentBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var drivePreviewText by remember { mutableStateOf("") }
     var driveContentStatus by remember { mutableStateOf("") }
     var driveContentBusy by remember { mutableStateOf(false) }
     var driveStatus by remember { mutableStateOf(if (driveConnected) "Connected — refresh access to search" else "Not connected") }
@@ -463,18 +464,32 @@ fun VeerApp() {
     fun fetchDriveSelectedContent(token: String, file: VeerDriveClient.DriveFile) {
         driveContentBusy = true
         driveContentBytes = null
+        drivePreviewText = ""
         driveContentStatus = "Fetching selected file in temporary memory..."
         localAiScope.launch {
+            var fetchedBytes: ByteArray? = null
             try {
                 val content = withContext(Dispatchers.IO) {
                     VeerDriveClient.fetchSelectedContent(token, file.id, file.mimeType, file.sizeBytes)
                 }
+                fetchedBytes = content.bytes
+                if (driveSelectedFile?.id != file.id) return@launch
                 driveContentBytes = content.bytes
-                driveContentStatus = "Fetched ${content.bytes.size} bytes (${content.contentType}) in memory only. Preview UI is the next step."
+                val preview = withContext(Dispatchers.Default) {
+                    VeerDrivePreview.createPreview(content.bytes, content.contentType)
+                }
+                if (driveSelectedFile?.id != file.id) {
+                    drivePreviewText = ""
+                    return@launch
+                }
+                drivePreviewText = preview.text
+                driveContentStatus = preview.message
             } catch (error: Exception) {
-                driveContentBytes = null
-                driveContentStatus = "File fetch failed: " + (error.message ?: "Unsupported or unavailable file")
+                drivePreviewText = ""
+                driveContentStatus = "File preview failed: " + (error.message ?: "Unsupported, malformed or unavailable file")
             } finally {
+                fetchedBytes?.fill(0)
+                driveContentBytes = null
                 driveContentBusy = false
                 drivePendingContentFile = null
             }
@@ -3160,10 +3175,13 @@ fun VeerApp() {
                             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                                 Text(file.name.ifBlank { "(Unnamed file)" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                                 Text(file.mimeType + if (file.sizeBytes != null) " · ${file.sizeBytes} bytes" else "", fontSize = 10.sp, color = Color.Gray)
-                                TextButton(onClick = { driveContentBytes = null; driveContentStatus = ""; driveSelectedFile = file }, enabled = !driveBusy) { Text("FILE DETAILS") }
+                                TextButton(onClick = { driveContentBytes = null; drivePreviewText = ""; driveContentStatus = ""; driveSelectedFile = file }, enabled = !driveBusy && !driveContentBusy) { Text("FILE DETAILS") }
                                 if (file.mimeType == "application/vnd.google-apps.folder") {
                                     TextButton(onClick = {
                                         driveSelectedFile = null
+                                        driveContentBytes = null
+                                        drivePreviewText = ""
+                                        driveContentStatus = ""
                                         driveParentId = file.id
                                         driveFiles = emptyList()
                                         drivePageToken = ""
@@ -3184,6 +3202,7 @@ fun VeerApp() {
                                 Button(onClick = {
                                     drivePendingContentFile = selected
                                     driveContentBytes = null
+                                    drivePreviewText = ""
                                     driveContentStatus = "Requesting read-only permission for this selected file..."
                                     driveContentBusy = true
                                     driveAuthorizationClient.authorize(VeerDriveAuthorization.contentAuthorizationRequest())
@@ -3219,8 +3238,18 @@ fun VeerApp() {
                                 if (driveContentStatus.isNotBlank()) {
                                     Text(driveContentStatus, fontSize = 10.sp, color = Color.Gray)
                                 }
+                                if (drivePreviewText.isNotBlank()) {
+                                    Text("ON-DEVICE TEXT PREVIEW (first 12,000 characters)", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF70F1E2))
+                                    Text(
+                                        drivePreviewText,
+                                        fontSize = 11.sp,
+                                        color = Color.White,
+                                        modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).verticalScroll(rememberScrollState())
+                                    )
+                                }
                                 TextButton(onClick = {
                                     driveContentBytes = null
+                                    drivePreviewText = ""
                                     driveContentStatus = ""
                                     driveSelectedFile = null
                                 }, enabled = !driveContentBusy) { Text("CLOSE DETAILS & CLEAR TEMP CONTENT") }
