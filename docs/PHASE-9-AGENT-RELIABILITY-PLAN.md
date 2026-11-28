@@ -24,6 +24,13 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+## Step 6 acceptance criteria
+- Retry only provider decision failures explicitly classified as transient.
+- Enforce a finite attempt budget and reject invalid attempt counts.
+- Never automatically replay tool calls, including side-effecting calls whose outcome may be uncertain.
+- A new side-effect attempt requires fresh orchestration and exact-action approval.
+- Unit tests cover transient/permanent failures, exhausted budgets and no-tool-replay behavior.
+
 ## Step 5 acceptance criteria
 - Store only sanitized text snippets explicitly added by the caller; never accept request objects, tool arguments or provider continuation state.
 - Bound entry count, per-entry characters, total retained characters and retention time.
