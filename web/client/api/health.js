@@ -1,4 +1,5 @@
 import { getDatabase, sendJson, setCors } from "../lib/cloudTaskStore.js";
+import { getSearchReadiness } from "../lib/searchProvider.js";
 
 export default async function handler(req, res) {
   setCors(req, res);
@@ -13,6 +14,7 @@ export default async function handler(req, res) {
   const databaseConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
   const aiConfigured = Boolean(process.env.GEMINI_API_KEY);
   const cloudAuthConfigured = Boolean(process.env.VEER_CLOUD_API_TOKEN && process.env.VEER_CLOUD_API_TOKEN.length >= 32);
+  const searchReadiness = getSearchReadiness();
   let databaseReachable = false;
   if (databaseConfigured) {
     try {
@@ -33,5 +35,6 @@ export default async function handler(req, res) {
     databaseConfigured,
     databaseReachable,
     cloudAuthConfigured,
+    ...searchReadiness,
   });
 }
