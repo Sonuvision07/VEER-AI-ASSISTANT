@@ -1,3 +1,5 @@
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { ResearchSearchError } from "./researchSearch.js";
 
 const MAX_URL_LENGTH = 2_048;
@@ -62,9 +64,34 @@ export function extractPageText(html) {
   return cleaned.slice(0, MAX_EXTRACTED_TEXT);
 }
 
-/** Extract bounded content from a source URL. Redirects are rejected rather than followed. */
-export async function fetchResearchSource(inputUrl, { fetchImpl = fetch } = {}) {
+function blockedAddress(address) {
+  if (isIP(address) === 4) {
+    const parts = address.split(".").map(Number), [a,b] = parts;
+    return a === 0 || a === 10 || a === 127 || a === 169 && b === 254 ||
+      a === 172 && b >= 16 && b <= 31 || a === 192 && b === 168 ||
+      a === 192 && b === 0 || a === 198 && (b === 18 || b === 19) ||
+      a === 100 && b >= 64 && b <= 127 || a >= 224;
+  }
+  if (isIP(address) === 6) {
+    const normalized = address.toLowerCase();
+    return normalized === "::" || normalized === "::1" || normalized.startsWith("fc") ||
+      normalized.startsWith("fd") || normalized.startsWith("fe8") ||
+      normalized.startsWith("fe9") || normalized.startsWith("fea") ||
+      normalized.startsWith("feb") || normalized.startsWith("::ffff:");
+  }
+  return true;
+}
+
+/** Fetch only after resolving and rejecting private destinations; redirects are rejected. */
+export async function fetchResearchSource(inputUrl, { fetchImpl = fetch, lookupImpl = lookup } = {}) {
   const url = validateSourceUrl(inputUrl);
+  const parsed = new URL(url);
+  let addresses;
+  try { addresses = await lookupImpl(parsed.hostname, { all: true, verbatim: true }); }
+  catch { throw new ResearchSearchError("Source hostname could not be resolved safely", 502); }
+  if (!Array.isArray(addresses) || !addresses.length || addresses.some((entry) => blockedAddress(entry.address))) {
+    throw new ResearchSearchError("Source resolves to a restricted address", 400);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
