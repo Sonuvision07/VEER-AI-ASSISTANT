@@ -190,6 +190,30 @@ class VeerAgentBrainTest {
         assertEquals(1, tools.executed.size)
     }
 
+    @Test fun modelCannotOverrideUncertainToolOutcomeWithCompletionClaim() {
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun riskFor(name: String) = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall) = "dispatch accepted"
+            override fun verifyOutcome(call: AgentToolCall, dispatchResult: String) =
+                AgentToolOutcome.uncertain("Independent check unavailable.")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next ->
+                if (next.previousToolResult == null) AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false)
+                else AgentDecision("Everything completed successfully.")
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentOutcomeStatus.UNCERTAIN, result.lastToolOutcome?.status)
+        assertTrue(result.message.contains("completion independently verify nahi hui"))
+        assertTrue(result.message.contains("Everything completed successfully."))
+    }
+
     @Test fun readOnlyToolRunsWithoutApproval() {
         val tools = FakeTools()
         val approval = FakeApproval(false)
