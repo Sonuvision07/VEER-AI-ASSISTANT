@@ -25,20 +25,20 @@ This audit covers the Phase 7 Google Calendar implementation through Step 9. It 
 - Event draft validation, timezone/DST checks and exact request preview.
 - Exact-snapshot approval for event creation.
 - Exact-action/event approval for update and cancellation.
+- ETag-bound update/cancel approval and `If-Match` stale-write protection.
 - Opt-in 10-minute local reminders, cancellation, reboot restoration and disconnect cleanup.
+- Malformed Calendar event items now fail the whole page rather than being silently omitted; fresh agenda loads clear stale prior agenda and schedule state.
 
 ## Automated validation
-The Step 9 PR #60 CI runs completed successfully:
-- Android unit tests and debug APK build: PASS (run 46128555329).
-- Web build: PASS (run 46128555340).
-- Windows Agent compile and security/API tests: PASS (run 46128555281).
 
-Step 10 audit commit 820431e626b008bea74b6514b842e99236a48cbc completed all three workflows successfully:
-- Android unit tests and debug APK build: PASS (run 46129608475).
-- Web build: PASS (run 46129608478).
-- Windows Agent compile and security/API tests: PASS (run 46129608471).
+Step 10 final audited code commit `474d5ac33de040cf5ffa75872b0a0bb4ca1501ce` passed all three workflows:
+- Android unit tests and debug APK build: PASS (run 46130476226).
+- Web build: PASS (run 46130476169).
+- Windows Agent compile and security/API tests: PASS (run 46130476185).
 
-A follow-up source-review fix binds event update/cancellation approvals to the Google event ETag and sends If-Match, so stale event versions are rejected rather than silently overwritten. This follow-up commit must pass CI before Step 10 is merged. A green CI result confirms automated checks only; it does not prove real Google OAuth consent, Calendar API account behavior, notification delivery, or OEM-specific reboot behavior.
+The audit and documentation were merged to main in PR #63. Merge commit: `472957cd59f3363c7041dc2f2bec633838e64040`.
+
+A green CI result confirms automated checks only; it does not prove real Google OAuth consent, Calendar API account behavior, notification delivery, or OEM-specific reboot behavior.
 
 ## Physical-device acceptance — NOT YET VERIFIED
 Must be tested on an Android phone with a real Google account before describing the integration as fully operational:
@@ -46,17 +46,9 @@ Must be tested on an Android phone with a real Google account before describing 
 2. Read-only consent cannot create/update/delete events.
 3. Agenda pagination, empty calendar, all-day and recurring events, timezone/DST boundaries.
 4. Create event: write consent appears only after user action; no event is created until the final exact approval; edited preview requires fresh approval.
-5. Update/cancel target only the reviewed event and require final approval.
+5. Update/cancel target only the reviewed event and require final approval; stale versions must require refresh/review.
 6. Notification permission grant and denial; reminder delivery; manual cancellation; event-cancel cleanup; reboot restore; disconnect cleanup.
 7. Regression: existing chat UI, launcher icon, voice, attachments, agent tools, Gmail and normal app startup.
 
 ## Release decision
-Automated CI may be marked complete after the Step 10 workflows pass. Physical-device acceptance remains a release gate and must not be inferred from CI.
-
-
-## Follow-up fail-closed schedule fix
-- Calendar page parsing now rejects the entire page when any event item is malformed instead of silently dropping it. This prevents an unreadable busy event from appearing as free time.
-- Starting a fresh agenda load clears previously loaded events, pagination state and prior schedule summary, preventing stale data from being reused after a failed refresh.
-- Added a unit test proving a malformed item fails the whole page.
-
-- Calendar event models now default missing ETags to an empty value for read-only/test compatibility; mutation controls still require a valid strong ETag and therefore remain unavailable without server version data.
+Automated implementation and CI for Phase 7 are complete. Physical-device acceptance remains a release gate and must not be inferred from CI.
