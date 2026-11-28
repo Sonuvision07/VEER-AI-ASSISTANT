@@ -57,6 +57,9 @@ class VeerCloudTaskClient(baseUrl: String, token: String) {
     fun cancelTask(taskId: String): VeerCloudTask =
         parseTaskEnvelope(request("POST", "/api/cloud/tasks/${validateTaskId(taskId)}/cancel", JSONObject()))
 
+    fun runTask(taskId: String): VeerCloudTask =
+        parseTaskEnvelope(request("POST", "/api/cloud/tasks/${validateTaskId(taskId)}/run", JSONObject()))
+
     internal fun parseTaskEnvelope(response: JSONObject): VeerCloudTask {
         if (!response.optBoolean("ok", false)) {
             throw IOException(response.optString("error").ifBlank { "VEER cloud task request failed" })

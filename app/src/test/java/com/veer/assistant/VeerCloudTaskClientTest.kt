@@ -70,6 +70,12 @@ class VeerCloudTaskClientTest {
         assertEquals("pending_approval", task.state)
         assertEquals("hello", task.payload.getString("content"))
         assertEquals("a".repeat(64), task.payloadSha256)
+        val completed = JSONObject(response.toString())
+        completed.getJSONObject("task").put("state", "completed")
+            .put("result", JSONObject().put("ok", true).put("executor", "vercel-bounded"))
+        val completedTask = client.parseTaskEnvelope(completed)
+        assertEquals("completed", completedTask.state)
+        assertEquals(true, completedTask.result?.optBoolean("ok", false))
 
         val unsafeOperation = JSONObject(response.toString())
         unsafeOperation.getJSONObject("task").put("operation", "run_shell")

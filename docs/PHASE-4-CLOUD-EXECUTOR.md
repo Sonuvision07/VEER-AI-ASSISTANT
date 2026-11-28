@@ -25,8 +25,8 @@ completed and execution failures become failed.
 
 Set `VEER_CLOUD_API_TOKEN` (at least 32 characters) in Vercel Production and Preview.
 The same token must be entered in Veer Settings; do not paste it into chat or commit it.
-Redeploy after setting the variable. The Android cloud test currently validates
-authenticated enqueue/read persistence; invoking `/run` is a separate execution test.
+Redeploy after setting the variable. The Android Settings cloud connection test performs authenticated enqueue, read-back,
+explicit health execution, and a second read-back before saving the encrypted token.
 
 ## Limits
 
