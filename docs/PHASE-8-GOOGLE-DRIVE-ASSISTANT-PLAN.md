@@ -70,7 +70,9 @@ Google Drive access must use Google's official Android OAuth authorization flow 
 
 ## Phase 8 status
 
-- **Step 1 — architecture and security plan:** plan drafted on branch `phase8/google-drive-plan`; awaiting automated review/merge.
-- **Steps 2–10:** not started. Each step must be implemented and verified independently.
+- **Step 1 — architecture and security plan:** merged into main.
+- **Step 2 — incremental OAuth scope policy:** implemented and merged; metadata scope is separate from user-initiated content-read scope.
+- **Step 3 — bounded read-only Drive API client:** implementation added on the active PR branch; automated CI review pending.
+- **Steps 4–10:** not started. Each step must be implemented and verified independently.
 
-**Release status:** Phase 8 is starting with the Google Drive assistant. No Drive integration is operational yet. Real Google OAuth and physical-device acceptance will remain separate release gates even after CI passes.
+**Release status:** Phase 8 implementation is in progress. The API client is metadata-only and exposes GET operations only. Real Google OAuth and physical-device acceptance remain separate release gates even after CI passes.
