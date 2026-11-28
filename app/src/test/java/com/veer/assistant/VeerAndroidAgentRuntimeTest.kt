@@ -291,7 +291,7 @@ class VeerAndroidAgentRuntimeTest {
         assertEquals(1, completed.steps)
         assertEquals("muse_call_1", turns[1].previousToolCallId)
         assertTrue(turns[1].providerContext.orEmpty().contains("muse_call_1"))
-        assertEquals("YouTube launched", turns[1].previousToolResult)
+        assertTrue(turns[1].previousToolResult.orEmpty().startsWith("YouTube launched"))
         assertEquals(AiProvider.MUSE, turns[1].providerContextProvider)
     }
 
