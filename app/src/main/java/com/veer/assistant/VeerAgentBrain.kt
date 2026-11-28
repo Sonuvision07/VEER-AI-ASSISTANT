@@ -41,12 +41,47 @@ data class AgentTurn(
     val providerContextProvider: AiProvider? = null
 )
 
-/** Cooperative cancellation checked between provider and tool operations. */
+/**
+ * Cooperative cancellation signal shared by a single agent task.
+ *
+ * Listeners allow active transports/tools to close their own in-flight work.
+ * Listener failures are isolated and never prevent other cancellation handlers.
+ */
 class AgentCancellationToken {
     @Volatile private var cancelled = false
+    private val listenerLock = Any()
+    private val listeners = LinkedHashSet<() -> Unit>()
 
-    fun cancel() { cancelled = true }
+    fun cancel() {
+        val callbacks = synchronized(listenerLock) {
+            if (cancelled) return
+            cancelled = true
+            listeners.toList().also { listeners.clear() }
+        }
+        callbacks.forEach { callback -> try { callback() } catch (_: Exception) { } }
+    }
+
     fun isCancelled(): Boolean = cancelled
+
+    /**
+     * Registers a one-shot cancellation callback.
+     * If already cancelled, callback runs immediately. Close the returned
+     * handle when the associated operation finishes to avoid retaining it.
+     */
+    fun onCancel(callback: () -> Unit): AutoCloseable {
+        val invokeImmediately = synchronized(listenerLock) {
+            if (cancelled) true else {
+                listeners.add(callback)
+                false
+            }
+        }
+        if (invokeImmediately) {
+            try { callback() } catch (_: Exception) { }
+        }
+        return AutoCloseable {
+            synchronized(listenerLock) { listeners.remove(callback) }
+        }
+    }
 }
 
 private fun cancelledAgentResult(provider: AiProvider?, steps: Int) = AgentRunResult(
