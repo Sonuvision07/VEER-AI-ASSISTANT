@@ -319,6 +319,7 @@ fun VeerApp() {
     var gmailInboxLoading by remember { mutableStateOf(false) }
     var gmailInboxStatus by remember { mutableStateOf("Inbox not loaded") }
     var gmailSummary by remember { mutableStateOf<List<VeerGmailSummary.Item>>(emptyList()) }
+    var gmailSecurityFindings by remember { mutableStateOf<List<VeerGmailSecurity.Finding>>(emptyList()) }
     val gmailAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
             try {
@@ -2495,6 +2496,7 @@ fun VeerApp() {
                                             gmailEmail = ""
                                             gmailInboxItems = emptyList()
                                             gmailSummary = emptyList()
+                                            gmailSecurityFindings = emptyList()
                                             gmailQuery = "in:inbox"
                                             gmailInboxStatus = "Inbox cleared after disconnect"
                                             prefs.edit().remove("gmail_connected").remove("gmail_email").apply()
@@ -2525,6 +2527,7 @@ fun VeerApp() {
                             } else {
                                 gmailInboxLoading = true
                                 gmailSummary = emptyList()
+                                gmailSecurityFindings = emptyList()
                                 gmailInboxStatus = "Loading Gmail messages..."
                                 localAiScope.launch {
                                     try {
@@ -2544,6 +2547,23 @@ fun VeerApp() {
                             gmailSummary = VeerGmailSummary.summarize(gmailInboxItems)
                         }, enabled = gmailInboxItems.isNotEmpty() && !gmailInboxLoading, modifier = Modifier.fillMaxWidth()) {
                             Text("SUMMARIZE & PRIORITIZE EMAILS")
+                        }
+                        OutlinedButton(onClick = {
+                            gmailSecurityFindings = VeerGmailSecurity.analyze(gmailInboxItems)
+                        }, enabled = gmailInboxItems.isNotEmpty() && !gmailInboxLoading, modifier = Modifier.fillMaxWidth()) {
+                            Text("CHECK SUSPICIOUS EMAILS")
+                        }
+                        if (gmailSecurityFindings.isNotEmpty()) {
+                            Text("ADVISORY CHECK — verify the original email; this is not a definitive phishing verdict.", fontSize = 10.sp, color = Color(0xFFFFB74D))
+                        }
+                        gmailSecurityFindings.forEach { finding ->
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1B20))) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text((if (finding.risk == VeerGmailSecurity.Risk.REVIEW) "REVIEW CAREFULLY" else "CAUTION") + " · " + finding.subject, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFFFB74D))
+                                    Text(finding.sender, fontSize = 10.sp, color = Color(0xFF8EDDE8))
+                                    finding.indicators.forEach { indicator -> Text("• " + indicator, fontSize = 10.sp, color = Color.LightGray) }
+                                }
+                            }
                         }
                         gmailSummary.forEach { item ->
                             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF152236))) {
