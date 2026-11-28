@@ -44,8 +44,8 @@ class AgentTaskHistory(private val maxEntries: Int = DEFAULT_MAX_ENTRIES) {
     }
 
     private fun sanitizeReason(value: String?): String? = value
-        ?.replace(Regex("[\\\\p{Cc}]+"), " ")
-        ?.replace(Regex("\\\\s+"), " ")
+        ?.replace(Regex("[\\p{Cc}]+"), " ")
+        ?.replace(Regex("\\s+"), " ")
         ?.trim()
         ?.take(160)
         ?.takeIf { it.isNotEmpty() }
