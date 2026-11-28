@@ -1,4 +1,4 @@
-import { authenticate, getDatabase, sendJson, setCors, ensureCloudSchema, CloudTaskError } from "../../../../lib/cloudTaskStore.js";
+import { authenticate, getDatabase, sendJson, setCors, ensureCloudSchema } from "../../../../lib/cloudTaskStore.js";
 import { runCloudTask } from "../../../../lib/cloudTaskExecutor.js";
 
 export default async function handler(req, res) {
@@ -15,9 +15,12 @@ export default async function handler(req, res) {
     await ensureCloudSchema(sql);
     const row = await runCloudTask(sql, owner, req.query?.taskId);
     return sendJson(res, 200, { ok: true, task: {
-      task_id: row.task_id, owner: row.owner, operation: row.operation,
-      payload_sha256: row.payload_sha256, state: row.state, result: row.result,
-      error: row.error, updated_at: new Date(row.updated_at).getTime() / 1000,
+      task_id: row.task_id, owner: row.owner, operation: row.operation, payload: row.payload,
+      payload_sha256: row.payload_sha256, state: row.state,
+      approval_consumed: Boolean(row.approval_consumed), result: row.result, error: row.error,
+      created_at: new Date(row.created_at).getTime() / 1000,
+      updated_at: new Date(row.updated_at).getTime() / 1000,
+      expires_at: new Date(row.expires_at).getTime() / 1000,
     } });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;
