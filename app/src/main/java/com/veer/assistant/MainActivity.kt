@@ -357,6 +357,7 @@ fun VeerApp() {
                 gmailBusy = false
             }
         } else {
+            gmailComposeAuthorizationPending = false
             gmailStatus = "Google authorization cancelled"
             gmailBusy = false
         }
