@@ -102,12 +102,14 @@ def accept_cloud_task(
     if "tasks:write" not in principal.scopes:
         raise CloudTaskError("Credential lacks tasks:write scope")
     task = CloudTaskRequest.parse(raw)
+    # Side effects are always created pending approval. Approval is checked
+    # against this exact hash immediately before execution.
+    state = "pending_approval" if task.operation in SIDE_EFFECT_OPERATIONS else "queued"
     existing = store.get_by_idempotency_key(task.idempotency_key)
     if existing is not None:
-        return existing
-    # Side effects are always created pending approval. An approval must be
-    # checked by the executor against this exact hash immediately before run.
-    state = "pending_approval" if task.operation in SIDE_EFFECT_OPERATIONS else "queued"
+        if existing.get("payload_sha256") != task.payload_sha256 or existing.get("owner") != principal.subject:
+            raise CloudTaskError("Idempotency key is already bound to another task")
+        return existing | {"state": existing.get("state", state)}
     return store.save_pending(task, principal.subject) | {"state": state}
 
 
@@ -117,5 +119,5 @@ def verify_one_shot_approval(task: CloudTaskRequest, supplied_hash: str | None) 
         return
     if not supplied_hash or not _SHA256.fullmatch(supplied_hash):
         raise CloudTaskError("Exact task approval is required")
-    if not hashlib.compare_digest(task.payload_sha256, supplied_hash.lower()):
+    if not hmac.compare_digest(task.payload_sha256, supplied_hash.lower()):
         raise CloudTaskError("Approval does not match this exact task")
