@@ -1225,28 +1225,44 @@ fun VeerApp() {
         fallbackAttempted.clear()
 
         // Route the message to the selected real provider/agent. Keep the existing UI unchanged.
-        when (selectedProvider) {
-            "OPENAI" -> askOpenAI(clean, imageForRequest)
-            "GEMINI" -> askGemini(clean, imageForRequest)
-            "CLAUDE" -> if (imageForRequest != null) {
-                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
-            } else askClaude(clean)
-            "LLAMA" -> if (imageForRequest != null) {
-                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
-            } else askMetaLlama(clean)
-            "GROK" -> if (imageForRequest != null) {
-                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
-            } else askGrok(clean)
-            "MUSE" -> if (imageForRequest != null) {
-                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
-            } else askMuse(clean)
-            else -> askAgentBrain(clean)
+        when {
+            imageForRequest != null && selectedProvider !in listOf("OPENAI", "GEMINI") -> {
+                // The local agent and text-only providers cannot consume image bytes.
+                // Prefer the configured vision provider instead of silently dropping the photo.
+                when {
+                    apiKey.isNotBlank() -> askGemini(clean, imageForRequest)
+                    openAiApiKey.isNotBlank() -> askOpenAI(clean, imageForRequest)
+                    else -> addReply("Photo samajhne ke liye Settings mein Gemini ya OpenAI API key add karein.")
+                }
+            }
+            textForRequest.isNullOrBlank().not() && selectedProvider == "AUTO" -> {
+                // Document text must reach a text-capable provider; the local agent turn
+                // currently has no attachment field.
+                when {
+                    apiKey.isNotBlank() -> askGemini(clean)
+                    openAiApiKey.isNotBlank() -> askOpenAI(clean)
+                    claudeApiKey.isNotBlank() -> askClaude(clean)
+                    museApiKey.isNotBlank() -> askMuse(clean)
+                    llamaApiKey.isNotBlank() -> askMetaLlama(clean)
+                    grokApiKey.isNotBlank() -> askGrok(clean)
+                    else -> addReply("File padhne ke liye Settings mein kisi AI provider ki API key add karein.")
+                }
+            }
+            else -> when (selectedProvider) {
+                "OPENAI" -> askOpenAI(clean, imageForRequest)
+                "GEMINI" -> askGemini(clean, imageForRequest)
+                "CLAUDE" -> if (imageForRequest != null) addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.") else askClaude(clean)
+                "LLAMA" -> if (imageForRequest != null) addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.") else askMetaLlama(clean)
+                "GROK" -> if (imageForRequest != null) addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.") else askGrok(clean)
+                "MUSE" -> if (imageForRequest != null) addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.") else askMuse(clean)
+                else -> askAgentBrain(clean)
+            }
         }
 
         attachedImageBase64 = null
         attachedText = null
         attachedFileName = null
-        attachedMimeType = "image/jpeg"
+        // Keep MIME type intact: OpenAI's background request reads it asynchronously.
     }
 
     fun listen(languageAttempt: Int = 0) {
