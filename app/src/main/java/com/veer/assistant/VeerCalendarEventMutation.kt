@@ -55,7 +55,7 @@ object VeerCalendarEventMutation {
         }
         requireExactApproval(action, eventId, patch, approvedSnapshot)
         val connection = (URL(API_ROOT + eventId).openConnection() as HttpURLConnection).apply {
-            requestMethod = if (action == Action.UPDATE) "PATCH" else "DELETE"
+            requestMethod = if (action == Action.UPDATE) "POST" else "DELETE"
             connectTimeout = 5000
             readTimeout = 10000
             instanceFollowRedirects = false
@@ -63,6 +63,9 @@ object VeerCalendarEventMutation {
             setRequestProperty("Authorization", "Bearer $accessToken")
             setRequestProperty("Accept", "application/json")
             if (action == Action.UPDATE) {
+                // Android HttpURLConnection does not reliably accept PATCH as a request method.
+                // Google APIs support method override for clients limited to POST/GET.
+                setRequestProperty("X-HTTP-Method-Override", "PATCH")
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
             }
