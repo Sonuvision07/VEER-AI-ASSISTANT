@@ -146,6 +146,50 @@ class VeerAgentBrainTest {
         assertFalse(result.message.contains("private verifier failure"))
     }
 
+    @Test fun recordsCompletedTaskInRuntimeHistory() {
+        val lifecycle = AgentTaskLifecycle(clockMillis = { 1_000L })
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Finished") },
+            FakeTools(),
+            FakeApproval(false),
+            taskLifecycle = lifecycle
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentTaskStatus.COMPLETED, result.taskStatus)
+        assertTrue(result.taskId!!.isNotBlank())
+        assertEquals(AgentTaskStatus.COMPLETED, lifecycle.get(result.taskId)?.status)
+    }
+
+    @Test fun taskLifecycleRemainsWaitingForApprovalThenCompletesAfterResume() {
+        val lifecycle = AgentTaskLifecycle()
+        val tools = FakeTools()
+        val approval = FakeApproval(false)
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next ->
+                if (next.previousToolResult == null) AgentDecision("Please approve", requested, finished = false)
+                else AgentDecision("Task completed")
+            },
+            tools,
+            approval,
+            taskLifecycle = lifecycle
+        )
+
+        val pending = brain.run(turn())
+        assertEquals(AgentTaskStatus.WAITING_APPROVAL, pending.taskStatus)
+        assertEquals(AgentTaskStatus.WAITING_APPROVAL, lifecycle.get(pending.taskId!!)?.status)
+
+        approval.result = true
+        val completed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertEquals(AgentTaskStatus.COMPLETED, completed.taskStatus)
+        assertEquals(pending.taskId, completed.taskId)
+        assertEquals(AgentTaskStatus.COMPLETED, lifecycle.get(pending.taskId)?.status)
+        assertEquals(1, tools.executed.size)
+    }
+
     @Test fun readOnlyToolRunsWithoutApproval() {
         val tools = FakeTools()
         val approval = FakeApproval(false)
