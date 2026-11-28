@@ -72,19 +72,14 @@ Add an optional Google Calendar assistant to VEER while preserving the existing 
 ## Phase 7 status
 
 - **Step 1 — architecture and security plan:** complete; merged in PR #52.
-- **Step 2 — incremental Calendar OAuth scope policy:** complete; merged in PR #53. Real Google consent remains device-test pending.
-- **Step 3 — bounded read-only Calendar API client:** complete; merged in PR #54.
-- **Step 4 — agenda and event details UI:** complete; merged in PR #55. Real account/device flow remains pending.
-- **Step 5 — schedule summary and free-time finder:** complete; merged in PR #56. Physical-calendar accuracy remains device-test pending.
-- **Step 6 — event creation form and exact preview:** complete; merged in PR #57.
-- **Step 7 — explicit event creation approval:** complete; merged in PR #58.
-- **Step 8 — event update and cancellation approval:** complete; merged in PR #59.
-- **Step 9 — opt-in local reminders:** complete; merged in PR #60. Android/Web/Windows CI passed; physical notification and reboot checks remain pending.
-- **Step 10 — final regression/security audit:** audit checklist prepared on branch `phase7/calendar-final-audit`; final CI validation and review are in progress. See `docs/PHASE-7-FINAL-REGRESSION-SECURITY-AUDIT.md`.
+- **Step 2 — incremental Calendar OAuth scope policy:** implementation merged in PR #53; real Google consent/device validation remains pending.
+- **Step 3 — bounded read-only Calendar API client:** implementation merged in PR #54.
+- **Step 4 — agenda and event details UI:** implementation merged in PR #55; physical account-flow validation remains pending.
+- **Step 5 — schedule summary and free-time finder:** implementation merged in PR #56; real-calendar accuracy validation remains pending.
+- **Step 6 — event creation form and exact preview:** implementation merged in PR #57.
+- **Step 7 — explicit event creation approval:** implementation merged in PR #58.
+- **Step 8 — event update and cancellation approval:** implementation merged in PR #59; final audit adds ETag-bound approval and `If-Match` protection so stale event versions are rejected.
+- **Step 9 — opt-in local reminders:** implementation merged in PR #60; Android/Web/Windows CI passed, while physical notification and reboot checks remain pending.
+- **Step 10 — final regression/security audit:** audit and additional ETag protection are in PR #61; Android, Web and Windows CI passed for audit commit `820431e626b008bea74b6514b842e99236a48cbc`. A follow-up fix commit is being validated.
 
-**Important release status:** The implementation and automated CI are not equivalent to real-world acceptance. Google OAuth consent, real Calendar reads/writes, notifications, reboot restoration, disconnect cleanup, and regression testing on a physical Android device must still be performed before calling the Calendar integration fully operational. Existing chat UI and launcher icon are to remain unchanged.
-
-
-- **Step 1 — architecture and security plan:** prepared on branch `phase7/calendar-assistant-plan`. This is planning/documentation only; no Calendar API access or user data access has been enabled.
-- Steps 2–10 are pending review and implementation.
-- Real Google consent and physical-device acceptance are mandatory before calling the integration operational.
+**Release status:** Phase 7 implementation work is substantially complete, but it is **not yet device-accepted**. Real Google OAuth consent, Calendar reads/writes, notification delivery, reboot restoration, disconnect cleanup, and regression testing on a physical Android device remain mandatory before calling the Calendar integration fully operational. Existing chat UI and launcher icon must remain unchanged.
