@@ -127,11 +127,6 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         )
     }
 
-    internal fun validateTaskId(raw: String): String {
-        require(raw.matches(Regex("^[A-Za-z0-9_-]{16,64}$"))) { "Invalid PC task ID" }
-        return raw
-    }
-
     private fun request(path: String): JSONObject = request("GET", path)
 
     private fun request(method: String, path: String, body: JSONObject? = null): JSONObject {
@@ -197,6 +192,11 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         private const val MAX_LIST_ITEMS = 200
         private const val MAX_ENTRY_NAME_CHARS = 255
         private val ALLOWED_ENTRY_TYPES = setOf("file", "folder", "link")
+
+        internal fun validateTaskId(raw: String): String {
+            require(raw.matches(Regex("^[A-Za-z0-9_-]{16,64}$"))) { "Invalid PC task ID" }
+            return raw
+        }
 
         internal fun validateApprovalHash(raw: String): String {
             require(raw.matches(Regex("^[a-fA-F0-9]{64}$"))) {
