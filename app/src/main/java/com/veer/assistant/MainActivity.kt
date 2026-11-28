@@ -3146,6 +3146,46 @@ fun VeerApp() {
                         Text(if (driveBusy) "CONNECTING..." else if (driveConnected) "REFRESH DRIVE ACCESS" else "CONNECT GOOGLE DRIVE")
                     }
                     if (driveConnected) {
+                        TextButton(onClick = {
+                            val email = driveEmail
+                            if (!VeerDriveAuthorization.isValidVerifiedEmailShape(email)) {
+                                driveStatus = "Reconnect Drive before disconnecting so VEER can verify the Google account."
+                            } else {
+                                driveBusy = true
+                                driveStatus = "Revoking Google Drive access..."
+                                driveAuthorizationClient.revokeAccess(VeerDriveAuthorization.revokeRequest(email))
+                                    .addOnSuccessListener {
+                                        driveContentBytes?.fill(0)
+                                        driveContentBytes = null
+                                        driveAccessToken = null
+                                        driveFiles = emptyList()
+                                        driveSelectedFile = null
+                                        drivePendingContentFile = null
+                                        driveParentId = null
+                                        drivePageToken = ""
+                                        driveQuery = ""
+                                        drivePreviewText = ""
+                                        driveSummaryText = ""
+                                        driveSummaryFileId = ""
+                                        driveSummaryStatus = ""
+                                        driveSummaryConsentPending = false
+                                        driveContentStatus = ""
+                                        driveConnected = false
+                                        driveEmail = ""
+                                        prefs.edit().remove("drive_connected").remove("drive_email").apply()
+                                        driveStatus = "Google Drive access revoked; temporary file data cleared."
+                                        driveBusy = false
+                                    }
+                                    .addOnFailureListener { error ->
+                                        driveStatus = "Drive revoke failed: " + (error.message ?: "Try again")
+                                        driveBusy = false
+                                    }
+                            }
+                        }, enabled = !driveBusy && !driveContentBusy && !driveSummaryBusy) {
+                            Text("DISCONNECT & REVOKE DRIVE ACCESS", color = Color(0xFFFF8A80))
+                        }
+                    }
+                    if (driveConnected) {
                         OutlinedTextField(value = driveQuery, onValueChange = { driveQuery = it.take(200) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search Drive file names") })
                         Button(onClick = {
                             val token = driveAccessToken
