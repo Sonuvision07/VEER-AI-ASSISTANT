@@ -363,21 +363,33 @@ class VeerAgentBrain(
         if (continuation.ownerToken !== continuationOwnerToken ||
             continuation.consumed || continuation.call != approvedCall
         ) {
+            val snapshot = continuation.taskSession.snapshot()
             return AgentRunResult(
                 "VEER ne stale ya mismatched approval ko reject kar diya.",
-                continuation.provider, continuation.completedSteps
+                continuation.provider, continuation.completedSteps,
+                taskId = snapshot.taskId, taskStatus = snapshot.status
             )
         }
         val action = continuation.call
         val cancellationToken = continuation.cancellationToken
-        if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
-        if (nanoTime() - continuation.deadlineNanos >= 0L) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
+        if (cancellationToken.isCancelled()) {
+            val result = cancelledAgentResult(continuation.provider, continuation.completedSteps)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.CANCELLED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
+        }
+        if (nanoTime() - continuation.deadlineNanos >= 0L) {
+            val result = timedOutAgentResult(continuation.provider, continuation.completedSteps)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.FAILED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
+        }
         if (nanoTime() - continuation.approvalExpiresAtNanos >= 0L) {
             continuation.consumed = true
-            return AgentRunResult(
+            val result = AgentRunResult(
                 "VEER ki approval expire ho gayi. Naya task aur fresh approval zaroori hai.",
                 continuation.provider, continuation.completedSteps
             )
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.FAILED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
         }
         val invalid = action.name.isBlank() ||
             action.name != action.name.trim() ||
@@ -396,10 +408,12 @@ class VeerAgentBrain(
             !supported || trustedRisk == null || trustedRisk != action.risk ||
             trustedRisk == AgentRisk.READ_ONLY
         ) {
-            return AgentRunResult(
+            val result = AgentRunResult(
                 "VEER ne approval ke baad action ko dobara verify karke block kar diya.",
                 continuation.provider, continuation.completedSteps
             )
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.FAILED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
         }
 
         // The exact-call match is not proof of user consent. Re-check the
@@ -411,7 +425,7 @@ class VeerAgentBrain(
             false
         }
         if (!explicitlyApproved) {
-            return AgentRunResult(
+            val result = AgentRunResult(
                 "Is exact action ko execute karne se pehle aapki explicit approval zaroori hai.",
                 continuation.provider,
                 continuation.completedSteps,
@@ -419,10 +433,21 @@ class VeerAgentBrain(
                 pendingApproval = action,
                 continuation = continuation
             )
+            val snapshot = continuation.taskSession.snapshot()
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
         }
-        if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
-        if (nanoTime() - continuation.deadlineNanos >= 0L) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
+        if (cancellationToken.isCancelled()) {
+            val result = cancelledAgentResult(continuation.provider, continuation.completedSteps)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.CANCELLED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
+        }
+        if (nanoTime() - continuation.deadlineNanos >= 0L) {
+            val result = timedOutAgentResult(continuation.provider, continuation.completedSteps)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.FAILED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
+        }
         continuation.consumed = true
+        taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.RUNNING)
 
         var dispatchFailed = false
         val raw = try {
@@ -436,8 +461,17 @@ class VeerAgentBrain(
         } catch (_: Exception) {
             AgentToolOutcome.uncertain("Independent verification failed; effect is unconfirmed.")
         }
-        if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps + 1)
-        if (nanoTime() >= continuation.deadlineNanos) return timedOutAgentResult(continuation.provider, continuation.completedSteps + 1)
+        if (cancellationToken.isCancelled()) {
+            val result = cancelledAgentResult(continuation.provider, continuation.completedSteps + 1)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.CANCELLED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status, lastToolOutcome = outcome)
+        }
+        if (nanoTime() >= continuation.deadlineNanos) {
+            val result = timedOutAgentResult(continuation.provider, continuation.completedSteps + 1)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.FAILED, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status, lastToolOutcome = outcome)
+        }
+        continuation.taskSession.context.add("Tool outcome status: ${outcome.status.name}")
         val outcomeNote = when (outcome.status) {
             AgentOutcomeStatus.VERIFIED -> "[VEER outcome: independently verified]"
             AgentOutcomeStatus.ATTEMPTED -> "[VEER outcome: attempted, not verified]"
@@ -456,7 +490,8 @@ class VeerAgentBrain(
             initialProvider = continuation.provider,
             cancellationToken = cancellationToken,
             deadlineNanos = continuation.deadlineNanos,
-            initialOutcome = outcome
+            initialOutcome = outcome,
+            taskSession = continuation.taskSession
         )
     }
 
