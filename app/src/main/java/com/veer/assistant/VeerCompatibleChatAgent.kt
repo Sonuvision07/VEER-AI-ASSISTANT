@@ -15,6 +15,7 @@ internal class VeerCompatibleChatAgentHttpTransport(
 ) : VeerCompatibleChatAgentTransport {
     override fun generate(endpoint: String, model: String, apiKey: String, requestBody: String): String {
         val connection = connectionFactory(URL(endpoint))
+        val cancellationRegistration = turn.cancellationToken?.onCancel { connection.disconnect() }
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 10_000
@@ -35,6 +36,7 @@ internal class VeerCompatibleChatAgentHttpTransport(
         } catch (failure: IOException) {
             throw AgentProviderException("AI provider network request failed.", retryable = true)
         } finally {
+            cancellationRegistration?.close()
             connection.disconnect()
         }
     }
