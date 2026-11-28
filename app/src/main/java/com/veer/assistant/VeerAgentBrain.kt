@@ -209,7 +209,7 @@ class VeerAgentBrain(
     ): AgentRunResult {
         var lastOutcome = initialOutcome
         fun finish(result: AgentRunResult, status: AgentTaskStatus): AgentRunResult {
-            val snapshot = taskLifecycle.transition(taskSession, status, result.message)
+            val snapshot = taskLifecycle.transition(taskSession, status, status.name.lowercase().replace('_', ' '))
             return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status, lastToolOutcome = result.lastToolOutcome ?: lastOutcome)
         }
         taskLifecycle.transition(taskSession, AgentTaskStatus.RUNNING)
@@ -383,12 +383,12 @@ class VeerAgentBrain(
         val cancellationToken = continuation.cancellationToken
         if (cancellationToken.isCancelled()) {
             val result = cancelledAgentResult(continuation.provider, continuation.completedSteps)
-            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.CANCELLED, result.message)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.CANCELLED, "cancelled")
             return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
         }
         if (nanoTime() - continuation.deadlineNanos >= 0L) {
             val result = timedOutAgentResult(continuation.provider, continuation.completedSteps)
-            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.FAILED, result.message)
+            val snapshot = taskLifecycle.transition(continuation.taskSession, AgentTaskStatus.FAILED, "failed")
             return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
         }
         if (nanoTime() - continuation.approvalExpiresAtNanos >= 0L) {
