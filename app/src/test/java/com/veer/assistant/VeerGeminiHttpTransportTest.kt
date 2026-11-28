@@ -30,6 +30,39 @@ class VeerGeminiHttpTransportTest {
         assertTrue(connection.disconnected)
     }
 
+    @Test fun cancelledTaskDisconnectsProviderConnectionImmediately() {
+        val connection = DisconnectAwareConnection(URL("https://generativelanguage.googleapis.com/test"))
+        val token = AgentCancellationToken()
+        token.cancel()
+
+        try {
+            VeerGeminiHttpTransport { connection }.generate(
+                "key",
+                AgentTurn("Hello", emptyList(), emptyList(), cancellationToken = token)
+            )
+            throw AssertionError("Expected disconnected request to fail")
+        } catch (_: AgentProviderException) {
+            // Expected: the cancellation callback disconnects before request I/O.
+        }
+
+        assertTrue(connection.disconnected)
+        assertTrue(connection.outputRequested)
+    }
+
+    private class DisconnectAwareConnection(url: URL) : HttpURLConnection(url) {
+        var disconnected = false
+        var outputRequested = false
+        override fun connect() { connected = true }
+        override fun disconnect() { disconnected = true }
+        override fun usingProxy(): Boolean = false
+        override fun getOutputStream(): OutputStream {
+            outputRequested = true
+            if (disconnected) throw java.io.IOException("cancelled")
+            return ByteArrayOutputStream()
+        }
+        override fun getResponseCode(): Int = 200
+    }
+
     @Test fun rejectsHttpFailureWithoutReturningProviderErrorBody() {
         val connection = FakeConnection(
             URL("https://generativelanguage.googleapis.com/test"),

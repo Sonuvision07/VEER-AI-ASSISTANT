@@ -85,6 +85,7 @@ class VeerCompatibleChatAgentTest {
             apiKeyProvider = { null },
             llamaApiKeyProvider = { "llama-test-key" },
             dispatchApprovedAction = { "launched $it" },
+            outcomeVerifier = { _, _ -> AgentToolOutcome.verified("Test observer confirmed launch.") },
             llamaTransport = VeerCompatibleChatAgentTransport { _, _, _, body ->
                 requests += JSONObject(body)
                 responses.removeFirst()
@@ -103,7 +104,7 @@ class VeerCompatibleChatAgentTest {
         assertEquals("assistant", followUpMessages.getJSONObject(2).getString("role"))
         assertEquals("tool", followUpMessages.getJSONObject(3).getString("role"))
         assertEquals("call_llama_1", followUpMessages.getJSONObject(3).getString("tool_call_id"))
-        assertEquals("launched youtube", followUpMessages.getJSONObject(3).getString("content"))
+        assertTrue(followUpMessages.getJSONObject(3).getString("content").startsWith("launched youtube"))
     }
 
     @Test fun grokRejectsToolCallsWithoutToolCallsFinishReason() {

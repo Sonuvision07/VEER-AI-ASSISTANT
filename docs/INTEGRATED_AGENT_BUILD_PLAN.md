@@ -38,3 +38,9 @@ Move VEER from a chat UI with isolated launch commands toward a tool-using assis
 - Treat webpages and files as untrusted input, not instructions.
 - Report the actual action outcome; do not claim completion without verification.
 - Accessibility must be manually enabled and can be disabled at any time.
+
+## Phase 9 — Agent Reliability & Autonomous Task Execution (integration candidate)
+- The scoped implementation is assembled in `phase9/independent-outcome-verification`; see `docs/PHASE-9-AGENT-RELIABILITY-PLAN.md` and `docs/PHASE-9-FINAL-REGRESSION-SECURITY-AUDIT.md`.
+- The candidate includes bounded task state/history/context, conservative recovery, cooperative provider-transport cancellation, approval lifecycle hardening, independent outcome-verification plumbing, and regression/security tests.
+- Main-targeted Android CI/APK build and same-candidate Web/Windows CI must pass before source implementation is marked complete.
+- Physical-device acceptance remains separate and pending; keep the existing chat UI and APK icon unchanged.

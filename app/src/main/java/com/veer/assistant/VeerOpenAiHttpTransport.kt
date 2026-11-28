@@ -19,6 +19,7 @@ internal class VeerOpenAiHttpTransport(
         require(apiKey.isNotBlank()) { "OpenAI API key unavailable." }
         val body = VeerOpenAiAgentRequest.build(turn, model).toString()
         val connection = connectionFactory(URL("https://api.openai.com/v1/responses"))
+        val cancellationRegistration = turn.cancellationToken?.onCancel { connection.disconnect() }
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 10_000
@@ -41,6 +42,7 @@ internal class VeerOpenAiHttpTransport(
         } catch (failure: IOException) {
             throw AgentProviderException("OpenAI network request failed.", retryable = true)
         } finally {
+            cancellationRegistration?.close()
             connection.disconnect()
         }
     }

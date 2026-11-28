@@ -2,6 +2,7 @@ package com.veer.assistant
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,6 +25,8 @@ class VeerAgentBrainTest {
             executed += call
             return "done"
         }
+        override fun verifyOutcome(call: AgentToolCall, dispatchResult: String) =
+            AgentToolOutcome.verified("Deterministic fake verifier confirmed the test outcome.")
     }
 
     private class FakeApproval(var result: Boolean) : AgentApprovalGate {
@@ -58,7 +61,7 @@ class VeerAgentBrainTest {
         )
         val result = brain.run(turn())
         assertEquals(1, result.steps)
-        assertEquals("done", received?.previousToolResult)
+        assertTrue(received?.previousToolResult.orEmpty().startsWith("done"))
         assertEquals("[{}]", received?.providerContext)
         assertEquals("call_abc", received?.previousToolCallId)
     }
@@ -90,10 +93,127 @@ class VeerAgentBrainTest {
         )
         val result = brain.run(turn())
         assertEquals(AiProvider.GEMINI, result.provider)
-        assertEquals("done", fallbackTurn?.previousToolResult)
+        assertTrue(fallbackTurn?.previousToolResult.orEmpty().startsWith("done"))
         assertEquals(null, fallbackTurn?.providerContext)
         assertEquals(null, fallbackTurn?.previousToolCallId)
         assertEquals(null, fallbackTurn?.providerContextProvider)
+    }
+
+    @Test fun exposesVerifiedOutcomeOnlyAfterIndependentVerifierConfirmsIt() {
+        var modelSawOutcome: String? = null
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = name == "read"
+            override fun riskFor(name: String) = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall) = "dispatch accepted"
+            override fun verifyOutcome(call: AgentToolCall, dispatchResult: String) =
+                AgentToolOutcome.verified("Read-only postcondition matched.")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next ->
+                if (next.previousToolResult == null) AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false)
+                else {
+                    modelSawOutcome = next.previousToolResult
+                    AgentDecision("Finished")
+                }
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentOutcomeStatus.VERIFIED, result.lastToolOutcome?.status)
+        assertEquals("Read-only postcondition matched.", result.lastToolOutcome?.evidenceSummary)
+        assertTrue(modelSawOutcome!!.contains("independently verified"))
+    }
+
+    @Test fun verifierFailureProducesUncertainOutcomeAndNeverFalseSuccess() {
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun riskFor(name: String) = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall) = "success"
+            override fun verifyOutcome(call: AgentToolCall, dispatchResult: String): AgentToolOutcome =
+                error("private verifier failure")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next -> if (next.previousToolResult == null) AgentDecision("Read", call("read", AgentRisk.READ_ONLY), finished = false) else AgentDecision(next.previousToolResult) },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentOutcomeStatus.UNCERTAIN, result.lastToolOutcome?.status)
+        assertTrue(result.message.contains("uncertain", ignoreCase = true))
+        assertFalse(result.message.contains("private verifier failure"))
+    }
+
+    @Test fun recordsCompletedTaskInRuntimeHistory() {
+        val lifecycle = AgentTaskLifecycle(clockMillis = { 1_000L })
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Finished") },
+            FakeTools(),
+            FakeApproval(false),
+            taskLifecycle = lifecycle
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentTaskStatus.COMPLETED, result.taskStatus)
+        assertTrue(result.taskId!!.isNotBlank())
+        assertEquals(AgentTaskStatus.COMPLETED, lifecycle.get(result.taskId)?.status)
+    }
+
+    @Test fun taskLifecycleRemainsWaitingForApprovalThenCompletesAfterResume() {
+        val lifecycle = AgentTaskLifecycle()
+        val tools = FakeTools()
+        val approval = FakeApproval(false)
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next ->
+                if (next.previousToolResult == null) AgentDecision("Please approve", requested, finished = false)
+                else AgentDecision("Task completed")
+            },
+            tools,
+            approval,
+            taskLifecycle = lifecycle
+        )
+
+        val pending = brain.run(turn())
+        assertEquals(AgentTaskStatus.WAITING_APPROVAL, pending.taskStatus)
+        assertEquals(AgentTaskStatus.WAITING_APPROVAL, lifecycle.get(pending.taskId!!)?.status)
+
+        approval.result = true
+        val completed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertEquals(AgentTaskStatus.COMPLETED, completed.taskStatus)
+        assertEquals(pending.taskId, completed.taskId)
+        assertEquals(AgentTaskStatus.COMPLETED, lifecycle.get(pending.taskId)?.status)
+        assertEquals(1, tools.executed.size)
+    }
+
+    @Test fun modelCannotOverrideUncertainToolOutcomeWithCompletionClaim() {
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun riskFor(name: String) = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall) = "dispatch accepted"
+            override fun verifyOutcome(call: AgentToolCall, dispatchResult: String) =
+                AgentToolOutcome.uncertain("Independent check unavailable.")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next ->
+                if (next.previousToolResult == null) AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false)
+                else AgentDecision("Everything completed successfully.")
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentOutcomeStatus.UNCERTAIN, result.lastToolOutcome?.status)
+        assertTrue(result.message.contains("completion independently verify nahi hui"))
+        assertTrue(result.message.contains("Everything completed successfully."))
     }
 
     @Test fun readOnlyToolRunsWithoutApproval() {
@@ -346,7 +466,7 @@ class VeerAgentBrainTest {
         assertEquals(1, result.steps)
         assertTrue(receivedToolResult!!.startsWith("x".repeat(20)))
         assertTrue(receivedToolResult!!.contains("[Tool result truncated by VEER]"))
-        assertTrue(receivedToolResult!!.length < 100)
+        assertTrue(receivedToolResult!!.length < 200)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -538,7 +658,7 @@ class VeerAgentBrainTest {
         approval.result = true
         val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
 
-        assertEquals("done", receivedToolResult)
+        assertTrue(receivedToolResult.orEmpty().startsWith("done"))
         assertEquals("Task completed after tool result", resumed.message)
         assertEquals(1, resumed.steps)
         assertEquals(1, tools.executed.size)
@@ -568,7 +688,7 @@ class VeerAgentBrainTest {
         val pending = brain.run(turn())
         approval.result = true
         val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
-        assertEquals("done", resumedTurn?.previousToolResult)
+        assertTrue(resumedTurn?.previousToolResult.orEmpty().startsWith("done"))
         assertEquals("[{}]", resumedTurn?.providerContext)
         assertEquals("call_approved", resumedTurn?.previousToolCallId)
         assertEquals(AiProvider.OPENAI, resumedTurn?.providerContextProvider)
@@ -669,6 +789,43 @@ class VeerAgentBrainTest {
         assertEquals(1, tools.executed.size)
         assertEquals(3, approval.checked.size)
         assertEquals(1, resumed.steps)
+    }
+
+    @Test fun approvalContinuationExpiresBeforeTaskDeadline() {
+        var clock = 0L
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val approval = FakeApproval(false)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) },
+            tools,
+            approval,
+            taskTimeoutMillis = 60_000,
+            approvalTimeoutMillis = 1,
+            nanoTime = { clock }
+        )
+
+        val pending = brain.run(turn())
+        assertTrue(pending.stoppedForApproval)
+        val approvalId = pending.continuation!!.approvalId
+        assertTrue(approvalId.isNotBlank())
+        clock = 2_000_000L
+        approval.result = true
+
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertTrue(resumed.message.contains("approval expire", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveApprovalTimeout() {
+        VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("No action") },
+            FakeTools(),
+            FakeApproval(false),
+            approvalTimeoutMillis = 0
+        )
     }
 
     @Test fun approvalContinuationCannotBeResumedByAnotherBrainInstance() {
@@ -947,6 +1104,129 @@ class VeerAgentBrainTest {
             FakeApproval(false),
             maxProviderAttempts = 0
         )
+    }
+
+
+    @Test fun cancellationCallbacksRunOnceAndIsolateListenerFailures() {
+        val token = AgentCancellationToken()
+        var calls = 0
+        token.onCancel { calls += 1 }
+        token.onCancel { error("listener failure must not block other listeners") }
+        token.onCancel { calls += 1 }
+
+        token.cancel()
+        token.cancel()
+
+        assertTrue(token.isCancelled())
+        assertEquals(2, calls)
+    }
+
+    @Test fun callbackRegisteredAfterCancellationRunsImmediately() {
+        val token = AgentCancellationToken()
+        token.cancel()
+        var called = false
+
+        token.onCancel { called = true }
+
+        assertTrue(called)
+    }
+
+    @Test fun closingCancellationRegistrationPreventsCallback() {
+        val token = AgentCancellationToken()
+        var called = false
+        val registration = token.onCancel { called = true }
+        registration.close()
+
+        token.cancel()
+
+        assertFalse(called)
+    }
+
+    @Test fun cancellationDuringToolValidationPreventsDispatch() {
+        val token = AgentCancellationToken()
+        var executed = false
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String): Boolean {
+                token.cancel()
+                return true
+            }
+            override fun riskFor(name: String): AgentRisk = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall): String {
+                executed = true
+                return "should not execute"
+            }
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Read", call("read", AgentRisk.READ_ONLY), finished = false) },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn(), token)
+
+        assertTrue(result.message.contains("cancel", ignoreCase = true))
+        assertFalse(executed)
+    }
+
+    @Test fun approvalIdsAreUniqueAcrossPendingActions() {
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Approve", requested, finished = false) },
+            FakeTools(),
+            FakeApproval(false)
+        )
+
+        val first = brain.run(turn())
+        val second = brain.run(turn())
+
+        assertTrue(first.stoppedForApproval)
+        assertTrue(second.stoppedForApproval)
+        assertNotEquals(first.continuation!!.approvalId, second.continuation!!.approvalId)
+    }
+
+    @Test fun mismatchedApprovedCallCannotDispatchTool() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val different = call("delete", AgentRisk.DEVICE_CHANGE)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Approve", requested, finished = false) },
+            tools,
+            FakeApproval(false)
+        )
+
+        val pending = brain.run(turn())
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, different)
+
+        assertTrue(resumed.message.contains("mismatched", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+    }
+
+    @Test fun successfullyConsumedApprovalCannotBeReplayed() {
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        var decisions = 0
+        val approval = FakeApproval(false)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ ->
+                decisions += 1
+                if (decisions == 1) AgentDecision("Approve", requested, finished = false)
+                else AgentDecision("Done", finished = true)
+            },
+            tools,
+            approval
+        )
+
+        val pending = brain.run(turn())
+        val continuation = pending.continuation!!
+        approval.result = true
+        val first = brain.resumeAfterApproval(continuation, requested)
+        val countAfterFirst = tools.executed.size
+        val second = brain.resumeAfterApproval(continuation, requested)
+
+        assertEquals(1, countAfterFirst)
+        assertEquals(countAfterFirst, tools.executed.size)
+        assertTrue(second.message.contains("stale", ignoreCase = true))
+        assertFalse(first.stoppedForApproval)
     }
 
 }

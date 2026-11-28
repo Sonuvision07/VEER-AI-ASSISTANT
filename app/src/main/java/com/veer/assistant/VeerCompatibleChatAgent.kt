@@ -8,13 +8,19 @@ import java.net.URL
 
 internal fun interface VeerCompatibleChatAgentTransport {
     fun generate(endpoint: String, model: String, apiKey: String, requestBody: String): String
+    fun generate(endpoint: String, model: String, apiKey: String, requestBody: String, cancellationToken: AgentCancellationToken?): String =
+        generate(endpoint, model, apiKey, requestBody)
 }
 
 internal class VeerCompatibleChatAgentHttpTransport(
     private val connectionFactory: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }
 ) : VeerCompatibleChatAgentTransport {
-    override fun generate(endpoint: String, model: String, apiKey: String, requestBody: String): String {
+    override fun generate(endpoint: String, model: String, apiKey: String, requestBody: String): String =
+        generate(endpoint, model, apiKey, requestBody, null)
+
+    override fun generate(endpoint: String, model: String, apiKey: String, requestBody: String, cancellationToken: AgentCancellationToken?): String {
         val connection = connectionFactory(URL(endpoint))
+        val cancellationRegistration = cancellationToken?.onCancel { connection.disconnect() }
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 10_000
@@ -35,6 +41,7 @@ internal class VeerCompatibleChatAgentHttpTransport(
         } catch (failure: IOException) {
             throw AgentProviderException("AI provider network request failed.", retryable = true)
         } finally {
+            cancellationRegistration?.close()
             connection.disconnect()
         }
     }
@@ -66,7 +73,7 @@ internal class VeerCompatibleChatAgent(
             .put("messages", buildMessages(turn))
             .put("tools", functionTools())
             .put("tool_choice", "auto")
-        val raw = transport.generate(endpoint, model, key, body.toString())
+        val raw = transport.generate(endpoint, model, key, body.toString(), turn.cancellationToken)
         return parseResponse(raw)
             ?: throw IllegalStateException("AI provider returned an invalid agent response.")
     }

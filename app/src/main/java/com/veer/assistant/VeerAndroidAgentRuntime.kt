@@ -8,12 +8,16 @@ package com.veer.assistant
 internal class VeerAndroidAgentRuntime(
     apiKeyProvider: () -> String?,
     dispatchApprovedAction: (String) -> String,
+    outcomeVerifier: (AgentToolCall, String) -> AgentToolOutcome = { _, _ ->
+        AgentToolOutcome.uncertain("Android launch dispatch is not independently observable.")
+    },
     openAiApiKeyProvider: () -> String? = { null },
     claudeApiKeyProvider: () -> String? = { null },
     llamaApiKeyProvider: () -> String? = { null },
     grokApiKeyProvider: () -> String? = { null },
     museApiKeyProvider: () -> String? = { null },
     internal val approvalSession: VeerAgentApprovalSession = VeerAgentApprovalSession(),
+    internal val taskLifecycle: AgentTaskLifecycle = AgentTaskLifecycle(),
     transport: VeerGeminiAgentTransport = VeerGeminiHttpTransport(),
     openAiTransport: VeerOpenAiAgentTransport = VeerOpenAiHttpTransport(),
     claudeTransport: VeerClaudeAgentTransport = VeerClaudeHttpTransport(),
@@ -39,9 +43,10 @@ internal class VeerAndroidAgentRuntime(
                 )
             )
         ),
-        tools = VeerAndroidAppToolExecutor(dispatchApprovedAction),
+        tools = VeerAndroidAppToolExecutor(outcomeVerifier, dispatchApprovedAction),
         approval = approvalSession,
-        providerOrder = providerOrder
+        providerOrder = providerOrder,
+        taskLifecycle = taskLifecycle
     )
 
     fun setProviderOrder(order: List<AiProvider>) = brain.setProviderOrder(order)

@@ -17,6 +17,7 @@ internal class VeerGeminiHttpTransport(
                 "${VeerGeminiAgentRequest.MODEL}:generateContent"
         )
         val connection = connectionFactory(endpoint)
+        val cancellationRegistration = turn.cancellationToken?.onCancel { connection.disconnect() }
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 10_000
@@ -43,6 +44,7 @@ internal class VeerGeminiHttpTransport(
         } catch (failure: java.io.IOException) {
             throw AgentProviderException("Gemini network request failed.", retryable = true)
         } finally {
+            cancellationRegistration?.close()
             connection.disconnect()
         }
     }

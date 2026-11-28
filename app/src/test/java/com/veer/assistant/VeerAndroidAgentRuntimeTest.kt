@@ -21,6 +21,7 @@ class VeerAndroidAgentRuntimeTest {
                 dispatched += action
                 "Android action dispatched."
             },
+            outcomeVerifier = { _, _ -> AgentToolOutcome.verified("Test observer confirmed app launch.") },
             transport = VeerGeminiAgentTransport { _, _ -> responses.removeFirst() }
         )
 
@@ -47,6 +48,7 @@ class VeerAndroidAgentRuntimeTest {
         assertEquals(1, resumed.steps)
         assertFalse(resumed.stoppedForApproval)
         assertFalse(runtime.approvalSession.approved(call))
+        assertEquals(AgentTaskStatus.COMPLETED, runtime.taskLifecycle.snapshots().single().status)
     }
 
     @Test fun fallsBackToOpenAiStructuredAdapterWhenGeminiHasTransientFailure() {
@@ -228,7 +230,10 @@ class VeerAndroidAgentRuntimeTest {
         val result = runtime.brain.run(turn)
 
         assertEquals("meta-muse-key", keySeen)
-        assertEquals(turn, turnSeen)
+        assertEquals(turn.userRequest, turnSeen?.userRequest)
+        assertEquals(turn.memory, turnSeen?.memory)
+        assertEquals(turn.recentConversation, turnSeen?.recentConversation)
+        assertNotNull(turnSeen?.cancellationToken)
         assertEquals(AiProvider.MUSE, result.provider)
         assertEquals("Muse Spark ready", result.message)
     }
@@ -271,6 +276,7 @@ class VeerAndroidAgentRuntimeTest {
             apiKeyProvider = { null },
             museApiKeyProvider = { "muse-key" },
             dispatchApprovedAction = { action -> dispatched += action; "YouTube launched" },
+            outcomeVerifier = { _, _ -> AgentToolOutcome.verified("Test observer confirmed app launch.") },
             museTransport = VeerMuseAgentTransport { _, turn ->
                 turns += turn
                 responses.removeFirst()
@@ -291,7 +297,7 @@ class VeerAndroidAgentRuntimeTest {
         assertEquals(1, completed.steps)
         assertEquals("muse_call_1", turns[1].previousToolCallId)
         assertTrue(turns[1].providerContext.orEmpty().contains("muse_call_1"))
-        assertEquals("YouTube launched", turns[1].previousToolResult)
+        assertTrue(turns[1].previousToolResult.orEmpty().startsWith("YouTube launched"))
         assertEquals(AiProvider.MUSE, turns[1].providerContextProvider)
     }
 
