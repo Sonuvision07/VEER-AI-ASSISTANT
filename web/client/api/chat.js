@@ -127,7 +127,8 @@ export default async function handler(req, res) {
     );
 
     if (!upstream.ok || !upstream.body) {
-      return json(res, 502, { error: "AI provider request failed. Please try again." });
+      // Keep provider response bodies private; the HTTP status helps diagnose key and quota issues.
+      return json(res, 502, { error: "AI provider returned HTTP " + upstream.status + ". Check the Gemini key, model access, and quota." });
     }
 
     res.statusCode = 200;
@@ -138,28 +139,43 @@ export default async function handler(req, res) {
     const reader = upstream.body.getReader();
     const decoder = new TextDecoder();
     let pending = "";
-    while (!disconnected) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      pending += decoder.decode(value, { stream: true });
-      const events = pending.split("\n\n");
-      pending = events.pop() || "";
-      for (const event of events) {
-        for (const line of event.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const packet = JSON.parse(line.slice(5).trim());
-            const text = packet.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
-            if (text && !res.destroyed) res.write("data: " + JSON.stringify({ text }) + "\n\n");
-          } catch { /* Ignore malformed upstream SSE frames. */ }
-        }
+    let emittedText = false;
+    const forwardEvent = (event) => {
+      for (const line of event.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const raw = line.slice(5).trim();
+        if (!raw || raw === "[DONE]") continue;
+        try {
+          const packet = JSON.parse(raw);
+          const text = packet.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+          if (text && !res.destroyed) {
+            emittedText = true;
+            res.write("data: " + JSON.stringify({ text }) + "\n\n");
+          }
+        } catch { /* Ignore malformed upstream SSE frames. */ }
       }
+    };
+    try {
+      while (!disconnected) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        // Gemini may emit CRLF-delimited SSE frames. Normalize before splitting.
+        pending += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        const events = pending.split("\n\n");
+        pending = events.pop() || "";
+        for (const event of events) forwardEvent(event);
+      }
+      pending += decoder.decode().replace(/\r\n/g, "\n");
+      if (pending.trim()) forwardEvent(pending);
+      if (!disconnected && !res.destroyed) {
+        if (!emittedText) res.write("data: " + JSON.stringify({ error: "Gemini returned an empty response. Please retry." }) + "\n\n");
+        res.write("data: [DONE]\n\n");
+        res.end();
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
     }
-    if (!disconnected && !res.destroyed) {
-      res.write("data: [DONE]\n\n");
-      res.end();
-    }
-    reader.releaseLock();
   } catch (error) {
     if (!res.headersSent && !res.destroyed) {
       return json(res, controller.signal.aborted ? 504 : 502, {
