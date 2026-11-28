@@ -2627,7 +2627,7 @@ fun VeerApp() {
                                 calendarScheduleReport = if (!result.analysisComplete) {
                                     "Some event times could not be interpreted. VEER cannot safely confirm free time."
                                 } else {
-                                    val slots = result.freeWindows.take(5).map(VeerCalendarSchedule::formatWindow)
+                                    val slots = result.freeWindows.take(5).map { VeerCalendarSchedule.formatWindow(it) }
                                     "Next 7 days: ${result.eventCount} calendar events checked.\n60-minute windows (9 AM–5 PM):\n" +
                                         if (slots.isEmpty()) "No 60-minute free window found." else slots.joinToString("\n") +
                                         if (result.freeWindows.size > 5) "\nMore windows available." else ""
