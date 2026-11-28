@@ -183,6 +183,16 @@ def _handler_for(workspace: Path, token: str, task_queue: DurableTaskQueue):
                 return self.send_json(401, {"ok": False, "error": "Unauthorized"})
 
             route = urlparse(self.path).path
+            # All state-changing PC operations must enter the durable task queue.
+            # Legacy direct write/open endpoints bypassed exact-payload approval.
+            task_route = (
+                route == "/tasks"
+                or (route.startswith("/tasks/") and
+                    (route.endswith("/approve") or route.endswith("/cancel")))
+            )
+            if not task_route:
+                return self.send_json(404, {"ok": False, "error": "Not found"})
+
             try:
                 data = self.body()
                 if route == "/tasks":
@@ -203,46 +213,7 @@ def _handler_for(workspace: Path, token: str, task_queue: DurableTaskQueue):
                         return self.send_json(404, {"ok": False, "error": "Not found"})
                     task = task_queue.cancel(task_id)
                     return self.send_json(200, {"ok": True, "task": asdict(task)})
-                if route not in ("/open-url", "/write-text"):
-                    return self.send_json(404, {"ok": False, "error": "Not found"})
-                if route == "/open-url":
-                    url = str(data.get("url", "")).strip()
-                    if not url or any(ord(char) < 32 for char in url):
-                        raise ValueError("A valid HTTP(S) URL is required")
-                    parsed = urlparse(url)
-                    if parsed.scheme.lower() not in ("https", "http") or not parsed.hostname:
-                        raise ValueError("Only valid HTTP(S) URLs are allowed")
-                    if parsed.username is not None or parsed.password is not None:
-                        raise ValueError("URLs containing credentials are not allowed")
-                    try:
-                        _ = parsed.port
-                    except ValueError as error:
-                        raise ValueError("Invalid URL port") from error
-                    opened = webbrowser.open(url, new=2)
-                    if not opened:
-                        return self.send_json(503, {"ok": False, "error": "The default browser did not accept the open request"})
-                    return self.send_json(200, {"ok": True, "message": "Browser open request accepted", "url": url})
-
-                relative = str(data.get("path", "")).strip()
-                content = data.get("content", "")
-                if not relative or not isinstance(content, str):
-                    raise ValueError("path and text content are required")
-                if len(content.encode("utf-8")) > MAX_BODY:
-                    raise ValueError("Text content too large")
-
-                target = safe_path(workspace, relative)
-                if target == workspace.resolve():
-                    raise ValueError("A file name inside the workspace is required")
-                target.parent.mkdir(parents=True, exist_ok=True)
-                # Re-resolve after directory creation to catch symlink changes.
-                target = safe_path(workspace, relative)
-                try:
-                    # Exclusive creation prevents a check-then-write overwrite race.
-                    with target.open("x", encoding="utf-8", newline="") as handle:
-                        handle.write(content)
-                except FileExistsError:
-                    return self.send_json(409, {"ok": False, "error": "Refusing to overwrite existing file"})
-                return self.send_json(201, {"ok": True, "created": target.relative_to(workspace).as_posix()})
+                return self.send_json(404, {"ok": False, "error": "Not found"})
             except (ValueError, TaskRejected) as error:
                 return self.send_json(400, {"ok": False, "error": str(error)})
             except TaskNotFound:
@@ -250,9 +221,9 @@ def _handler_for(workspace: Path, token: str, task_queue: DurableTaskQueue):
             except TaskConflict as error:
                 return self.send_json(409, {"ok": False, "error": str(error)})
             except OSError:
-                return self.send_json(500, {"ok": False, "error": "The requested local operation failed"})
+                return self.send_json(500, {"ok": False, "error": "The requested task operation failed"})
             except Exception:
-                return self.send_json(502, {"ok": False, "error": "The browser or local operation failed"})
+                return self.send_json(502, {"ok": False, "error": "The task API operation failed"})
 
     return Handler
 
@@ -301,7 +272,7 @@ class TaskWorker:
                 raise ValueError("Text content too large")
             target = safe_path(self.workspace, relative)
             if target == self.workspace:
-                raise ValueError("A file name inside the workspace is required")
+                raise ValueError("A file name inside the VEER workspace is required")
             target.parent.mkdir(parents=True, exist_ok=True)
             target = safe_path(self.workspace, relative)
             with target.open("x", encoding="utf-8", newline="") as handle:
@@ -342,7 +313,6 @@ class TaskWorker:
             except Exception:
                 # A transient database/worker error must not terminate the companion.
                 self._stop.wait(self.poll_seconds)
-
 
 
 class VeerHTTPServer(ThreadingHTTPServer):
