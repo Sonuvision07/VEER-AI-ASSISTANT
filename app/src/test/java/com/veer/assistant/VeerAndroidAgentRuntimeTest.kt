@@ -21,6 +21,7 @@ class VeerAndroidAgentRuntimeTest {
                 dispatched += action
                 "Android action dispatched."
             },
+            outcomeVerifier = { _, _ -> AgentToolOutcome.verified("Test observer confirmed app launch.") },
             transport = VeerGeminiAgentTransport { _, _ -> responses.removeFirst() }
         )
 
@@ -272,6 +273,7 @@ class VeerAndroidAgentRuntimeTest {
             apiKeyProvider = { null },
             museApiKeyProvider = { "muse-key" },
             dispatchApprovedAction = { action -> dispatched += action; "YouTube launched" },
+            outcomeVerifier = { _, _ -> AgentToolOutcome.verified("Test observer confirmed app launch.") },
             museTransport = VeerMuseAgentTransport { _, turn ->
                 turns += turn
                 responses.removeFirst()
