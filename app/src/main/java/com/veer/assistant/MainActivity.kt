@@ -2292,6 +2292,71 @@ fun VeerApp() {
             }
         )
     }
+    if (showPcTaskApproval) {
+        val task = pcTaskCurrent
+        AlertDialog(
+            onDismissRequest = { if (!pcTaskBusy) showPcTaskApproval = false },
+            title = { Text("Approve this PC task?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Only approve if the exact action and payload below are correct. This sends a one-time approval for the exact SHA-256 payload.")
+                    if (task != null) {
+                        Text("Operation: " + task.operation, fontWeight = FontWeight.Bold)
+                        Text(task.payload.toString(2), fontSize = 11.sp)
+                        Text("Payload SHA-256:", fontSize = 10.sp, color = Color.Gray)
+                        Text(task.payloadSha256, fontSize = 9.sp)
+                    } else Text("Task details unavailable. Refresh before approving.")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !pcTaskBusy && task != null && task.state == "pending_approval",
+                    onClick = {
+                        val approvedTask = task ?: return@TextButton
+                        showPcTaskApproval = false
+                        pcTaskBusy = true
+                        pcTaskStatus = "Sending your one-time approval..."
+                        localAiScope.launch {
+                            try {
+                                pcTaskCurrent = withContext(Dispatchers.IO) {
+                                    VeerPcAgentClient(pcAgentUrl, pcAgentToken).approveTask(approvedTask.taskId, approvedTask.payloadSha256)
+                                }
+                                pcTaskStatus = "Approval sent. Task status: " + (pcTaskCurrent?.state ?: "unknown")
+                            } catch (error: Exception) {
+                                pcTaskStatus = "Approval failed: " + (error.message ?: "Check task status")
+                            } finally { pcTaskBusy = false }
+                        }
+                    }
+                ) { Text(if (pcTaskBusy) "SENDING..." else "APPROVE THIS EXACT TASK") }
+            },
+            dismissButton = { TextButton(onClick = { showPcTaskApproval = false }, enabled = !pcTaskBusy) { Text("NOT NOW") } }
+        )
+    }
+
+    if (showPcTaskCancelConfirm) {
+        AlertDialog(
+            onDismissRequest = { showPcTaskCancelConfirm = false },
+            title = { Text("Cancel PC task?") },
+            text = { Text("The task will be cancelled if it has not started running.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val task = pcTaskCurrent ?: return@TextButton
+                    showPcTaskCancelConfirm = false
+                    pcTaskBusy = true
+                    localAiScope.launch {
+                        try {
+                            pcTaskCurrent = withContext(Dispatchers.IO) { VeerPcAgentClient(pcAgentUrl, pcAgentToken).cancelTask(task.taskId) }
+                            pcTaskStatus = "Task status: " + (pcTaskCurrent?.state ?: "unknown")
+                        } catch (error: Exception) {
+                            pcTaskStatus = "Cancel failed: " + (error.message ?: "Check task status")
+                        } finally { pcTaskBusy = false }
+                    }
+                }) { Text("CANCEL TASK") }
+            },
+            dismissButton = { TextButton(onClick = { showPcTaskCancelConfirm = false }) { Text("KEEP TASK") } }
+        )
+    }
+
 }
 
 
@@ -2811,72 +2876,7 @@ private fun HologramFace(
         drawLine(cyan.copy(alpha = 0.4f), p(260f, 260f), p(240f, 320f), 1f*sx)
         drawLine(cyan.copy(alpha = 0.65f), p(125f, 340f), p(119f, 390f), 2f*sx)
         drawLine(cyan.copy(alpha = 0.65f), p(235f, 340f), p(241f, 390f), 2f*sx)
-    if (showPcTaskApproval) {
-        val task = pcTaskCurrent
-        AlertDialog(
-            onDismissRequest = { if (!pcTaskBusy) showPcTaskApproval = false },
-            title = { Text("Approve this PC task?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Only approve if the exact action and payload below are correct. This sends a one-time approval for the exact SHA-256 payload.")
-                    if (task != null) {
-                        Text("Operation: " + task.operation, fontWeight = FontWeight.Bold)
-                        Text(task.payload.toString(2), fontSize = 11.sp)
-                        Text("Payload SHA-256:", fontSize = 10.sp, color = Color.Gray)
-                        Text(task.payloadSha256, fontSize = 9.sp)
-                    } else Text("Task details unavailable. Refresh before approving.")
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !pcTaskBusy && task != null && task.state == "pending_approval",
-                    onClick = {
-                        val approvedTask = task ?: return@TextButton
-                        showPcTaskApproval = false
-                        pcTaskBusy = true
-                        pcTaskStatus = "Sending your one-time approval..."
-                        localAiScope.launch {
-                            try {
-                                pcTaskCurrent = withContext(Dispatchers.IO) {
-                                    VeerPcAgentClient(pcAgentUrl, pcAgentToken).approveTask(approvedTask.taskId, approvedTask.payloadSha256)
-                                }
-                                pcTaskStatus = "Approval sent. Task status: " + (pcTaskCurrent?.state ?: "unknown")
-                            } catch (error: Exception) {
-                                pcTaskStatus = "Approval failed: " + (error.message ?: "Check task status")
-                            } finally { pcTaskBusy = false }
-                        }
-                    }
-                ) { Text(if (pcTaskBusy) "SENDING..." else "APPROVE THIS EXACT TASK") }
-            },
-            dismissButton = { TextButton(onClick = { showPcTaskApproval = false }, enabled = !pcTaskBusy) { Text("NOT NOW") } }
-        )
-    }
 
-    if (showPcTaskCancelConfirm) {
-        AlertDialog(
-            onDismissRequest = { showPcTaskCancelConfirm = false },
-            title = { Text("Cancel PC task?") },
-            text = { Text("The task will be cancelled if it has not started running.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    val task = pcTaskCurrent ?: return@TextButton
-                    showPcTaskCancelConfirm = false
-                    pcTaskBusy = true
-                    localAiScope.launch {
-                        try {
-                            pcTaskCurrent = withContext(Dispatchers.IO) { VeerPcAgentClient(pcAgentUrl, pcAgentToken).cancelTask(task.taskId) }
-                            pcTaskStatus = "Task status: " + (pcTaskCurrent?.state ?: "unknown")
-                        } catch (error: Exception) {
-                            pcTaskStatus = "Cancel failed: " + (error.message ?: "Check task status")
-                        } finally { pcTaskBusy = false }
-                    }
-                }) { Text("CANCEL TASK") }
-            },
-            dismissButton = { TextButton(onClick = { showPcTaskCancelConfirm = false }) { Text("KEEP TASK") } }
-        )
-    }
-
-    }
 }
 
 // Rebuild after completing the voice-mode hologram component.
