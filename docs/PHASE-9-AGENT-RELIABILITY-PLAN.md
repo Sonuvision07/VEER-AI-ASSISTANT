@@ -4,13 +4,13 @@
 Improve reliability, transparency, recovery and safe cancellation of VEER's multi-step tool tasks without redesigning the existing chat UI or changing the APK icon.
 
 ## Safety and scope boundaries
-- Keep the existing bounded task loop, timeout, allowlist and explicit approvals; do not broaden permissions as part of reliability work.
+- Keep the existing bounded task loop, timeout, allowlist and explicit approvals; do not broaden permissions.
 - Treat task context, provider output, files and webpages as untrusted data.
 - Never replay approvals or provider continuation state across providers or tasks.
 - Side effects require exact-action approval; verification must not itself create side effects.
 - Avoid logging secrets, OAuth tokens, sensitive content or unnecessary user data.
-- Prefer deterministic state transitions and bounded memory; task memory must be scoped, clearable and not silently persistent.
-- No claim of physical-device acceptance until tests are run on a device.
+- Task context is in-memory, bounded, task-scoped and explicitly clearable; no silent persistence.
+- Do not claim physical-device acceptance until device tests are run.
 
 ## Steps
 1. **Plan and scope** — define invariants, interfaces and acceptance criteria; keep UI/icon unchanged.
@@ -24,19 +24,26 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+## Step 5 acceptance criteria
+- Store only sanitized text snippets explicitly added by the caller; never accept request objects, tool arguments or provider continuation state.
+- Bound entry count, per-entry characters, total retained characters and retention time.
+- Expire old entries deterministically and expose an explicit clear operation.
+- Keep state in memory only; no disk, preferences, logs or network behavior.
+- Unit tests cover bounds, sanitization, expiry and clearing.
+
 ## Step 4 acceptance criteria
 - Cancellation is idempotent and can notify active operations through one-shot callbacks.
 - Listener registration is race-safe; listeners added after cancellation run immediately.
 - Listener failures do not prevent remaining callbacks.
 - Callers can unregister callbacks when operations finish.
-- Agent orchestration rechecks cancellation before dispatching a tool; tests cover cancellation during validation and approval continuation.
-- Network transports must register a disconnect/abort callback before this step is considered fully device-verified; current synchronous provider adapters remain a follow-up integration/test item.
+- Agent orchestration rechecks cancellation before dispatching a tool.
+- Transport adapters must register abort callbacks before in-flight network cancellation is considered complete.
 
 ## Step 3 acceptance criteria
 - Keep only a bounded number of lifecycle snapshots in an in-memory history.
 - Replace an existing task record by task ID without creating duplicate entries.
 - Expose safe snapshot/list lookup and an explicit clear operation.
-- Reject malformed identifiers/timestamps and never retain request text, tool arguments or provider secrets.
+- Reject malformed identifiers/timestamps; never retain request text, tool arguments or provider secrets.
 - Sanitize and bound status reasons before storing them.
 - Unit tests cover bounds, replacement, ordering, validation and clearing.
 
@@ -47,7 +54,7 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 - Unit tests cover lifecycle, invalid transitions, monotonic timestamps and reason sanitization.
 
 ## Step 1 acceptance criteria
-- This plan is committed on a feature branch and proposed in a PR.
+- Plan is committed on a feature branch and proposed in a PR.
 - Existing Phase 1–5 plan remains unchanged except for a pointer to Phase 9.
 - No application code or UI changes are made in Step 1.
-- Step 1 must not be described as merged or CI-verified until GitHub confirms those states.
+- Do not describe Step 1 as merged or CI-verified until GitHub confirms.
