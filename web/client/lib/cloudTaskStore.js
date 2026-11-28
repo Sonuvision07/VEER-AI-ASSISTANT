@@ -109,7 +109,7 @@ export async function approveTask(sql, owner, taskId, suppliedHash) {
   const rows = await sql`
     UPDATE veer_cloud_tasks SET state='queued',approval_consumed=TRUE,updated_at=NOW()
     WHERE task_id=${taskId} AND owner=${owner} AND state='pending_approval'
-      AND approval_consumed=FALSE AND expires_at>NOW() AND payload_sha256=${suppliedHash}
+      AND approval_consumed=FALSE AND expires_at>NOW() AND payload_sha256=${suppliedHash.toLowerCase()}
     RETURNING *
   `;
   if (rows.length) return toTask(rows[0]);
