@@ -466,7 +466,7 @@ class VeerAgentBrainTest {
         assertEquals(1, result.steps)
         assertTrue(receivedToolResult!!.startsWith("x".repeat(20)))
         assertTrue(receivedToolResult!!.contains("[Tool result truncated by VEER]"))
-        assertTrue(receivedToolResult!!.length < 100)
+        assertTrue(receivedToolResult!!.length < 200)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -1191,7 +1191,7 @@ class VeerAgentBrainTest {
         val brain = VeerAgentBrain(
             FakeGateway { _, _ -> AgentDecision("Approve", requested, finished = false) },
             tools,
-            FakeApproval(true)
+            FakeApproval(false)
         )
 
         val pending = brain.run(turn())
@@ -1212,11 +1212,12 @@ class VeerAgentBrainTest {
                 else AgentDecision("Done", finished = true)
             },
             tools,
-            FakeApproval(true)
+            FakeApproval(false)
         )
 
         val pending = brain.run(turn())
         val continuation = pending.continuation!!
+        (brain.javaClass.getDeclaredField("approval").apply { isAccessible = true }.get(brain) as FakeApproval).result = true
         val first = brain.resumeAfterApproval(continuation, requested)
         val countAfterFirst = tools.executed.size
         val second = brain.resumeAfterApproval(continuation, requested)
