@@ -207,11 +207,11 @@ class VeerAgentBrain(
         initialOutcome: AgentToolOutcome?,
         taskSession: AgentTaskLifecycle.Session
     ): AgentRunResult {
+        var lastOutcome = initialOutcome
         fun finish(result: AgentRunResult, status: AgentTaskStatus): AgentRunResult {
             val snapshot = taskLifecycle.transition(taskSession, status, result.message)
             return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status, lastToolOutcome = result.lastToolOutcome ?: lastOutcome)
         }
-        var lastOutcome = initialOutcome
         taskLifecycle.transition(taskSession, AgentTaskStatus.RUNNING)
         var turn = initialTurn
         var lastProvider: AiProvider? = initialProvider
