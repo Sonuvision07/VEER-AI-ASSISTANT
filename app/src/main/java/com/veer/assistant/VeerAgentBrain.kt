@@ -99,7 +99,9 @@ class AgentApprovalContinuation internal constructor(
     val completedSteps: Int,
     internal val ownerToken: Any,
     internal val cancellationToken: AgentCancellationToken,
-    internal val deadlineNanos: Long
+    internal val deadlineNanos: Long,
+    internal val approvalExpiresAtNanos: Long,
+    val approvalId: String
 ) {
     internal var consumed: Boolean = false
 }
@@ -145,6 +147,7 @@ class VeerAgentBrain(
     private val maxToolNameChars: Int = 128,
     private val taskTimeoutMillis: Long = 90_000,
     private val maxProviderAttempts: Int = 2,
+    private val approvalTimeoutMillis: Long = 120_000,
     private val nanoTime: () -> Long = System::nanoTime
 ) {
     @Volatile private var providerOrder: List<AiProvider> = providerOrder.toList()
@@ -163,6 +166,7 @@ class VeerAgentBrain(
         require(maxToolNameChars > 0) { "maxToolNameChars must be positive" }
         require(taskTimeoutMillis > 0) { "taskTimeoutMillis must be positive" }
         require(maxProviderAttempts > 0) { "maxProviderAttempts must be positive" }
+        require(approvalTimeoutMillis > 0) { "approvalTimeoutMillis must be positive" }
     }
     fun run(
         initialTurn: AgentTurn,
@@ -269,7 +273,9 @@ class VeerAgentBrain(
                                 previousToolCallId = decision.second.providerCallId,
                                 providerContextProvider = decision.first.takeIf { decision.second.providerContext != null }
                             ), decision.first, action, steps, continuationOwnerToken,
-                            cancellationToken, deadlineNanos
+                            cancellationToken, deadlineNanos,
+                            minOf(deadlineNanos, nanoTime() + approvalTimeoutMillis.coerceAtMost((Long.MAX_VALUE / 2) / 1_000_000L) * 1_000_000L),
+                            java.util.UUID.randomUUID().toString()
                         )
                     )
                 }
@@ -327,6 +333,13 @@ class VeerAgentBrain(
         val cancellationToken = continuation.cancellationToken
         if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps)
         if (nanoTime() - continuation.deadlineNanos >= 0L) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
+        if (nanoTime() - continuation.approvalExpiresAtNanos >= 0L) {
+            continuation.consumed = true
+            return AgentRunResult(
+                "VEER ki approval expire ho gayi. Naya task aur fresh approval zaroori hai.",
+                continuation.provider, continuation.completedSteps
+            )
+        }
         val invalid = action.name.isBlank() ||
             action.name != action.name.trim() ||
             action.name.any { it.isISOControl() } ||
