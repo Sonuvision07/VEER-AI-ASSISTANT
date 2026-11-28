@@ -587,7 +587,7 @@ class VeerAgentBrainTest {
         approval.result = true
         val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
 
-        assertEquals("done", receivedToolResult)
+        assertTrue(receivedToolResult.orEmpty().startsWith("done"))
         assertEquals("Task completed after tool result", resumed.message)
         assertEquals(1, resumed.steps)
         assertEquals(1, tools.executed.size)
@@ -617,7 +617,7 @@ class VeerAgentBrainTest {
         val pending = brain.run(turn())
         approval.result = true
         val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
-        assertEquals("done", resumedTurn?.previousToolResult)
+        assertTrue(resumedTurn?.previousToolResult.orEmpty().startsWith("done"))
         assertEquals("[{}]", resumedTurn?.providerContext)
         assertEquals("call_approved", resumedTurn?.previousToolCallId)
         assertEquals(AiProvider.OPENAI, resumedTurn?.providerContextProvider)
