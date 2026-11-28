@@ -288,6 +288,20 @@ private fun VeerOutlineIcon(kind: String, modifier: Modifier = Modifier, tint: C
 @Composable
 fun VeerApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var latestResearchReport by remember { mutableStateOf("") }
+    val researchSaveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val destination = result.data?.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && destination != null) {
+            try {
+                context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
+                    stream.write(latestResearchReport.toByteArray(Charsets.UTF_8))
+                } ?: throw java.io.IOException("Unable to open selected document")
+                messages.add("VEER" to "Research report selected location par save ho gayi.")
+            } catch (error: Exception) {
+                messages.add("VEER" to "Report save nahi ho paayi: " + (error.message ?: "Storage error"))
+            }
+        }
+    }
     val veerFont = remember { FontFamily(Font(R.font.inter_variable, weight = FontWeight.Normal)) }
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
     val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
@@ -1300,7 +1314,7 @@ fun VeerApp() {
                                     val url = source.optString("url")
                                     if (url.isBlank()) null else "[$id] $title\n$url"
                                 }
-                                reply = report.optString("answer", "Research response empty hai.") +
+                                latestResearchReport = VeerResearchReport.format(researchQuery, report.optString("answer", "Research response empty hai."), citations)\n                                reply = latestResearchReport +
                                     if (sourceLines.isEmpty()) "" else "\n\nSources:\n" + sourceLines.joinToString("\n")
                             }
                         }
@@ -1784,6 +1798,25 @@ fun VeerApp() {
                             Text("Veer soch raha hai…", color = uiMuted, fontSize = 13.sp)
                         }
                     }
+                }
+            }
+
+            if (latestResearchReport.isNotBlank()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = {
+                        try {
+                            context.startActivity(Intent.createChooser(VeerResearchExport.shareIntent(latestResearchReport), "Share VEER research report"))
+                        } catch (error: Exception) {
+                            messages.add("VEER" to "Share open nahi ho paaya: " + (error.message ?: "No compatible app"))
+                        }
+                    }) { Text("SHARE REPORT", color = uiAccent, fontSize = 11.sp) }
+                    TextButton(onClick = {
+                        researchSaveLauncher.launch(VeerResearchExport.createDocumentIntent())
+                    }) { Text("SAVE .MD", color = uiAccent, fontSize = 11.sp) }
                 }
             }
 
