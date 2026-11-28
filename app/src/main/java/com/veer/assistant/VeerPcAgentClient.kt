@@ -19,6 +19,19 @@ data class VeerPcAgentFileEntry(
     val sizeBytes: Long?
 )
 
+data class VeerPcAgentTask(
+    val taskId: String,
+    val operation: String,
+    val payload: JSONObject,
+    val payloadSha256: String,
+    val state: String,
+    val result: JSONObject?,
+    val error: String?,
+    val createdAt: Double,
+    val updatedAt: Double,
+    val expiresAt: Double
+)
+
 /**
  * Minimal authenticated HTTPS client for the restricted Windows companion.
  * Redirects are disabled so the bearer token cannot be forwarded to another host.
@@ -48,17 +61,96 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         )
     }
 
-    private fun request(path: String): JSONObject {
+    fun enqueueTask(operation: String, payload: JSONObject, idempotencyKey: String): VeerPcAgentTask {
+        require(operation in ALLOWED_TASKS) { "Unsupported PC task operation" }
+        require(idempotencyKey.length in 16..128 && idempotencyKey.all { it.code in 33..126 }) {
+            "Invalid task idempotency key"
+        }
+        require(payload.toString().toByteArray(Charsets.UTF_8).size <= MAX_TASK_PAYLOAD_BYTES) {
+            "PC task payload is too large"
+        }
+        val body = JSONObject()
+            .put("operation", operation)
+            .put("payload", payload)
+            .put("idempotency_key", idempotencyKey)
+        return parseTaskEnvelope(request("POST", "/tasks", body))
+    }
+
+    fun getTask(taskId: String): VeerPcAgentTask {
+        val safeId = validateTaskId(taskId)
+        return parseTaskEnvelope(request("GET", "/tasks/$safeId"))
+    }
+
+    fun approveTask(taskId: String, exactPayloadSha256: String): VeerPcAgentTask {
+        val safeId = validateTaskId(taskId)
+        validateApprovalHash(exactPayloadSha256)
+        val body = JSONObject().put("payload_sha256", exactPayloadSha256.lowercase())
+        return parseTaskEnvelope(request("POST", "/tasks/$safeId/approve", body))
+    }
+
+    fun cancelTask(taskId: String): VeerPcAgentTask {
+        val safeId = validateTaskId(taskId)
+        return parseTaskEnvelope(request("POST", "/tasks/$safeId/cancel", JSONObject()))
+    }
+
+    internal fun parseTaskEnvelope(response: JSONObject): VeerPcAgentTask {
+        if (!response.optBoolean("ok", false)) {
+            throw IOException(response.optString("error").ifBlank { "Windows task request failed" })
+        }
+        val task = response.optJSONObject("task") ?: throw IOException("Windows agent returned an invalid task")
+        val id = task.optString("task_id")
+        val operation = task.optString("operation")
+        val payload = task.optJSONObject("payload")
+        val hash = task.optString("payload_sha256")
+        val state = task.optString("state")
+        if (id.isBlank() || operation !in ALLOWED_TASKS || payload == null ||
+            !hash.matches(Regex("^[a-fA-F0-9]{64}$")) ||
+            state !in TASK_STATES
+        ) throw IOException("Windows agent returned an invalid task")
+        val created = task.optDouble("created_at", Double.NaN)
+        val updated = task.optDouble("updated_at", Double.NaN)
+        val expires = task.optDouble("expires_at", Double.NaN)
+        if (!created.isFinite() || !updated.isFinite() || !expires.isFinite()) {
+            throw IOException("Windows agent returned invalid task timestamps")
+        }
+        return VeerPcAgentTask(
+            taskId = id,
+            operation = operation,
+            payload = payload,
+            payloadSha256 = hash.lowercase(),
+            state = state,
+            result = task.optJSONObject("result"),
+            error = task.optString("error").takeIf { it.isNotBlank() && it != "null" },
+            createdAt = created,
+            updatedAt = updated,
+            expiresAt = expires
+        )
+    }
+
+    private fun request(path: String): JSONObject = request("GET", path)
+
+    private fun request(method: String, path: String, body: JSONObject? = null): JSONObject {
         val connection = (URL(endpoint + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
+            requestMethod = method
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
             instanceFollowRedirects = false
             useCaches = false
             setRequestProperty("Authorization", "Bearer " + bearerToken)
             setRequestProperty("Accept", "application/json")
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
         }
         try {
+            if (body != null) {
+                connection.outputStream.use { output ->
+                    val bytes = body.toString().toByteArray(Charsets.UTF_8)
+                    if (bytes.size > MAX_TASK_PAYLOAD_BYTES) throw IOException("PC task payload is too large")
+                    output.write(bytes)
+                }
+            }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val bytes = stream?.use { readBounded(it) } ?: ByteArray(0)
@@ -94,9 +186,24 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         private const val CONNECT_TIMEOUT_MS = 5_000
         private const val READ_TIMEOUT_MS = 8_000
         private const val MAX_RESPONSE_BYTES = 64 * 1024
+        private const val MAX_TASK_PAYLOAD_BYTES = 16 * 1024
+        private val ALLOWED_TASKS = setOf("health", "list_workspace", "create_text_file", "open_url")
+        private val TASK_STATES = setOf("pending_approval", "queued", "running", "completed", "failed", "cancelled", "expired")
         private const val MAX_LIST_ITEMS = 200
         private const val MAX_ENTRY_NAME_CHARS = 255
         private val ALLOWED_ENTRY_TYPES = setOf("file", "folder", "link")
+
+        internal fun validateTaskId(raw: String): String {
+            require(raw.matches(Regex("^[A-Za-z0-9_-]{16,64}$"))) { "Invalid PC task ID" }
+            return raw
+        }
+
+        internal fun validateApprovalHash(raw: String): String {
+            require(raw.matches(Regex("^[a-fA-F0-9]{64}$"))) {
+                "A valid exact-task approval hash is required"
+            }
+            return raw.lowercase()
+        }
 
         internal fun parseWorkspaceResponse(response: JSONObject): List<VeerPcAgentFileEntry> {
             if (!response.optBoolean("ok", false)) {
