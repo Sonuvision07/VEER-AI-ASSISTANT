@@ -2876,7 +2876,7 @@ private fun HologramFace(
         drawLine(cyan.copy(alpha = 0.4f), p(260f, 260f), p(240f, 320f), 1f*sx)
         drawLine(cyan.copy(alpha = 0.65f), p(125f, 340f), p(119f, 390f), 2f*sx)
         drawLine(cyan.copy(alpha = 0.65f), p(235f, 340f), p(241f, 390f), 2f*sx)
-
+    }
 }
 
 // Rebuild after completing the voice-mode hologram component.
