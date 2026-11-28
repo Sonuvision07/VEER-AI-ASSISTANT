@@ -320,6 +320,10 @@ fun VeerApp() {
     var drivePageToken by remember { mutableStateOf("") }
     var driveFiles by remember { mutableStateOf<List<VeerDriveClient.DriveFile>>(emptyList()) }
     var driveSelectedFile by remember { mutableStateOf<VeerDriveClient.DriveFile?>(null) }
+    var drivePendingContentFile by remember { mutableStateOf<VeerDriveClient.DriveFile?>(null) }
+    var driveContentBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var driveContentStatus by remember { mutableStateOf("") }
+    var driveContentBusy by remember { mutableStateOf(false) }
     var driveStatus by remember { mutableStateOf(if (driveConnected) "Connected — refresh access to search" else "Not connected") }
     var calendarConnected by remember { mutableStateOf(prefs.getBoolean("calendar_connected", false)) }
     var calendarEmail by remember { mutableStateOf(prefs.getString("calendar_email", "") ?: "") }
@@ -454,6 +458,50 @@ fun VeerApp() {
             gmailSendAuthorizationPending = false
             gmailStatus = "Google authorization cancelled"
             gmailBusy = false
+        }
+    }
+    fun fetchDriveSelectedContent(token: String, file: VeerDriveClient.DriveFile) {
+        driveContentBusy = true
+        driveContentBytes = null
+        driveContentStatus = "Fetching selected file in temporary memory..."
+        localAiScope.launch {
+            try {
+                val content = withContext(Dispatchers.IO) {
+                    VeerDriveClient.fetchSelectedContent(token, file.id, file.mimeType, file.sizeBytes)
+                }
+                driveContentBytes = content.bytes
+                driveContentStatus = "Fetched ${content.bytes.size} bytes (${content.contentType}) in memory only. Preview UI is the next step."
+            } catch (error: Exception) {
+                driveContentBytes = null
+                driveContentStatus = "File fetch failed: " + (error.message ?: "Unsupported or unavailable file")
+            } finally {
+                driveContentBusy = false
+                drivePendingContentFile = null
+            }
+        }
+    }
+    val driveContentAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            try {
+                val authorization = driveAuthorizationClient.getAuthorizationResultFromIntent(result.data!!)
+                val token = authorization.accessToken
+                val selected = drivePendingContentFile
+                if (token.isNullOrBlank() || selected == null) {
+                    driveContentStatus = "Google did not return content access for the selected file"
+                    driveContentBusy = false
+                    drivePendingContentFile = null
+                } else {
+                    fetchDriveSelectedContent(token, selected)
+                }
+            } catch (error: Exception) {
+                driveContentStatus = "Drive content authorization failed: " + (error.message ?: "Try again")
+                driveContentBusy = false
+                drivePendingContentFile = null
+            }
+        } else {
+            driveContentStatus = "Drive file access permission cancelled"
+            driveContentBusy = false
+            drivePendingContentFile = null
         }
     }
     val driveAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -3112,7 +3160,7 @@ fun VeerApp() {
                             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                                 Text(file.name.ifBlank { "(Unnamed file)" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                                 Text(file.mimeType + if (file.sizeBytes != null) " · ${file.sizeBytes} bytes" else "", fontSize = 10.sp, color = Color.Gray)
-                                TextButton(onClick = { driveSelectedFile = file }, enabled = !driveBusy) { Text("FILE DETAILS") }
+                                TextButton(onClick = { driveContentBytes = null; driveContentStatus = ""; driveSelectedFile = file }, enabled = !driveBusy) { Text("FILE DETAILS") }
                                 if (file.mimeType == "application/vnd.google-apps.folder") {
                                     TextButton(onClick = {
                                         driveSelectedFile = null
@@ -3133,6 +3181,49 @@ fun VeerApp() {
                                 Text("Size: ${selected.sizeBytes?.let { "${it} bytes" } ?: "Not provided"}", fontSize = 11.sp, color = Color.Gray)
                                 Text("Modified: ${selected.modifiedTime.ifBlank { "Not provided" }}", fontSize = 11.sp, color = Color.Gray)
                                 Text("Owner: ${selected.ownerNames.joinToString().ifBlank { "Not provided" }}", fontSize = 11.sp, color = Color.Gray)
+                                Button(onClick = {
+                                    drivePendingContentFile = selected
+                                    driveContentBytes = null
+                                    driveContentStatus = "Requesting read-only permission for this selected file..."
+                                    driveContentBusy = true
+                                    driveAuthorizationClient.authorize(VeerDriveAuthorization.contentAuthorizationRequest())
+                                        .addOnSuccessListener { authorization ->
+                                            if (authorization.hasResolution()) {
+                                                val pending = authorization.pendingIntent
+                                                if (pending == null) {
+                                                    driveContentStatus = "Google content permission screen could not be opened"
+                                                    driveContentBusy = false
+                                                    drivePendingContentFile = null
+                                                } else {
+                                                    driveContentAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                                }
+                                            } else {
+                                                val token = authorization.accessToken
+                                                if (token.isNullOrBlank()) {
+                                                    driveContentStatus = "Google did not grant file content access"
+                                                    driveContentBusy = false
+                                                    drivePendingContentFile = null
+                                                } else {
+                                                    fetchDriveSelectedContent(token, selected)
+                                                }
+                                            }
+                                        }
+                                        .addOnFailureListener { error ->
+                                            driveContentStatus = "Drive content permission failed: " + (error.message ?: "Try again")
+                                            driveContentBusy = false
+                                            drivePendingContentFile = null
+                                        }
+                                }, enabled = !driveContentBusy, modifier = Modifier.fillMaxWidth()) {
+                                    Text(if (driveContentBusy) "REQUESTING FILE ACCESS..." else "OPEN / FETCH SELECTED FILE")
+                                }
+                                if (driveContentStatus.isNotBlank()) {
+                                    Text(driveContentStatus, fontSize = 10.sp, color = Color.Gray)
+                                }
+                                TextButton(onClick = {
+                                    driveContentBytes = null
+                                    driveContentStatus = ""
+                                    driveSelectedFile = null
+                                }, enabled = !driveContentBusy) { Text("CLOSE DETAILS & CLEAR TEMP CONTENT") }
                                 if (selected.shortcutTargetId.isNotBlank()) {
                                     Text("Shortcut target type: ${selected.shortcutTargetMimeType}", fontSize = 11.sp, color = Color.Gray)
                                 }
@@ -3147,7 +3238,6 @@ fun VeerApp() {
                                 } else {
                                     Text("No trusted Google Drive web link is available.", fontSize = 10.sp, color = Color.Gray)
                                 }
-                                TextButton(onClick = { driveSelectedFile = null }) { Text("CLOSE DETAILS") }
                             }
                             Divider()
                         }

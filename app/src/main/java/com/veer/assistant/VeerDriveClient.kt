@@ -18,6 +18,7 @@ import java.net.URLEncoder
 object VeerDriveClient {
     private const val API_ROOT = "https://www.googleapis.com/drive/v3"
     private const val MAX_RESPONSE_BYTES = 1_048_576
+    private const val MAX_CONTENT_BYTES = 2_097_152
     private const val MAX_RESULTS = 50
     private const val MAX_PAGE_TOKEN = 2048
     private const val MAX_FILE_ID = 256
@@ -42,6 +43,82 @@ object VeerDriveClient {
     )
 
     data class FilePage(val files: List<DriveFile>, val nextPageToken: String)
+
+    data class SelectedContent(val bytes: ByteArray, val contentType: String, val exported: Boolean)
+
+    /** Fetch one explicitly selected file into bounded memory; never persists content. */
+    fun fetchSelectedContent(
+        accessToken: String,
+        fileId: String,
+        mimeType: String,
+        declaredSizeBytes: Long?
+    ): SelectedContent {
+        validateToken(accessToken)
+        val request = buildContentRequest(fileId, mimeType, declaredSizeBytes)
+        val connection = (URL(request.first).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 5000
+            readTimeout = 15000
+            instanceFollowRedirects = false
+            useCaches = false
+            setRequestProperty("Authorization", "Bearer $accessToken")
+            setRequestProperty("Accept", request.second)
+        }
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) throw IOException("Google Drive content request returned HTTP $status")
+            val declared = connection.getHeaderField("Content-Length")?.toLongOrNull()
+            if (declared != null && declared > MAX_CONTENT_BYTES) {
+                throw IOException("Selected file exceeds the 2 MiB preview limit")
+            }
+            val responseType = connection.contentType?.substringBefore(';')?.trim()?.lowercase().orEmpty()
+            if (responseType.isNotBlank() && responseType != request.second) {
+                throw IOException("Google Drive returned an unexpected content type")
+            }
+            val bytes = connection.inputStream.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (count == 0) continue
+                    if (count > MAX_CONTENT_BYTES - total) throw IOException("Selected file exceeds the 2 MiB preview limit")
+                    output.write(buffer, 0, count)
+                    total += count
+                }
+                output.toByteArray()
+            }
+            return SelectedContent(bytes, responseType.ifBlank { request.second }, request.third)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /** URL, expected MIME type, and whether this uses a Workspace export endpoint. */
+    internal fun buildContentRequest(
+        fileId: String,
+        mimeType: String,
+        declaredSizeBytes: Long?
+    ): Triple<String, String, Boolean> {
+        require(isSafeId(fileId)) { "Invalid Drive file id" }
+        require(declaredSizeBytes == null || declaredSizeBytes in 0..MAX_CONTENT_BYTES.toLong()) {
+            "Selected file exceeds the 2 MiB preview limit"
+        }
+        val exportMime = when (mimeType) {
+            "application/vnd.google-apps.document" -> "text/plain"
+            "application/vnd.google-apps.spreadsheet" -> "text/csv"
+            "application/vnd.google-apps.presentation" -> "application/pdf"
+            else -> null
+        }
+        if (exportMime != null) {
+            return Triple("$API_ROOT/files/${enc(fileId)}/export?mimeType=${enc(exportMime)}", exportMime, true)
+        }
+        require(mimeType in setOf("text/plain", "text/markdown", "text/csv", "application/pdf")) {
+            "This file type is not supported for the first preview release"
+        }
+        return Triple("$API_ROOT/files/${enc(fileId)}?alt=media", mimeType, false)
+    }
 
     /** Fetch one page only. Pagination is explicit and never follows nextPageToken automatically. */
     fun listFiles(
