@@ -76,3 +76,10 @@ Use a provider-neutral server interface so the app is not locked to one search v
 **Implemented on the PR branch:** source-fetch/extraction utility validates HTTP(S) URLs, rejects credentials and localhost/private/reserved destinations, resolves hostnames and rejects restricted DNS answers, disallows redirects, limits page size and extracted text, accepts only text/html/xhtml/plain content, and applies a fetch timeout. It strips common script/style/navigation markup and returns bounded title/content/URL metadata. Tests include private-address and DNS checks, malformed URLs, redirect refusal, content-type and size limits.
 
 **Still pending:** CI verification and review before merge. Source retrieval remains a helper, not yet wired into Android or research synthesis.
+
+
+## Phase 5 Step 5 status
+
+**Implemented on the PR branch:** source-grounded Gemini synthesis accepts a bounded query and 1–5 normalized search snippets, labels sources S1–S5, prompts the model to treat source text as untrusted and use only the supplied evidence, and returns citation metadata mapped only to supplied sources. Authenticated `POST /api/research/synthesize` endpoint, bounded request and model response, timeout, and unit tests were added. This step uses snippets only; it does not fetch webpages during synthesis. CI and live-key validation remain pending.
+
+**Concurrent bug fix:** search provider response reading was corrected to avoid recursive fallback and to use the bounded response reader instead of unbounded `response.text()` in the streaming-body case. CI verification is pending.
