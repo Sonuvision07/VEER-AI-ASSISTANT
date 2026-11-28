@@ -38,7 +38,9 @@ data class AgentTurn(
     val previousToolResult: String? = null,
     val providerContext: String? = null,
     val previousToolCallId: String? = null,
-    val providerContextProvider: AiProvider? = null
+    val providerContextProvider: AiProvider? = null,
+    /** In-memory cancellation signal; never serialized into provider requests. */
+    val cancellationToken: AgentCancellationToken? = null
 )
 
 /**
@@ -426,7 +428,7 @@ class VeerAgentBrain(
                             previousToolCallId = null,
                             providerContextProvider = null
                         )
-                    } else turn
+                    } else turn.copy(cancellationToken = cancellationToken)
                     val decision = gateway.decide(provider, providerTurn)
                     if (cancellationToken.isCancelled() || nanoTime() >= deadlineNanos) return null
                     return provider to decision
