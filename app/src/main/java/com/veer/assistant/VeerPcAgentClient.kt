@@ -83,9 +83,7 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
 
     fun approveTask(taskId: String, exactPayloadSha256: String): VeerPcAgentTask {
         val safeId = validateTaskId(taskId)
-        require(exactPayloadSha256.matches(Regex("^[a-fA-F0-9]{64}$"))) {
-            "A valid exact-task approval hash is required"
-        }
+        validateApprovalHash(exactPayloadSha256)
         val body = JSONObject().put("payload_sha256", exactPayloadSha256.lowercase())
         return parseTaskEnvelope(request("POST", "/tasks/$safeId/approve", body))
     }
@@ -95,7 +93,7 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         return parseTaskEnvelope(request("POST", "/tasks/$safeId/cancel", JSONObject()))
     }
 
-    private fun parseTaskEnvelope(response: JSONObject): VeerPcAgentTask {
+    internal fun parseTaskEnvelope(response: JSONObject): VeerPcAgentTask {
         if (!response.optBoolean("ok", false)) {
             throw IOException(response.optString("error").ifBlank { "Windows task request failed" })
         }
@@ -129,10 +127,12 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         )
     }
 
-    private fun validateTaskId(raw: String): String {
+    internal fun validateTaskId(raw: String): String {
         require(raw.matches(Regex("^[A-Za-z0-9_-]{16,64}$"))) { "Invalid PC task ID" }
         return raw
     }
+
+    private fun request(path: String): JSONObject = request("GET", path)
 
     private fun request(method: String, path: String, body: JSONObject? = null): JSONObject {
         val connection = (URL(endpoint + path).openConnection() as HttpURLConnection).apply {
@@ -197,6 +197,13 @@ class VeerPcAgentClient(baseUrl: String, token: String) {
         private const val MAX_LIST_ITEMS = 200
         private const val MAX_ENTRY_NAME_CHARS = 255
         private val ALLOWED_ENTRY_TYPES = setOf("file", "folder", "link")
+
+        internal fun validateApprovalHash(raw: String): String {
+            require(raw.matches(Regex("^[a-fA-F0-9]{64}$"))) {
+                "A valid exact-task approval hash is required"
+            }
+            return raw.lowercase()
+        }
 
         internal fun parseWorkspaceResponse(response: JSONObject): List<VeerPcAgentFileEntry> {
             if (!response.optBoolean("ok", false)) {
