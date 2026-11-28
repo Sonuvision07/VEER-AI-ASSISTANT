@@ -32,3 +32,8 @@
 - Path traversal and unsupported routes are rejected.
 - Cloud tasks work with PC off without pretending to access local files.
 - Sensitive actions require approval and produce an audit record.
+## Phase 7 — Calendar mutation safety
+- Bind every update/cancel approval to the event's current strong ETag.
+- Send the ETag with HTTP If-Match so a stale preview cannot overwrite or delete a newer server version.
+- On HTTP 412, require agenda refresh and a new review instead of retrying automatically.
+- Events without a valid strong ETag remain readable but mutation controls stay disabled.
