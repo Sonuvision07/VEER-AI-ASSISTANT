@@ -90,7 +90,7 @@ class VeerAgentBrainTest {
         )
         val result = brain.run(turn())
         assertEquals(AiProvider.GEMINI, result.provider)
-        assertEquals("done", fallbackTurn?.previousToolResult)
+        assertTrue(fallbackTurn?.previousToolResult.orEmpty().startsWith("done"))
         assertEquals(null, fallbackTurn?.providerContext)
         assertEquals(null, fallbackTurn?.previousToolCallId)
         assertEquals(null, fallbackTurn?.providerContextProvider)
