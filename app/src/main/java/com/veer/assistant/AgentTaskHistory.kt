@@ -25,22 +25,30 @@ class AgentTaskHistory(private val maxEntries: Int = DEFAULT_MAX_ENTRIES) {
         require(snapshot.createdAtMillis >= 0L && snapshot.updatedAtMillis >= snapshot.createdAtMillis) {
             "Task timestamps are invalid."
         }
+        val safeSnapshot = snapshot.copy(reason = sanitizeReason(snapshot.reason))
         val previous = entries[snapshot.taskId]
-        require(previous == null || snapshot.createdAtMillis == previous.createdAtMillis) {
+        require(previous == null || safeSnapshot.createdAtMillis == previous.createdAtMillis) {
             "A task ID cannot be reused for a different task."
         }
         if (previous != null) {
-            require(snapshot.updatedAtMillis >= previous.updatedAtMillis) {
+            require(safeSnapshot.updatedAtMillis >= previous.updatedAtMillis) {
                 "Task history timestamps must be monotonic."
             }
             entries.remove(snapshot.taskId)
         }
-        entries[snapshot.taskId] = snapshot.copy()
+        entries[snapshot.taskId] = safeSnapshot
         while (entries.size > maxEntries) {
             val oldestId = entries.keys.first()
             entries.remove(oldestId)
         }
     }
+
+    private fun sanitizeReason(value: String?): String? = value
+        ?.replace(Regex("[\\\\p{Cc}]+"), " ")
+        ?.replace(Regex("\\\\s+"), " ")
+        ?.trim()
+        ?.take(160)
+        ?.takeIf { it.isNotEmpty() }
 
     @Synchronized
     fun get(taskId: String): AgentTaskSnapshot? = entries[taskId]?.copy()
