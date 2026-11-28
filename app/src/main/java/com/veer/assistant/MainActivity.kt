@@ -335,6 +335,10 @@ fun VeerApp() {
     var gmailDraftBody by remember { mutableStateOf("") }
     var gmailDraftBusy by remember { mutableStateOf(false) }
     var gmailDraftStatus by remember { mutableStateOf("No draft created") }
+    var gmailReminders by remember { mutableStateOf(VeerGmailReminderStore.list(context)) }
+    val gmailReminderPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) android.widget.Toast.makeText(context, "Reminder notification permission denied.", android.widget.Toast.LENGTH_SHORT).show()
+    }
     val gmailAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
             try {
@@ -2551,6 +2555,7 @@ fun VeerApp() {
                     if (gmailConnected) {
                         Text("INBOX & SEARCH", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
                         Text("Read-only: inbox aur Gmail search. Email send, delete ya modify nahi hota.", fontSize = 11.sp, color = Color.Gray)
+                        Text("Follow-up reminders are local and opt-in. Background Gmail summaries/polling are OFF.", fontSize = 10.sp, color = Color.Gray)
                         OutlinedTextField(value = gmailQuery, onValueChange = { gmailQuery = it.take(500) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Gmail search (e.g. in:inbox is:unread)") })
                         Button(onClick = {
                             val token = gmailAccessToken
@@ -2775,6 +2780,39 @@ fun VeerApp() {
                                     Text(email.date, fontSize = 10.sp, color = Color.Gray)
                                     Text(email.snippet.ifBlank { email.bodyText.take(240) }, fontSize = 11.sp, color = Color.LightGray, maxLines = 3)
                                     if (email.labels.isNotEmpty()) Text(email.labels.joinToString(" · "), fontSize = 9.sp, color = Color.Gray)
+                                    Text("FOLLOW UP", fontSize = 10.sp, color = Color(0xFF8EDDE8), fontWeight = FontWeight.SemiBold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        listOf("1 DAY" to 24L * 60 * 60 * 1000, "3 DAYS" to 3L * 24 * 60 * 60 * 1000, "1 WEEK" to 7L * 24 * 60 * 60 * 1000).forEach { (label, delay) ->
+                                            TextButton(onClick = {
+                                                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                                    gmailReminderPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                                } else {
+                                                    try {
+                                                        VeerGmailReminderScheduler.schedule(context, email.id, delay)
+                                                        gmailReminders = VeerGmailReminderStore.list(context)
+                                                        gmailInboxStatus = "Follow-up reminder scheduled."
+                                                    } catch (error: Exception) {
+                                                        gmailInboxStatus = "Reminder could not be scheduled: " + (error.message ?: "Try again")
+                                                    }
+                                                }
+                                            }) { Text(label, fontSize = 9.sp, color = Color(0xFF8EDDE8)) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (gmailReminders.isNotEmpty()) {
+                            Text("SCHEDULED FOLLOW-UPS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8EDDE8))
+                            gmailReminders.sortedBy { it.triggerAtMillis }.forEach { reminder ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(gmailInboxItems.firstOrNull { it.id == reminder.messageId }?.subject?.ifBlank { "Email follow-up" } ?: "Email follow-up", fontSize = 11.sp, color = Color.White, maxLines = 1)
+                                        Text(SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(reminder.triggerAtMillis)), fontSize = 10.sp, color = Color.Gray)
+                                    }
+                                    TextButton(onClick = {
+                                        VeerGmailReminderScheduler.cancel(context, reminder.id)
+                                        gmailReminders = VeerGmailReminderStore.list(context)
+                                    }) { Text("CANCEL", fontSize = 10.sp, color = Color(0xFFFFB74D)) }
                                 }
                             }
                         }
