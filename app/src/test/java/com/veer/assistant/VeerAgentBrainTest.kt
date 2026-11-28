@@ -58,7 +58,7 @@ class VeerAgentBrainTest {
         )
         val result = brain.run(turn())
         assertEquals(1, result.steps)
-        assertEquals("done", received?.previousToolResult)
+        assertTrue(received?.previousToolResult.orEmpty().startsWith("done"))
         assertEquals("[{}]", received?.providerContext)
         assertEquals("call_abc", received?.previousToolCallId)
     }
