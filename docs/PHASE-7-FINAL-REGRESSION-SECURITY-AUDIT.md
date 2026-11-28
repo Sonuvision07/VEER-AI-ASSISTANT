@@ -58,3 +58,5 @@ Automated CI may be marked complete after the Step 10 workflows pass. Physical-d
 - Calendar page parsing now rejects the entire page when any event item is malformed instead of silently dropping it. This prevents an unreadable busy event from appearing as free time.
 - Starting a fresh agenda load clears previously loaded events, pagination state and prior schedule summary, preventing stale data from being reused after a failed refresh.
 - Added a unit test proving a malformed item fails the whole page.
+
+- Calendar event models now default missing ETags to an empty value for read-only/test compatibility; mutation controls still require a valid strong ETag and therefore remain unavailable without server version data.
