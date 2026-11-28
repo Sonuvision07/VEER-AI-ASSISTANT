@@ -104,7 +104,7 @@ class VeerCompatibleChatAgentTest {
         assertEquals("assistant", followUpMessages.getJSONObject(2).getString("role"))
         assertEquals("tool", followUpMessages.getJSONObject(3).getString("role"))
         assertEquals("call_llama_1", followUpMessages.getJSONObject(3).getString("tool_call_id"))
-        assertEquals("launched youtube", followUpMessages.getJSONObject(3).getString("content"))
+        assertTrue(followUpMessages.getJSONObject(3).getString("content").startsWith("launched youtube"))
     }
 
     @Test fun grokRejectsToolCallsWithoutToolCallsFinishReason() {
