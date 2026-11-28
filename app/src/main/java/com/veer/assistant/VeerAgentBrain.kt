@@ -230,7 +230,15 @@ class VeerAgentBrain(
             lastProvider = decision.first
             val action = decision.second.toolCall
             if (action == null || decision.second.finished) {
-                return finish(AgentRunResult(decision.second.message, lastProvider, steps, lastToolOutcome = lastOutcome), AgentTaskStatus.COMPLETED)
+                val userMessage = when (lastOutcome?.status) {
+                    AgentOutcomeStatus.VERIFIED -> decision.second.message
+                    AgentOutcomeStatus.ATTEMPTED ->
+                        decision.second.message + "\n\nVEER status: action attempted, lekin completion independently verify nahi hui."
+                    AgentOutcomeStatus.UNCERTAIN ->
+                        decision.second.message + "\n\nVEER status: result uncertain hai; action completion independently verify nahi hui."
+                    null -> decision.second.message
+                }
+                return finish(AgentRunResult(userMessage, lastProvider, steps, lastToolOutcome = lastOutcome), AgentTaskStatus.COMPLETED)
             }
             if (action.name.isBlank() || action.name != action.name.trim() || action.name.any { it.isISOControl() } || action.name.length > maxToolNameChars) {
                 return finish(AgentRunResult(
