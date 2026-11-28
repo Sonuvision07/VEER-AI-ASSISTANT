@@ -26,6 +26,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.Identity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -304,8 +307,47 @@ fun VeerApp() {
     }
     val veerFont = remember { FontFamily(Font(R.font.inter_variable, weight = FontWeight.Normal)) }
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
-    val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
     val localAiScope = rememberCoroutineScope()
+    val gmailAuthorizationClient = remember(context) { Identity.getAuthorizationClient(context) }
+    var gmailConnected by remember { mutableStateOf(prefs.getBoolean("gmail_connected", false)) }
+    var gmailEmail by remember { mutableStateOf(prefs.getString("gmail_email", "") ?: "") }
+    var gmailAccessToken by remember { mutableStateOf<String?>(null) }
+    var gmailStatus by remember { mutableStateOf(if (gmailConnected) "Connected — authorize again when using Gmail" else "Not connected") }
+    var gmailBusy by remember { mutableStateOf(false) }
+    val gmailAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            try {
+                val authorization = gmailAuthorizationClient.getAuthorizationResultFromIntent(result.data!!)
+                val accessToken = authorization.accessToken
+                if (accessToken.isNullOrBlank()) {
+                    gmailStatus = "Google did not return Gmail access. Try connecting again."
+                    gmailBusy = false
+                } else {
+                    gmailAccessToken = accessToken
+                    gmailStatus = "Checking authorized Google account..."
+                    localAiScope.launch {
+                        try {
+                            val email = withContext(Dispatchers.IO) { VeerGmailAuthorization.fetchEmail(accessToken) }
+                            gmailEmail = email
+                            gmailConnected = true
+                            gmailStatus = "Connected — read-only Gmail access"
+                            prefs.edit().putBoolean("gmail_connected", true).putString("gmail_email", email).apply()
+                        } catch (error: Exception) {
+                            gmailAccessToken = null
+                            gmailStatus = "Account verification failed: " + (error.message ?: "Try again")
+                        } finally { gmailBusy = false }
+                    }
+                }
+            } catch (error: Exception) {
+                gmailStatus = "Google authorization failed: " + (error.message ?: "Try again")
+                gmailBusy = false
+            }
+        } else {
+            gmailStatus = "Google authorization cancelled"
+            gmailBusy = false
+        }
+    }
+    val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
     val cyan = Color(0xFF00E5FF)
     val dark = Color(0xFF050B16)
 
@@ -2385,6 +2427,84 @@ fun VeerApp() {
                         cloudApiUrl = "https://veer-ai-assistant.vercel.app"; cloudApiUrlDraft = cloudApiUrl
                         cloudApiToken = ""; cloudApiTokenDraft = ""; cloudApiStatus = "Not configured"
                     }, enabled = !cloudApiChecking) { Text("REMOVE CLOUD CONNECTION") }
+                    Divider()
+                    Text("GMAIL ASSISTANT", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                    Text("Google ke official consent screen se Gmail read-only permission connect hogi. VEER password nahi maangta aur access token disk par save nahi karta.", fontSize = 11.sp, color = Color.Gray)
+                    Text(if (gmailEmail.isNotBlank() && gmailConnected) "Gmail: $gmailEmail" else "Gmail: ${if (gmailConnected) "Connected" else "Not connected"}", fontSize = 12.sp, color = if (gmailConnected) Color(0xFF58D68D) else Color.Gray)
+                    Text(gmailStatus, fontSize = 11.sp, color = Color.Gray)
+                    Button(onClick = {
+                        gmailBusy = true
+                        gmailStatus = "Requesting Google consent..."
+                        gmailAuthorizationClient.authorize(VeerGmailAuthorization.authorizationRequest())
+                            .addOnSuccessListener { authorization ->
+                                if (authorization.hasResolution()) {
+                                    val pending = authorization.pendingIntent
+                                    if (pending == null) {
+                                        gmailStatus = "Google consent screen could not be opened"
+                                        gmailBusy = false
+                                    } else {
+                                        gmailAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                    }
+                                } else {
+                                    val token = authorization.accessToken
+                                    if (token.isNullOrBlank()) {
+                                        gmailStatus = "Google did not return Gmail access"
+                                        gmailBusy = false
+                                    } else {
+                                        gmailAccessToken = token
+                                        localAiScope.launch {
+                                            try {
+                                                val email = withContext(Dispatchers.IO) { VeerGmailAuthorization.fetchEmail(token) }
+                                                gmailEmail = email
+                                                gmailConnected = true
+                                                gmailStatus = "Connected — read-only Gmail access"
+                                                prefs.edit().putBoolean("gmail_connected", true).putString("gmail_email", email).apply()
+                                            } catch (error: Exception) {
+                                                gmailAccessToken = null
+                                                gmailStatus = "Account verification failed: " + (error.message ?: "Try again")
+                                            } finally { gmailBusy = false }
+                                        }
+                                    }
+                                }
+                            }
+                            .addOnFailureListener { error ->
+                                gmailStatus = "Google authorization failed: " + (error.message ?: "Try again")
+                                gmailBusy = false
+                            }
+                    }, enabled = !gmailBusy, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (gmailBusy) "CONNECTING..." else if (gmailConnected) "REFRESH GMAIL ACCESS" else "CONNECT GMAIL")
+                    }
+                    if (gmailConnected) {
+                        OutlinedButton(onClick = {
+                            val accountEmail = gmailEmail
+                            if (accountEmail.isBlank()) {
+                                gmailStatus = "Reconnect Gmail before disconnecting so VEER can identify the Google account."
+                            } else {
+                                gmailBusy = true
+                                gmailStatus = "Revoking Google access..."
+                                try {
+                                    gmailAuthorizationClient.revokeAccess(VeerGmailAuthorization.revokeRequest(accountEmail))
+                                        .addOnSuccessListener {
+                                            gmailAccessToken = null
+                                            gmailConnected = false
+                                            gmailEmail = ""
+                                            prefs.edit().remove("gmail_connected").remove("gmail_email").apply()
+                                            gmailStatus = "Google access revoked and VEER disconnected"
+                                            gmailBusy = false
+                                        }
+                                        .addOnFailureListener { error ->
+                                            gmailStatus = "Google revoke failed: " + (error.message ?: "Try again")
+                                            gmailBusy = false
+                                        }
+                                } catch (error: Exception) {
+                                    gmailStatus = "Disconnect failed: " + (error.message ?: "Try again")
+                                    gmailBusy = false
+                                }
+                            }
+                        }, enabled = !gmailBusy, modifier = Modifier.fillMaxWidth()) {
+                            Text("DISCONNECT & REVOKE GMAIL ACCESS")
+                        }
+                    }
                     Divider()
                     Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Box {
