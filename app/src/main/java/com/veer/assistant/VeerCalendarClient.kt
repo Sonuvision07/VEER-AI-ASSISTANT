@@ -29,7 +29,9 @@ object VeerCalendarClient {
         val end: EventTime,
         val status: String,
         val htmlLink: String,
-        val recurringEventId: String
+        val recurringEventId: String,
+        /** Strong Google ETag used to reject stale update/delete approvals. */
+        val etag: String
     )
 
     data class EventPage(val events: List<CalendarEvent>, val nextPageToken: String)
@@ -91,9 +93,17 @@ object VeerCalendarClient {
             end = end,
             status = json.optString("status").take(32),
             htmlLink = link,
-            recurringEventId = json.optString("recurringEventId").takeIf(::isSafeId).orEmpty()
+            recurringEventId = json.optString("recurringEventId").takeIf(::isSafeId).orEmpty(),
+            etag = parseStrongEtag(json.optString("etag"))
         )
     }
+
+    /** Only strong, quoted ETags are suitable for If-Match mutation protection. */
+    internal fun parseStrongEtag(value: String): String =
+        value.takeIf {
+            it.length in 2..256 && it.first() == '"' && it.last() == '"' &&
+                it.none { ch -> ch.isISOControl() } && it == it.trim()
+        }.orEmpty()
 
     private fun parseTime(value: JSONObject?): EventTime {
         val obj = value ?: JSONObject()
