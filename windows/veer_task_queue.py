@@ -110,6 +110,10 @@ class DurableTaskQueue:
         db.execute("PRAGMA busy_timeout=10000")
         try:
             yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
