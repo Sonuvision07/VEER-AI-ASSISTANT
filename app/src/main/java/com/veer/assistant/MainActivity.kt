@@ -320,6 +320,13 @@ fun VeerApp() {
     var gmailInboxStatus by remember { mutableStateOf("Inbox not loaded") }
     var gmailSummary by remember { mutableStateOf<List<VeerGmailSummary.Item>>(emptyList()) }
     var gmailSecurityFindings by remember { mutableStateOf<List<VeerGmailSecurity.Finding>>(emptyList()) }
+    var gmailComposeAuthorizationPending by remember { mutableStateOf(false) }
+    var gmailComposeAuthorized by remember { mutableStateOf(false) }
+    var gmailDraftTo by remember { mutableStateOf("") }
+    var gmailDraftSubject by remember { mutableStateOf("") }
+    var gmailDraftBody by remember { mutableStateOf("") }
+    var gmailDraftBusy by remember { mutableStateOf(false) }
+    var gmailDraftStatus by remember { mutableStateOf("No draft created") }
     val gmailAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
             try {
@@ -330,6 +337,7 @@ fun VeerApp() {
                     gmailBusy = false
                 } else {
                     gmailAccessToken = accessToken
+                    if (gmailComposeAuthorizationPending) { gmailComposeAuthorized = true; gmailComposeAuthorizationPending = false }
                     gmailStatus = "Checking authorized Google account..."
                     localAiScope.launch {
                         try {
@@ -349,6 +357,7 @@ fun VeerApp() {
                 gmailBusy = false
             }
         } else {
+            gmailComposeAuthorizationPending = false
             gmailStatus = "Google authorization cancelled"
             gmailBusy = false
         }
@@ -2492,6 +2501,9 @@ fun VeerApp() {
                                     gmailAuthorizationClient.revokeAccess(VeerGmailAuthorization.revokeRequest(accountEmail))
                                         .addOnSuccessListener {
                                             gmailAccessToken = null
+                                            gmailComposeAuthorized = false
+                                            gmailComposeAuthorizationPending = false
+                                            gmailDraftStatus = "Gmail disconnected"
                                             gmailConnected = false
                                             gmailEmail = ""
                                             gmailInboxItems = emptyList()
@@ -2575,6 +2587,71 @@ fun VeerApp() {
                                 }
                             }
                         }
+                        Divider()
+                        Text("CREATE EMAIL DRAFT", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                        Text("Draft permission alag se Google se maangi jayegi. Save karne par email sirf Gmail Drafts mein rahega; send nahi hoga.", fontSize = 11.sp, color = Color.Gray)
+                        OutlinedTextField(value = gmailDraftTo, onValueChange = { gmailDraftTo = it.take(320) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("To — recipient email") })
+                        OutlinedTextField(value = gmailDraftSubject, onValueChange = { gmailDraftSubject = it.take(200) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Subject") })
+                        OutlinedTextField(value = gmailDraftBody, onValueChange = { gmailDraftBody = it.take(20000) }, modifier = Modifier.fillMaxWidth(), minLines = 4, maxLines = 8, label = { Text("Email message") })
+                        OutlinedButton(onClick = {
+                            if (!gmailComposeAuthorized) {
+                                gmailComposeAuthorizationPending = true
+                                gmailBusy = true
+                                gmailStatus = "Requesting Gmail draft permission..."
+                                gmailAuthorizationClient.authorize(VeerGmailAuthorization.authorizationRequest(includeCompose = true))
+                                    .addOnSuccessListener { authorization ->
+                                        if (authorization.hasResolution()) {
+                                            val pending = authorization.pendingIntent
+                                            if (pending == null) {
+                                                gmailDraftStatus = "Google draft permission screen could not be opened"
+                                                gmailComposeAuthorizationPending = false
+                                                gmailBusy = false
+                                            } else {
+                                                gmailAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                            }
+                                        } else {
+                                            val token = authorization.accessToken
+                                            if (token.isNullOrBlank()) {
+                                                gmailDraftStatus = "Google did not return draft permission"
+                                                gmailComposeAuthorizationPending = false
+                                                gmailBusy = false
+                                            } else {
+                                                gmailAccessToken = token
+                                                gmailComposeAuthorized = true
+                                                gmailComposeAuthorizationPending = false
+                                                gmailDraftStatus = "Draft permission granted. Press SAVE DRAFT again."
+                                                gmailBusy = false
+                                            }
+                                        }
+                                    }
+                                    .addOnFailureListener { error ->
+                                        gmailDraftStatus = "Draft permission failed: " + (error.message ?: "Try again")
+                                        gmailComposeAuthorizationPending = false
+                                        gmailBusy = false
+                                    }
+                            } else {
+                                val token = gmailAccessToken
+                                if (token.isNullOrBlank()) {
+                                    gmailDraftStatus = "Refresh Gmail access, then try again."
+                                } else {
+                                    gmailDraftBusy = true
+                                    gmailDraftStatus = "Saving draft to Gmail..."
+                                    localAiScope.launch {
+                                        try {
+                                            val saved = withContext(Dispatchers.IO) {
+                                                VeerGmailDraftClient.createDraft(token, gmailDraftTo, gmailDraftSubject, gmailDraftBody)
+                                            }
+                                            gmailDraftStatus = "Saved in Gmail Drafts. Nothing was sent. Draft ID: " + saved.id
+                                        } catch (error: Exception) {
+                                            gmailDraftStatus = "Draft save failed: " + (error.message ?: "Try again")
+                                        } finally { gmailDraftBusy = false }
+                                    }
+                                }
+                            }
+                        }, enabled = !gmailDraftBusy && !gmailBusy, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (gmailDraftBusy) "SAVING DRAFT..." else if (!gmailComposeAuthorized) "AUTHORIZE DRAFT ACCESS" else "SAVE TO GMAIL DRAFTS")
+                        }
+                        Text(gmailDraftStatus, fontSize = 11.sp, color = Color.Gray)
                         gmailInboxItems.forEach { email ->
                             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF101B2B))) {
                                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {

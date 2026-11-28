@@ -13,14 +13,18 @@ import java.net.URL
 /** Gmail authorization helpers. Access tokens are ephemeral and never persisted or logged. */
 object VeerGmailAuthorization {
     const val GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+    const val GMAIL_COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose"
     const val EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email"
     const val OPENID_SCOPE = "openid"
     private const val USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
-    fun scopes(): List<Scope> = listOf(Scope(GMAIL_READONLY_SCOPE), Scope(EMAIL_SCOPE), Scope(OPENID_SCOPE))
+    fun scopes(includeCompose: Boolean = false): List<Scope> = buildList {
+        add(Scope(GMAIL_READONLY_SCOPE)); add(Scope(EMAIL_SCOPE)); add(Scope(OPENID_SCOPE))
+        if (includeCompose) add(Scope(GMAIL_COMPOSE_SCOPE))
+    }
 
-    fun authorizationRequest(): AuthorizationRequest =
-        AuthorizationRequest.builder().setRequestedScopes(scopes()).build()
+    fun authorizationRequest(includeCompose: Boolean = false): AuthorizationRequest =
+        AuthorizationRequest.builder().setRequestedScopes(scopes(includeCompose)).build()
 
     fun revokeRequest(email: String): RevokeAccessRequest {
         val normalized = email.trim()
@@ -30,7 +34,7 @@ object VeerGmailAuthorization {
         }
         return RevokeAccessRequest.builder()
             .setAccount(Account(normalized, "com.google"))
-            .setScopes(scopes())
+            .setScopes(scopes(includeCompose = true))
             .build()
     }
 
