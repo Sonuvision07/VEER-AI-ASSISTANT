@@ -14,17 +14,19 @@ import java.net.URL
 object VeerGmailAuthorization {
     const val GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
     const val GMAIL_COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose"
+    const val GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
     const val EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email"
     const val OPENID_SCOPE = "openid"
     private const val USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
-    fun scopes(includeCompose: Boolean = false): List<Scope> = buildList {
+    fun scopes(includeCompose: Boolean = false, includeSend: Boolean = false): List<Scope> = buildList {
         add(Scope(GMAIL_READONLY_SCOPE)); add(Scope(EMAIL_SCOPE)); add(Scope(OPENID_SCOPE))
         if (includeCompose) add(Scope(GMAIL_COMPOSE_SCOPE))
+        if (includeSend) add(Scope(GMAIL_SEND_SCOPE))
     }
 
-    fun authorizationRequest(includeCompose: Boolean = false): AuthorizationRequest =
-        AuthorizationRequest.builder().setRequestedScopes(scopes(includeCompose)).build()
+    fun authorizationRequest(includeCompose: Boolean = false, includeSend: Boolean = false): AuthorizationRequest =
+        AuthorizationRequest.builder().setRequestedScopes(scopes(includeCompose, includeSend)).build()
 
     fun revokeRequest(email: String): RevokeAccessRequest {
         val normalized = email.trim()
@@ -34,7 +36,7 @@ object VeerGmailAuthorization {
         }
         return RevokeAccessRequest.builder()
             .setAccount(Account(normalized, "com.google"))
-            .setScopes(scopes(includeCompose = true))
+            .setScopes(scopes(includeCompose = true, includeSend = true))
             .build()
     }
 
