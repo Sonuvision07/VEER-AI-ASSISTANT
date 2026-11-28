@@ -2533,6 +2533,8 @@ fun VeerApp() {
                                             gmailInboxItems = emptyList()
                                             gmailSummary = emptyList()
                                             gmailSecurityFindings = emptyList()
+                                            VeerGmailReminderScheduler.cancelAll(context)
+                                            gmailReminders = emptyList()
                                             gmailQuery = "in:inbox"
                                             gmailInboxStatus = "Inbox cleared after disconnect"
                                             prefs.edit().remove("gmail_connected").remove("gmail_email").apply()
