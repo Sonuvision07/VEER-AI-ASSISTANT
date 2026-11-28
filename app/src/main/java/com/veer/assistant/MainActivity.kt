@@ -1241,6 +1241,85 @@ fun VeerApp() {
         messages.add("BOSS" to messageWithAttachment)
         fallbackAttempted.clear()
 
+        // Explicit opt-in research commands keep ordinary chat and the established UI unchanged.
+        val researchMode = when {
+            clean.startsWith("research:", ignoreCase = true) -> "research"
+            clean.startsWith("web research:", ignoreCase = true) -> "research"
+            clean.startsWith("search:", ignoreCase = true) -> "search"
+            clean.startsWith("web search:", ignoreCase = true) -> "search"
+            else -> null
+        }
+        if (researchMode != null) {
+            val researchQuery = clean.substringAfter(':').trim()
+            if (researchQuery.isBlank() || researchQuery.length > 500) {
+                addReply("Boss, research query 1–500 characters ka hona chahiye.")
+            } else if (cloudApiUrl.isBlank() || cloudApiToken.isBlank()) {
+                addReply("Boss, Web Search ke liye Settings mein VEER Cloud URL aur API token configure karein.")
+                showSettings = true
+            } else {
+                loading = true
+                status = if (researchMode == "research") "SEARCHING AND RESEARCHING..." else "SEARCHING THE WEB..."
+                val baseUrl = cloudApiUrl
+                val token = cloudApiToken
+                Thread {
+                    var reply = ""
+                    try {
+                        val client = VeerResearchClient(baseUrl, token)
+                        val results = client.search(researchQuery, 5)
+                        if (results.length() == 0) {
+                            reply = "Boss, is query ke liye koi verified web source nahi mila."
+                        } else if (researchMode == "search") {
+                            val lines = (0 until results.length()).mapNotNull { index ->
+                                val item = results.optJSONObject(index) ?: return@mapNotNull null
+                                val title = item.optString("title").take(180)
+                                val url = item.optString("url").take(2048)
+                                val snippet = item.optString("snippet").take(400)
+                                if (url.isBlank()) null else "• $title\n$snippet\n$url"
+                            }
+                            reply = if (lines.isEmpty()) "Boss, search se valid sources nahi mile." else "Web Search results:\n\n" + lines.joinToString("\n\n")
+                        } else {
+                            val sources = org.json.JSONArray()
+                            for (index in 0 until minOf(results.length(), 5)) {
+                                val item = results.optJSONObject(index) ?: continue
+                                val title = item.optString("title")
+                                val url = item.optString("url")
+                                val snippet = item.optString("snippet")
+                                if (title.isNotBlank() && url.isNotBlank() && snippet.isNotBlank()) {
+                                    sources.put(JSONObject().put("title", title).put("url", url).put("snippet", snippet))
+                                }
+                            }
+                            if (sources.length() == 0) {
+                                reply = "Boss, search sources mein research ke liye valid text nahi mila."
+                            } else {
+                                val report = client.synthesize(researchQuery, sources)
+                                val citations = report.optJSONArray("citations") ?: org.json.JSONArray()
+                                val sourceLines = (0 until citations.length()).mapNotNull { index ->
+                                    val source = citations.optJSONObject(index) ?: return@mapNotNull null
+                                    val id = source.optString("id")
+                                    val title = source.optString("title")
+                                    val url = source.optString("url")
+                                    if (url.isBlank()) null else "[$id] $title\n$url"
+                                }
+                                reply = report.optString("answer", "Research response empty hai.") +
+                                    if (sourceLines.isEmpty()) "" else "\n\nSources:\n" + sourceLines.joinToString("\n")
+                            }
+                        }
+                    } catch (error: Exception) {
+                        reply = "Boss, Web Research abhi complete nahi ho paayi: " +
+                            (error.message?.take(180) ?: "Cloud connection ya provider configuration check karein.")
+                    }
+                    Handler(Looper.getMainLooper()).post {
+                        loading = false
+                        addReply(reply)
+                    }
+                }.start()
+            }
+            attachedImageBase64 = null
+            attachedText = null
+            attachedFileName = null
+            return
+        }
+
         // Route the message to the selected real provider/agent. Keep the existing UI unchanged.
         when {
             imageForRequest != null && selectedProvider !in listOf("OPENAI", "GEMINI") -> {
