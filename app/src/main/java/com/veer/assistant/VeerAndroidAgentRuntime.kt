@@ -8,6 +8,9 @@ package com.veer.assistant
 internal class VeerAndroidAgentRuntime(
     apiKeyProvider: () -> String?,
     dispatchApprovedAction: (String) -> String,
+    outcomeVerifier: (AgentToolCall, String) -> AgentToolOutcome = { _, _ ->
+        AgentToolOutcome.uncertain("Android launch dispatch is not independently observable.")
+    },
     openAiApiKeyProvider: () -> String? = { null },
     claudeApiKeyProvider: () -> String? = { null },
     llamaApiKeyProvider: () -> String? = { null },
@@ -39,7 +42,7 @@ internal class VeerAndroidAgentRuntime(
                 )
             )
         ),
-        tools = VeerAndroidAppToolExecutor(dispatchApprovedAction),
+        tools = VeerAndroidAppToolExecutor(dispatchApprovedAction, outcomeVerifier),
         approval = approvalSession,
         providerOrder = providerOrder
     )
