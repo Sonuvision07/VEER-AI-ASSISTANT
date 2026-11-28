@@ -24,6 +24,14 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+## Step 9 acceptance criteria
+- Run deterministic unit tests for task state/history/context, retry policy, cancellation and approval lifecycle.
+- Verify mismatched, expired, cross-instance and replayed approvals cannot dispatch a tool.
+- Verify provider retry is bounded and tool actions are never automatically replayed.
+- Verify context is bounded, expires and clears without persistence.
+- Keep security tests free of credentials, real OAuth tokens and external network calls.
+- Run Android unit tests/build plus Web and Windows workflows; investigate and fix failures before claiming CI pass.
+
 ## Step 8 acceptance criteria
 - Bind each pending approval to the issuing brain instance, exact immutable tool call and one-shot continuation.
 - Give each approval a unique opaque ID and a bounded expiry no later than the task deadline.
