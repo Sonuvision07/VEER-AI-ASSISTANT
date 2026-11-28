@@ -9,8 +9,8 @@ import java.net.URL
 
 /** Android HTTPS client for VEER Phase 5 web search and source-grounded synthesis. */
 class VeerResearchClient(baseUrl: String, token: String) {
-    private val endpoint = normalizeBaseUrl(baseUrl)
-    private val bearer = validateToken(token)
+    private val endpoint = normalizeResearchBaseUrl(baseUrl)
+    private val bearer = validateResearchToken(token)
 
     fun search(query: String, maxResults: Int = 5): JSONArray {
         require(query.isNotBlank() && query.length <= MAX_QUERY) { "Invalid research query" }
@@ -71,4 +71,17 @@ class VeerResearchClient(baseUrl: String, token: String) {
         private const val MAX_REQUEST_BYTES=12*1024
         private const val MAX_RESPONSE_BYTES=128*1024
     }
+}
+
+private fun normalizeResearchBaseUrl(raw: String): String {
+    val value=raw.trim().trimEnd('/')
+    val uri=try { java.net.URI(value) } catch (_:Exception) { throw IllegalArgumentException("Enter a valid VEER cloud HTTPS address") }
+    require(uri.scheme?.equals("https",true)==true && !uri.host.isNullOrBlank() && uri.rawUserInfo==null) { "Research connection must use HTTPS without embedded credentials" }
+    require(uri.rawQuery==null && uri.rawFragment==null && (uri.rawPath.isNullOrEmpty() || uri.rawPath=="/")) { "Enter the cloud host only" }
+    return "https://"+uri.rawAuthority
+}
+private fun validateResearchToken(raw:String):String {
+    val value=raw.trim()
+    require(value.length>=32 && value.none { it.isWhitespace() || it.isISOControl() }) { "Cloud API token must be at least 32 characters with no spaces" }
+    return value
 }
