@@ -8,8 +8,8 @@ from veer_cloud_worker import CloudTaskError, CloudTaskRequest
 from veer_cloud_store import SQLiteCloudTaskStore
 
 
-def make_task(task_id="task_1234567890abcd", operation="create_text_file", key="idem-key-1234567890"):
-    payload = {"path": "notes/a.txt", "content": "hello"} if operation == "create_text_file" else {}
+def make_task(task_id="task_1234567890abcd", operation="create_text_file", key="idem-key-1234567890", content="hello"):
+    payload = {"path": "notes/a.txt", "content": content} if operation == "create_text_file" else {}
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
     return CloudTaskRequest(task_id, operation, payload, key, hashlib.sha256(encoded).hexdigest())
 
@@ -36,7 +36,7 @@ class CloudStoreTests(unittest.TestCase):
         self.store.save_pending(task, "tenant-a")
         with self.assertRaises(CloudTaskError):
             self.store.save_pending(task, "tenant-b")
-        altered = make_task(task_id="task_1234567890abcx", key=task.idempotency_key)
+        altered = make_task(task_id="task_1234567890abcx", key=task.idempotency_key, content="tampered")
         with self.assertRaises(CloudTaskError):
             self.store.save_pending(altered, "tenant-a")
 
