@@ -25,6 +25,8 @@ class VeerAgentBrainTest {
             executed += call
             return "done"
         }
+        override fun verifyOutcome(call: AgentToolCall, dispatchResult: String) =
+            AgentToolOutcome.verified("Deterministic fake verifier confirmed the test outcome.")
     }
 
     private class FakeApproval(var result: Boolean) : AgentApprovalGate {
