@@ -85,6 +85,7 @@ class VeerCompatibleChatAgentTest {
             apiKeyProvider = { null },
             llamaApiKeyProvider = { "llama-test-key" },
             dispatchApprovedAction = { "launched $it" },
+            outcomeVerifier = { _, _ -> AgentToolOutcome.verified("Test observer confirmed launch.") },
             llamaTransport = VeerCompatibleChatAgentTransport { _, _, _, body ->
                 requests += JSONObject(body)
                 responses.removeFirst()
