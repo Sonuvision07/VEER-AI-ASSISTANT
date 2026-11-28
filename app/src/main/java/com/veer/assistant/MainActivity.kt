@@ -323,6 +323,11 @@ fun VeerApp() {
     var drivePendingContentFile by remember { mutableStateOf<VeerDriveClient.DriveFile?>(null) }
     var driveContentBytes by remember { mutableStateOf<ByteArray?>(null) }
     var drivePreviewText by remember { mutableStateOf("") }
+    var driveSummaryConsentPending by remember { mutableStateOf(false) }
+    var driveSummaryBusy by remember { mutableStateOf(false) }
+    var driveSummaryText by remember { mutableStateOf("") }
+    var driveSummaryStatus by remember { mutableStateOf("") }
+    var driveSummaryFileId by remember { mutableStateOf("") }
     var driveContentStatus by remember { mutableStateOf("") }
     var driveContentBusy by remember { mutableStateOf(false) }
     var driveStatus by remember { mutableStateOf(if (driveConnected) "Connected — refresh access to search" else "Not connected") }
@@ -3246,13 +3251,80 @@ fun VeerApp() {
                                         color = Color.White,
                                         modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).verticalScroll(rememberScrollState())
                                     )
+                                    Button(
+                                        onClick = { driveSummaryConsentPending = true },
+                                        enabled = !driveSummaryBusy && !driveContentBusy,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(if (driveSummaryBusy) "SUMMARIZING SELECTED FILE..." else "SUMMARIZE WITH AI") }
+                                }
+                                if (driveSummaryStatus.isNotBlank()) {
+                                    Text(driveSummaryStatus, fontSize = 10.sp, color = Color.Gray)
+                                }
+                                if (driveSummaryFileId == selected.id && driveSummaryText.isNotBlank()) {
+                                    Text("AI SUMMARY (sent to Gemini only after your approval)", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF70F1E2))
+                                    Text(driveSummaryText, fontSize = 11.sp, color = Color.White)
+                                }
+                                if (driveSummaryConsentPending) {
+                                    AlertDialog(
+                                        onDismissRequest = { driveSummaryConsentPending = false },
+                                        title = { Text("Share selected Drive text with Gemini?") },
+                                        text = {
+                                            Text(
+                                                "VEER will send only the currently selected file name and its on-device text preview (up to 12,000 characters) directly to Google Gemini using your saved Gemini API key. Google/Gemini will process this content under its applicable terms. The content is not sent to VEER cloud. No other AI provider or automatic fallback will receive it. The file may contain untrusted instructions; VEER treats them only as document text. Continue only if you agree."
+                                            )
+                                        },
+                                        confirmButton = {
+                                            TextButton(onClick = {
+                                                driveSummaryConsentPending = false
+                                                val selectedForSummary = driveSelectedFile
+                                                val previewForSummary = drivePreviewText
+                                                val keyForSummary = apiKey.trim()
+                                                if (selectedForSummary == null || previewForSummary.isBlank()) {
+                                                    driveSummaryStatus = "Open a supported text file preview first."
+                                                } else if (keyForSummary.isBlank()) {
+                                                    driveSummaryStatus = "Gemini API key is not configured. No file content was sent."
+                                                    showSettings = true
+                                                } else {
+                                                    driveSummaryBusy = true
+                                                    driveSummaryText = ""
+                                                    driveSummaryFileId = ""
+                                                    driveSummaryStatus = "Sending selected preview to Gemini after your approval..."
+                                                    localAiScope.launch {
+                                                        try {
+                                                            val result = withContext(Dispatchers.IO) {
+                                                                VeerDriveSummaryClient.summarize(keyForSummary, selectedForSummary.name, previewForSummary)
+                                                            }
+                                                            if (driveSelectedFile?.id == selectedForSummary.id) {
+                                                                driveSummaryText = result
+                                                                driveSummaryFileId = selectedForSummary.id
+                                                                driveSummaryStatus = "Summary received from Gemini. No provider fallback was used."
+                                                            } else {
+                                                                driveSummaryStatus = "Selected file changed; summary was not displayed."
+                                                            }
+                                                        } catch (error: Exception) {
+                                                            driveSummaryStatus = "Gemini summary failed: " + (error.message ?: "Try again")
+                                                        } finally {
+                                                            driveSummaryBusy = false
+                                                        }
+                                                    }
+                                                }
+                                            }) { Text("I AGREE — SEND TO GEMINI") }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { driveSummaryConsentPending = false }) { Text("CANCEL") }
+                                        }
+                                    )
                                 }
                                 TextButton(onClick = {
                                     driveContentBytes = null
                                     drivePreviewText = ""
+                                    driveSummaryText = ""
+                                    driveSummaryFileId = ""
+                                    driveSummaryStatus = ""
+                                    driveSummaryConsentPending = false
                                     driveContentStatus = ""
                                     driveSelectedFile = null
-                                }, enabled = !driveContentBusy) { Text("CLOSE DETAILS & CLEAR TEMP CONTENT") }
+                                }, enabled = !driveContentBusy && !driveSummaryBusy) { Text("CLOSE DETAILS & CLEAR TEMP CONTENT") }
                                 if (selected.shortcutTargetId.isNotBlank()) {
                                     Text("Shortcut target type: ${selected.shortcutTargetMimeType}", fontSize = 11.sp, color = Color.Gray)
                                 }
