@@ -8,6 +8,7 @@ import heapq
 import json
 import os
 import secrets
+import threading
 import webbrowser
 import unicodedata
 from datetime import datetime, timezone
@@ -256,6 +257,94 @@ def _handler_for(workspace: Path, token: str, task_queue: DurableTaskQueue):
     return Handler
 
 
+class TaskWorker:
+    """Single background worker for approved, allowlisted local PC tasks."""
+
+    def __init__(self, task_queue: DurableTaskQueue, workspace: Path, *, poll_seconds: float = 0.25):
+        self.task_queue = task_queue
+        self.workspace = workspace.resolve()
+        self.poll_seconds = poll_seconds
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="veer-task-worker", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self, timeout: float = 3.0) -> None:
+        self._stop.set()
+        self._thread.join(timeout=timeout)
+
+    def _execute(self, operation: str, payload: dict) -> dict:
+        if operation == "health":
+            return {"ok": True, "agent": "VEER-PC-Agent", "version": "0.2"}
+        if operation == "list_workspace":
+            relative = payload.get("path", ".")
+            folder = safe_path(self.workspace, relative)
+            if not folder.is_dir():
+                raise ValueError("Workspace folder not found")
+            entries = heapq.nsmallest(200, folder.iterdir(), key=lambda item: item.name.casefold())
+            items = [
+                {
+                    "name": item.name,
+                    "type": "link" if item.is_symlink() else "folder" if item.is_dir() else "file",
+                    "size": item.stat().st_size if item.is_file() and not item.is_symlink() else None,
+                }
+                for item in entries
+            ]
+            return {"path": folder.relative_to(self.workspace).as_posix(), "items": items}
+        if operation == "create_text_file":
+            relative = payload.get("path", "")
+            content = payload.get("content", payload.get("text", ""))
+            if not isinstance(content, str):
+                raise ValueError("Text content must be a string")
+            if len(content.encode("utf-8")) > MAX_BODY:
+                raise ValueError("Text content too large")
+            target = safe_path(self.workspace, relative)
+            if target == self.workspace:
+                raise ValueError("A file name inside the workspace is required")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target = safe_path(self.workspace, relative)
+            with target.open("x", encoding="utf-8", newline="") as handle:
+                handle.write(content)
+            return {"created": target.relative_to(self.workspace).as_posix()}
+        if operation == "open_url":
+            url = payload.get("url", "")
+            if not isinstance(url, str) or not url.strip() or any(ord(char) < 32 for char in url):
+                raise ValueError("A valid HTTP(S) URL is required")
+            parsed = urlparse(url.strip())
+            if parsed.scheme.lower() not in ("https", "http") or not parsed.hostname:
+                raise ValueError("Only valid HTTP(S) URLs are allowed")
+            if parsed.username is not None or parsed.password is not None:
+                raise ValueError("URLs containing credentials are not allowed")
+            try:
+                _ = parsed.port
+            except ValueError as error:
+                raise ValueError("Invalid URL port") from error
+            if not webbrowser.open(url.strip(), new=2):
+                raise RuntimeError("The default browser did not accept the open request")
+            return {"message": "Browser open request accepted", "url": url.strip()}
+        raise ValueError("Unsupported task operation")
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                task = self.task_queue.claim_next()
+                if task is None:
+                    self._stop.wait(self.poll_seconds)
+                    continue
+                try:
+                    result = self._execute(task.operation, task.payload)
+                    self.task_queue.finish(task.task_id, result=result)
+                except Exception as error:
+                    # Keep task errors bounded and avoid returning local paths or tracebacks.
+                    message = str(error).strip() or "Task execution failed"
+                    self.task_queue.finish(task.task_id, error=message[:500])
+            except Exception:
+                # A transient database/worker error must not terminate the companion.
+                self._stop.wait(self.poll_seconds)
+
+
+
 class VeerHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -296,11 +385,14 @@ def main() -> None:
     print("Workspace:", server.veer_workspace)
     print("Private token:", server.veer_token_file)
     print("Keep the token private. Stop with Ctrl+C.")
+    worker = TaskWorker(server.veer_task_queue, server.veer_workspace)
+    worker.start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("Stopping VEER PC Agent")
     finally:
+        worker.stop()
         server.server_close()
 
 
