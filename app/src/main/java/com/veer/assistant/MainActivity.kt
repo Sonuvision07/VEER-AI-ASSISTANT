@@ -3160,7 +3160,7 @@ fun VeerApp() {
                             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                                 Text(file.name.ifBlank { "(Unnamed file)" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                                 Text(file.mimeType + if (file.sizeBytes != null) " · ${file.sizeBytes} bytes" else "", fontSize = 10.sp, color = Color.Gray)
-                                TextButton(onClick = { driveSelectedFile = file }, enabled = !driveBusy) { Text("FILE DETAILS") }
+                                TextButton(onClick = { driveContentBytes = null; driveContentStatus = ""; driveSelectedFile = file }, enabled = !driveBusy) { Text("FILE DETAILS") }
                                 if (file.mimeType == "application/vnd.google-apps.folder") {
                                     TextButton(onClick = {
                                         driveSelectedFile = null
@@ -3238,7 +3238,6 @@ fun VeerApp() {
                                 } else {
                                     Text("No trusted Google Drive web link is available.", fontSize = 10.sp, color = Color.Gray)
                                 }
-                                TextButton(onClick = { driveSelectedFile = null }) { Text("CLOSE DETAILS") }
                             }
                             Divider()
                         }
