@@ -2849,6 +2849,9 @@ fun VeerApp() {
                                         singleLine = true,
                                         modifier = Modifier.fillMaxWidth()
                                     )
+                                    if (event.etag.isBlank()) {
+                                        Text("Safe update/cancel is unavailable because Google did not return a current event version. Reload the agenda first.", fontSize = 11.sp, color = Color(0xFFFF8A80))
+                                    }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                         Button(onClick = {
                                             try {
@@ -2858,17 +2861,17 @@ fun VeerApp() {
                                                 calendarMutationPatch = patch.toString()
                                                 calendarMutationAction = VeerCalendarEventMutation.Action.UPDATE.name
                                                 calendarMutationEventId = event.id
-                                                calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.UPDATE, event.id, patch)
+                                                calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.UPDATE, event.id, event.etag, patch)
                                                 calendarMutationStatus = "UPDATE PREVIEW — title will change to: $clean. Nothing has been saved."
                                             } catch (error: Exception) { calendarMutationSnapshot = ""; calendarMutationStatus = error.message ?: "Invalid event title" }
-                                        }, modifier = Modifier.weight(1f)) { Text("PREVIEW UPDATE") }
+                                        }, enabled = event.etag.isNotBlank(), modifier = Modifier.weight(1f)) { Text("PREVIEW UPDATE") }
                                         Button(onClick = {
                                             calendarMutationPatch = ""
                                             calendarMutationAction = VeerCalendarEventMutation.Action.CANCEL.name
                                             calendarMutationEventId = event.id
-                                            calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.CANCEL, event.id)
+                                            calendarMutationSnapshot = VeerCalendarEventMutation.approvalSnapshot(VeerCalendarEventMutation.Action.CANCEL, event.id, event.etag)
                                             calendarMutationStatus = "CANCELLATION PREVIEW — this event will be deleted from your primary calendar. Nothing has been changed."
-                                        }, modifier = Modifier.weight(1f)) { Text("PREVIEW CANCEL") }
+                                        }, enabled = event.etag.isNotBlank(), modifier = Modifier.weight(1f)) { Text("PREVIEW CANCEL") }
                                     }
                                     Text(calendarMutationStatus, fontSize = 11.sp, color = Color(0xFFFFD180))
                                     if (calendarMutationSnapshot.isNotBlank() && calendarMutationEventId == event.id) {
@@ -2918,7 +2921,7 @@ fun VeerApp() {
                                                 localAiScope.launch {
                                                     try {
                                                         withContext(Dispatchers.IO) {
-                                                            VeerCalendarEventMutation.execute(token, action, target, patch, snapshot)
+                                                            VeerCalendarEventMutation.execute(token, action, target, event.etag, patch, snapshot)
                                                         }
                                                         if (action == VeerCalendarEventMutation.Action.CANCEL) {
                                                             VeerCalendarReminderScheduler.cancelForEvent(context, target)
@@ -2935,7 +2938,7 @@ fun VeerApp() {
                                                     } finally { calendarBusy = false }
                                                 }
                                             }
-                                        }, enabled = !calendarBusy && calendarWriteAccessToken != null && calendarMutationSnapshot.isNotBlank() && calendarMutationEventId == event.id, modifier = Modifier.fillMaxWidth()) {
+                                        }, enabled = !calendarBusy && calendarWriteAccessToken != null && event.etag.isNotBlank() && calendarMutationSnapshot.isNotBlank() && calendarMutationEventId == event.id, modifier = Modifier.fillMaxWidth()) {
                                             Text(if (calendarMutationAction == VeerCalendarEventMutation.Action.CANCEL.name) "I APPROVE — CANCEL THIS EVENT" else "I APPROVE — UPDATE THIS EVENT")
                                         }
                                     }
