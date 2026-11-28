@@ -41,7 +41,7 @@ object VeerCalendarEventDraft {
         require(cleanTitle.isNotEmpty() && cleanTitle.length <= 200 && cleanTitle.none { it.isISOControl() }) {
             "Event title is required (maximum 200 characters)"
         }
-        require(location.length <= 500 && location.none { it.isISOControl() && it != '\\n' && it != '\\t' }) {
+        require(location.length <= 500 && location.none { it.isISOControl() && it != '\n' && it != '\t' }) {
             "Location must be 500 characters or fewer"
         }
         require(description.length <= 4000) { "Description must be 4000 characters or fewer" }
