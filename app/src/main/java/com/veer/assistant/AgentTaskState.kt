@@ -23,7 +23,7 @@ class AgentTaskState private constructor(private var snapshot: AgentTaskSnapshot
         return snapshot.copy()
     }
 
-    private fun sanitize(value: String?): String? = value?.replace(Regex("[\\\\p{Cc}]+"), " ")?.replace(Regex("\\\\s+"), " ")?.trim()?.take(160)?.takeIf { it.isNotEmpty() }
+    private fun sanitize(value: String?): String? = value?.replace(Regex("[\\p{Cc}]+"), " ")?.replace(Regex("\\s+"), " ")?.trim()?.take(160)?.takeIf { it.isNotEmpty() }
 
     companion object {
         private val allowed = mapOf(
