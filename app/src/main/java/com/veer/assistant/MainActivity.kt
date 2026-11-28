@@ -1214,10 +1214,35 @@ fun VeerApp() {
     fun processCommand(command: String) {
         val clean = command.trim()
         if (clean.isEmpty()) return
-        val messageWithAttachment = if (!attachedFileName.isNullOrBlank()) "$clean\nAttachment: $attachedFileName" else clean
+
+        // Snapshot attachments before clearing composer state; the provider reads these values
+        // asynchronously on its worker thread.
+        val imageForRequest = attachedImageBase64
+        val textForRequest = attachedText
+        val fileNameForRequest = attachedFileName
+        val messageWithAttachment = if (!fileNameForRequest.isNullOrBlank()) "$clean\nAttachment: $fileNameForRequest" else clean
         messages.add("BOSS" to messageWithAttachment)
-        loading = false
-        addReply(generateDemoReply(clean))
+        fallbackAttempted.clear()
+
+        // Route the message to the selected real provider/agent. Keep the existing UI unchanged.
+        when (selectedProvider) {
+            "OPENAI" -> askOpenAI(clean, imageForRequest)
+            "GEMINI" -> askGemini(clean, imageForRequest)
+            "CLAUDE" -> if (imageForRequest != null) {
+                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
+            } else askClaude(clean)
+            "LLAMA" -> if (imageForRequest != null) {
+                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
+            } else askMetaLlama(clean)
+            "GROK" -> if (imageForRequest != null) {
+                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
+            } else askGrok(clean)
+            "MUSE" -> if (imageForRequest != null) {
+                addReply("Image analysis ke liye Gemini ya OpenAI provider select karein.")
+            } else askMuse(clean)
+            else -> askAgentBrain(clean)
+        }
+
         attachedImageBase64 = null
         attachedText = null
         attachedFileName = null
