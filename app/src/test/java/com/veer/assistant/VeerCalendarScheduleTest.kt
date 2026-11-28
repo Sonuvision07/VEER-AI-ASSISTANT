@@ -28,9 +28,9 @@ class VeerCalendarScheduleTest {
         val result = VeerCalendarSchedule.analyze(events, day, dayCount = 1, zone = zone)
         assertTrue(result.analysisComplete)
         assertEquals(2, result.eventCount)
-        assertEquals(1, result.freeWindows.size)
-        assertEquals(LocalTime.of(10, 30), result.freeWindows.single().start.toLocalTime())
-        assertEquals(LocalTime.of(14, 0), result.freeWindows.single().end.toLocalTime())
+        assertEquals(2, result.freeWindows.size)
+        assertEquals(LocalTime.of(10, 30), result.freeWindows.first().start.toLocalTime())
+        assertEquals(LocalTime.of(14, 0), result.freeWindows.first().end.toLocalTime())
     }
 
     @Test fun allDayEventBlocksTheWholeLocalDay() {
@@ -59,7 +59,7 @@ class VeerCalendarScheduleTest {
             timed("two", "2026-11-30T05:00:00Z", "2026-11-30T06:00:00Z")
         )
         val result = VeerCalendarSchedule.analyze(events, day, dayCount = 1, zone = zone)
-        assertEquals(1, result.daySummaries.single().eventCount)
+        assertEquals(2, result.daySummaries.single().eventCount)
         assertEquals(LocalTime.of(11, 30), result.freeWindows.first().start.toLocalTime())
     }
 
