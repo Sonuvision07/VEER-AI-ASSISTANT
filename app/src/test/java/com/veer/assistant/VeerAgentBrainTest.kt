@@ -949,4 +949,65 @@ class VeerAgentBrainTest {
         )
     }
 
+
+    @Test fun cancellationCallbacksRunOnceAndIsolateListenerFailures() {
+        val token = AgentCancellationToken()
+        var calls = 0
+        token.onCancel { calls += 1 }
+        token.onCancel { error("listener failure must not block other listeners") }
+        token.onCancel { calls += 1 }
+
+        token.cancel()
+        token.cancel()
+
+        assertTrue(token.isCancelled())
+        assertEquals(2, calls)
+    }
+
+    @Test fun callbackRegisteredAfterCancellationRunsImmediately() {
+        val token = AgentCancellationToken()
+        token.cancel()
+        var called = false
+
+        token.onCancel { called = true }
+
+        assertTrue(called)
+    }
+
+    @Test fun closingCancellationRegistrationPreventsCallback() {
+        val token = AgentCancellationToken()
+        var called = false
+        val registration = token.onCancel { called = true }
+        registration.close()
+
+        token.cancel()
+
+        assertFalse(called)
+    }
+
+    @Test fun cancellationDuringToolValidationPreventsDispatch() {
+        val token = AgentCancellationToken()
+        var executed = false
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String): Boolean {
+                token.cancel()
+                return true
+            }
+            override fun riskFor(name: String): AgentRisk = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall): String {
+                executed = true
+                return "should not execute"
+            }
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Read", call("read", AgentRisk.READ_ONLY), finished = false) },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn(), token)
+
+        assertTrue(result.message.contains("cancel", ignoreCase = true))
+        assertFalse(executed)
+    }
 }
