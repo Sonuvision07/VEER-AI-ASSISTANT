@@ -1214,10 +1214,24 @@ fun VeerApp() {
     fun processCommand(command: String) {
         val clean = command.trim()
         if (clean.isEmpty()) return
-        val messageWithAttachment = if (!attachedFileName.isNullOrBlank()) "$clean\nAttachment: $attachedFileName" else clean
+        val imageForRequest = attachedImageBase64
+        val textForRequest = attachedText
+        val nameForRequest = attachedFileName
+        val messageWithAttachment = if (!nameForRequest.isNullOrBlank()) "$clean\nAttachment: $nameForRequest" else clean
         messages.add("BOSS" to messageWithAttachment)
+        fallbackAttempted.clear()
         loading = false
-        addReply(generateDemoReply(clean))
+
+        // Restore the real provider/agent routing while keeping this dark chat UI.
+        when (selectedProvider) {
+            "OPENAI" -> askOpenAI(clean, imageForRequest)
+            "GEMINI" -> askGemini(clean, imageForRequest)
+            "CLAUDE" -> if (imageForRequest != null) addReply("Boss, image analysis abhi Gemini/OpenAI provider se available hai. Provider badal kar dobara bhejein.") else askClaude(clean)
+            "LLAMA" -> if (imageForRequest != null) addReply("Boss, image analysis abhi Gemini/OpenAI provider se available hai. Provider badal kar dobara bhejein.") else askMetaLlama(clean)
+            "GROK" -> if (imageForRequest != null) addReply("Boss, image analysis abhi Gemini/OpenAI provider se available hai. Provider badal kar dobara bhejein.") else askGrok(clean)
+            "MUSE" -> if (imageForRequest != null) addReply("Boss, image analysis abhi Gemini/OpenAI provider se available hai. Provider badal kar dobara bhejein.") else askMuse(clean)
+            else -> askAgentBrain(clean)
+        }
         attachedImageBase64 = null
         attachedText = null
         attachedFileName = null
