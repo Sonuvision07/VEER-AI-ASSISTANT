@@ -86,6 +86,7 @@ private fun safelyReleaseSpeechRecognizer(speech: SpeechRecognizer?) {
 
 private const val VEER_KEY_ALIAS = "veer_gemini_api_key"
 private const val VEER_PC_TOKEN_ALIAS = "veer_pc_agent_token"
+private const val VEER_CLOUD_TOKEN_ALIAS = "veer_cloud_api_token"
 private const val VEER_CHAT_ALIAS = "veer_chat_history"
 private const val VEER_MEMORY_ALIAS = "veer_saved_memories"
 private const val VEER_ENCRYPTED_PREFIX = "enc:v1:"
@@ -313,6 +314,12 @@ fun VeerApp() {
     var pcAgentToken by remember { mutableStateOf(decryptSecret(prefs.getString("pc_agent_token", "") ?: "", VEER_PC_TOKEN_ALIAS)) }
     var pcAgentTokenDraft by remember { mutableStateOf(pcAgentToken) }
     var pcAgentStatus by remember { mutableStateOf(if (pcAgentUrl.isNotBlank() && pcAgentToken.isNotBlank()) "Saved; connection not checked" else "Not configured") }
+    var cloudApiUrl by remember { mutableStateOf(prefs.getString("cloud_api_url", "https://veer-ai-assistant.vercel.app") ?: "https://veer-ai-assistant.vercel.app") }
+    var cloudApiUrlDraft by remember { mutableStateOf(cloudApiUrl) }
+    var cloudApiToken by remember { mutableStateOf(decryptSecret(prefs.getString("cloud_api_token", "") ?: "", VEER_CLOUD_TOKEN_ALIAS)) }
+    var cloudApiTokenDraft by remember { mutableStateOf(cloudApiToken) }
+    var cloudApiStatus by remember { mutableStateOf(if (cloudApiToken.isNotBlank()) "Saved; connection not checked" else "Not configured") }
+    var cloudApiChecking by remember { mutableStateOf(false) }
     var pcAgentChecking by remember { mutableStateOf(false) }
     var pcWorkspacePreview by remember { mutableStateOf<List<VeerPcAgentFileEntry>?>(null) }
     var pcWorkspaceLoading by remember { mutableStateOf(false) }
@@ -2222,6 +2229,44 @@ fun VeerApp() {
                         },
                         enabled = !pcAgentChecking
                     ) { Text("REMOVE PC CONNECTION") }
+                    Divider()
+                    Text("VEER CLOUD TASKS", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                    Text("Vercel + Neon cloud queue. Test ek harmless health task create karke database mein save aur read-back verify karega. Isse task execute nahi hoga.", fontSize = 11.sp, color = Color.Gray)
+                    OutlinedTextField(value = cloudApiUrlDraft, onValueChange = { cloudApiUrlDraft = it }, enabled = !cloudApiChecking, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("VEER cloud HTTPS address") })
+                    OutlinedTextField(value = cloudApiTokenDraft, onValueChange = { cloudApiTokenDraft = it }, enabled = !cloudApiChecking, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cloud API bearer token") }, visualTransformation = PasswordVisualTransformation())
+                    Text("Cloud API: $cloudApiStatus", fontSize = 11.sp, color = if (cloudApiStatus.startsWith("Connected")) Color(0xFF58D68D) else Color.Gray)
+                    Button(onClick = {
+                        val base = try { VeerCloudTaskClient.normalizeBaseUrl(cloudApiUrlDraft) } catch (error: Exception) { cloudApiStatus = error.message ?: "Enter a valid cloud HTTPS address"; return@Button }
+                        val token = try { VeerCloudTaskClient.validateToken(cloudApiTokenDraft) } catch (error: Exception) { cloudApiStatus = error.message ?: "Check the cloud API token"; return@Button }
+                        cloudApiChecking = true
+                        cloudApiStatus = "Testing authenticated cloud API and database..."
+                        localAiScope.launch {
+                            try {
+                                val task = withContext(Dispatchers.IO) {
+                                    val client = VeerCloudTaskClient(base, token)
+                                    val created = client.enqueueTask("health", JSONObject(), UUID.randomUUID().toString())
+                                    val fetched = client.getTask(created.taskId)
+                                    require(fetched.taskId == created.taskId && fetched.owner == created.owner && fetched.operation == "health" && fetched.payloadSha256 == created.payloadSha256) { "Cloud task read-back did not match the created task" }
+                                    fetched
+                                }
+                                val encrypted = encryptSecret(token, VEER_CLOUD_TOKEN_ALIAS)
+                                if (encrypted == null) cloudApiStatus = "API works, but token encryption failed; not saved"
+                                else if (!prefs.edit().putString("cloud_api_url", base).putString("cloud_api_token", encrypted).commit()) cloudApiStatus = "API works, but secure settings could not be saved"
+                                else {
+                                    cloudApiUrl = base; cloudApiUrlDraft = base; cloudApiToken = token; cloudApiTokenDraft = token
+                                    cloudApiStatus = "Connected — API auth + Neon task write/read verified; executor not deployed"
+                                    messages.add("VEER" to "Cloud API aur Neon database ka authenticated task write/read test pass hua. Ye test task execute nahi hua.")
+                                }
+                            } catch (error: Exception) { cloudApiStatus = "Cloud test failed: " + (error.message ?: "Check Vercel token and deployment") }
+                            finally { cloudApiChecking = false }
+                        }
+                    }, enabled = !cloudApiChecking && cloudApiUrlDraft.isNotBlank() && cloudApiTokenDraft.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (cloudApiChecking) "TESTING..." else "TEST & SAVE CLOUD CONNECTION") }
+                    TextButton(onClick = {
+                        prefs.edit().remove("cloud_api_url").remove("cloud_api_token").apply()
+                        cloudApiUrl = "https://veer-ai-assistant.vercel.app"; cloudApiUrlDraft = cloudApiUrl
+                        cloudApiToken = ""; cloudApiTokenDraft = ""; cloudApiStatus = "Not configured"
+                    }, enabled = !cloudApiChecking) { Text("REMOVE CLOUD CONNECTION") }
+                    Divider()
                     Text("AI provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Box {
                         TextButton(onClick = { showProviderMenu = true }) { Text("Selected: " + when (selectedProvider) { "GEMINI" -> "Gemini"; "OPENAI" -> "OpenAI"; "CLAUDE" -> "Claude"; "LLAMA" -> "Meta Llama"; "GROK" -> "Grok"; "MUSE" -> "Meta Muse Spark"; else -> "AUTO (fallback order)" }) }
