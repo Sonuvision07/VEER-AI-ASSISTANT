@@ -76,6 +76,7 @@ import javax.crypto.spec.GCMParameterSpec
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 
 private fun safelyReleaseSpeechRecognizer(speech: SpeechRecognizer?) {
@@ -316,6 +317,15 @@ fun VeerApp() {
     var pcWorkspacePreview by remember { mutableStateOf<List<VeerPcAgentFileEntry>?>(null) }
     var pcWorkspaceLoading by remember { mutableStateOf(false) }
     var pcWorkspaceStatus by remember { mutableStateOf("") }
+    var pcTaskOperation by remember { mutableStateOf("create_text_file") }
+    var pcTaskPath by remember { mutableStateOf("notes.txt") }
+    var pcTaskContent by remember { mutableStateOf("") }
+    var pcTaskUrl by remember { mutableStateOf("https://") }
+    var pcTaskCurrent by remember { mutableStateOf<VeerPcAgentTask?>(null) }
+    var pcTaskBusy by remember { mutableStateOf(false) }
+    var pcTaskStatus by remember { mutableStateOf("") }
+    var showPcTaskApproval by remember { mutableStateOf(false) }
+    var showPcTaskCancelConfirm by remember { mutableStateOf(false) }
     var showProviderMenu by remember { mutableStateOf(false) }
     val fallbackAttempted = remember { mutableStateListOf<String>() }
     var keyDraft by remember { mutableStateOf(apiKey) }
@@ -2111,6 +2121,90 @@ fun VeerApp() {
                         }
                         TextButton(onClick = { pcWorkspacePreview = null; pcWorkspaceStatus = "" }) { Text("CLEAR WORKSPACE PREVIEW") }
                     }
+                    Divider()
+                    Text("PC TASK QUEUE", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                    Text("Windows PC par task bhejein. File banana ya website kholna pehle pending approval mein rahega; bina aapke approve kiye execute nahi hoga.", fontSize = 11.sp, color = Color.Gray)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { pcTaskOperation = "create_text_file" },
+                            enabled = !pcTaskBusy,
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = if (pcTaskOperation == "create_text_file") Color(0xFF123B42) else Color.Transparent)
+                        ) { Text("CREATE FILE", fontSize = 10.sp) }
+                        OutlinedButton(
+                            onClick = { pcTaskOperation = "open_url" },
+                            enabled = !pcTaskBusy,
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = if (pcTaskOperation == "open_url") Color(0xFF123B42) else Color.Transparent)
+                        ) { Text("OPEN WEBSITE", fontSize = 10.sp) }
+                    }
+                    if (pcTaskOperation == "create_text_file") {
+                        OutlinedTextField(value = pcTaskPath, onValueChange = { pcTaskPath = it }, enabled = !pcTaskBusy, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("New file path inside VEER workspace") })
+                        OutlinedTextField(value = pcTaskContent, onValueChange = { pcTaskContent = it }, enabled = !pcTaskBusy, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, label = { Text("Text to write") })
+                    } else {
+                        OutlinedTextField(value = pcTaskUrl, onValueChange = { pcTaskUrl = it }, enabled = !pcTaskBusy, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("HTTP(S) website URL") })
+                    }
+                    Button(
+                        onClick = {
+                            val payload = try {
+                                if (pcTaskOperation == "create_text_file") {
+                                    require(pcTaskPath.isNotBlank()) { "File path required" }
+                                    require(pcTaskContent.isNotBlank()) { "File content required" }
+                                    JSONObject().put("path", pcTaskPath.trim()).put("content", pcTaskContent)
+                                } else {
+                                    val parsed = java.net.URI(pcTaskUrl.trim())
+                                    require(parsed.scheme in listOf("http", "https") && !parsed.host.isNullOrBlank() && parsed.rawUserInfo == null) { "Valid HTTP(S) URL without username/password required" }
+                                    JSONObject().put("url", pcTaskUrl.trim())
+                                }
+                            } catch (error: Exception) {
+                                pcTaskStatus = error.message ?: "Check task details"
+                                return@Button
+                            }
+                            pcTaskBusy = true
+                            pcTaskStatus = "Submitting task securely..."
+                            localAiScope.launch {
+                                try {
+                                    val task = withContext(Dispatchers.IO) {
+                                        VeerPcAgentClient(pcAgentUrl, pcAgentToken).enqueueTask(pcTaskOperation, payload, UUID.randomUUID().toString())
+                                    }
+                                    pcTaskCurrent = task
+                                    pcTaskStatus = "Task created: " + task.state.replace('_', ' ')
+                                    if (task.state == "pending_approval") showPcTaskApproval = true
+                                } catch (error: Exception) {
+                                    pcTaskStatus = "Task submit failed: " + (error.message ?: "Check PC connection")
+                                } finally { pcTaskBusy = false }
+                            }
+                        },
+                        enabled = !pcTaskBusy && pcAgentStatus.startsWith("Connected") && pcAgentUrl.isNotBlank() && pcAgentToken.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (pcTaskBusy) "PLEASE WAIT..." else "SUBMIT PC TASK") }
+                    pcTaskCurrent?.let { task ->
+                        Text("Task: " + task.taskId, fontSize = 10.sp, color = Color.Gray)
+                        Text("Operation: " + task.operation + " • Status: " + task.state.replace('_', ' '), fontSize = 11.sp, color = Color.White)
+                        task.error?.let { Text("Error: " + it, fontSize = 11.sp, color = Color(0xFFFF8A80)) }
+                        task.result?.let { Text("Result: " + it.toString(), fontSize = 11.sp, color = Color(0xFF80CBC4)) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    pcTaskBusy = true
+                                    localAiScope.launch {
+                                        try {
+                                            pcTaskCurrent = withContext(Dispatchers.IO) { VeerPcAgentClient(pcAgentUrl, pcAgentToken).getTask(task.taskId) }
+                                            pcTaskStatus = "Task status refreshed."
+                                        } catch (error: Exception) {
+                                            pcTaskStatus = "Refresh failed: " + (error.message ?: "Connection error")
+                                        } finally { pcTaskBusy = false }
+                                    }
+                                },
+                                enabled = !pcTaskBusy
+                            ) { Text("REFRESH", fontSize = 10.sp) }
+                            if (task.state == "pending_approval") {
+                                Button(onClick = { showPcTaskApproval = true }, enabled = !pcTaskBusy) { Text("REVIEW & APPROVE", fontSize = 10.sp) }
+                            }
+                            if (task.state == "pending_approval" || task.state == "queued") {
+                                TextButton(onClick = { showPcTaskCancelConfirm = true }, enabled = !pcTaskBusy) { Text("CANCEL", fontSize = 10.sp, color = Color(0xFFFF8A80)) }
+                            }
+                        }
+                    }
+                    if (pcTaskStatus.isNotBlank()) Text(pcTaskStatus, fontSize = 11.sp, color = Color.Gray)
                     TextButton(
                         onClick = {
                             prefs.edit().remove("pc_agent_url").remove("pc_agent_token").apply()
@@ -2121,6 +2215,10 @@ fun VeerApp() {
                             pcAgentStatus = "Not configured"
                             pcWorkspacePreview = null
                             pcWorkspaceStatus = ""
+                            pcTaskCurrent = null
+                            pcTaskStatus = ""
+                            showPcTaskApproval = false
+                            showPcTaskCancelConfirm = false
                         },
                         enabled = !pcAgentChecking
                     ) { Text("REMOVE PC CONNECTION") }
@@ -2194,6 +2292,71 @@ fun VeerApp() {
             }
         )
     }
+    if (showPcTaskApproval) {
+        val task = pcTaskCurrent
+        AlertDialog(
+            onDismissRequest = { if (!pcTaskBusy) showPcTaskApproval = false },
+            title = { Text("Approve this PC task?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Only approve if the exact action and payload below are correct. This sends a one-time approval for the exact SHA-256 payload.")
+                    if (task != null) {
+                        Text("Operation: " + task.operation, fontWeight = FontWeight.Bold)
+                        Text(task.payload.toString(2), fontSize = 11.sp)
+                        Text("Payload SHA-256:", fontSize = 10.sp, color = Color.Gray)
+                        Text(task.payloadSha256, fontSize = 9.sp)
+                    } else Text("Task details unavailable. Refresh before approving.")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !pcTaskBusy && task != null && task.state == "pending_approval",
+                    onClick = {
+                        val approvedTask = task ?: return@TextButton
+                        showPcTaskApproval = false
+                        pcTaskBusy = true
+                        pcTaskStatus = "Sending your one-time approval..."
+                        localAiScope.launch {
+                            try {
+                                pcTaskCurrent = withContext(Dispatchers.IO) {
+                                    VeerPcAgentClient(pcAgentUrl, pcAgentToken).approveTask(approvedTask.taskId, approvedTask.payloadSha256)
+                                }
+                                pcTaskStatus = "Approval sent. Task status: " + (pcTaskCurrent?.state ?: "unknown")
+                            } catch (error: Exception) {
+                                pcTaskStatus = "Approval failed: " + (error.message ?: "Check task status")
+                            } finally { pcTaskBusy = false }
+                        }
+                    }
+                ) { Text(if (pcTaskBusy) "SENDING..." else "APPROVE THIS EXACT TASK") }
+            },
+            dismissButton = { TextButton(onClick = { showPcTaskApproval = false }, enabled = !pcTaskBusy) { Text("NOT NOW") } }
+        )
+    }
+
+    if (showPcTaskCancelConfirm) {
+        AlertDialog(
+            onDismissRequest = { showPcTaskCancelConfirm = false },
+            title = { Text("Cancel PC task?") },
+            text = { Text("The task will be cancelled if it has not started running.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val task = pcTaskCurrent ?: return@TextButton
+                    showPcTaskCancelConfirm = false
+                    pcTaskBusy = true
+                    localAiScope.launch {
+                        try {
+                            pcTaskCurrent = withContext(Dispatchers.IO) { VeerPcAgentClient(pcAgentUrl, pcAgentToken).cancelTask(task.taskId) }
+                            pcTaskStatus = "Task status: " + (pcTaskCurrent?.state ?: "unknown")
+                        } catch (error: Exception) {
+                            pcTaskStatus = "Cancel failed: " + (error.message ?: "Check task status")
+                        } finally { pcTaskBusy = false }
+                    }
+                }) { Text("CANCEL TASK") }
+            },
+            dismissButton = { TextButton(onClick = { showPcTaskCancelConfirm = false }) { Text("KEEP TASK") } }
+        )
+    }
+
 }
 
 
