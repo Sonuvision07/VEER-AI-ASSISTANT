@@ -33,7 +33,12 @@ The Step 9 PR #60 CI runs completed successfully:
 - Web build: PASS (run 46128555340).
 - Windows Agent compile and security/API tests: PASS (run 46128555281).
 
-Step 10 will run the same regression workflows on this audit commit/PR. A green CI result confirms automated checks only; it does not prove real Google OAuth consent, Calendar API account behavior, notification delivery, or OEM-specific reboot behavior.
+Step 10 audit commit 820431e626b008bea74b6514b842e99236a48cbc completed all three workflows successfully:
+- Android unit tests and debug APK build: PASS (run 46129608475).
+- Web build: PASS (run 46129608478).
+- Windows Agent compile and security/API tests: PASS (run 46129608471).
+
+A follow-up source-review fix binds event update/cancellation approvals to the Google event ETag and sends If-Match, so stale event versions are rejected rather than silently overwritten. This follow-up commit must pass CI before Step 10 is merged. A green CI result confirms automated checks only; it does not prove real Google OAuth consent, Calendar API account behavior, notification delivery, or OEM-specific reboot behavior.
 
 ## Physical-device acceptance — NOT YET VERIFIED
 Must be tested on an Android phone with a real Google account before describing the integration as fully operational:
