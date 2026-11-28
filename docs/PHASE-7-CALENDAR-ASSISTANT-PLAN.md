@@ -80,6 +80,6 @@ Add an optional Google Calendar assistant to VEER while preserving the existing 
 - **Step 7 — explicit event creation approval:** implementation merged in PR #58.
 - **Step 8 — event update and cancellation approval:** implementation merged in PR #59; stale writes are guarded by ETag-bound approval and `If-Match` with HTTP 412 rejection.
 - **Step 9 — opt-in local reminders:** implementation merged in PR #60; Android/Web/Windows CI passed, while physical notification and reboot checks remain pending.
-- **Step 10 — final regression/security audit:** audit checklist and documentation are in progress in PR #63; final CI must pass on the current mainline.
+- **Step 10 — final regression/security audit:** complete; audit and source-review fixes merged in PR #63. Android unit tests/debug APK build, Web build, and Windows Agent security/API tests all passed on the audited code.
 
-**Release status:** Phase 7 implementation work is substantially complete, but it is **not yet device-accepted**. Real Google OAuth consent, Calendar reads/writes, notification delivery, reboot restoration, disconnect cleanup, and regression testing on a physical Android device remain mandatory before calling the Calendar integration fully operational. Existing chat UI and launcher icon must remain unchanged.
+**Release status:** Phase 7 implementation and automated CI are complete. It is **not yet device-accepted**. Real Google OAuth consent, Calendar reads/writes, notification delivery, reboot restoration, disconnect cleanup, and regression testing on a physical Android device remain mandatory before calling the Calendar integration fully operational. Existing chat UI and launcher icon remain unchanged.
