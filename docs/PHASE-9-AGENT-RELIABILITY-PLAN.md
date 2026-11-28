@@ -24,7 +24,7 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
-## Step 1 acceptance criteria
+## Step 2 acceptance criteria\n- Add a standalone lifecycle model with stable task IDs and timestamps.\n- Validate lifecycle transitions; terminal states cannot be reopened.\n- Keep lifecycle metadata minimal and bounded; no request/tool/provider payloads in this model.\n- Unit tests cover lifecycle, invalid transitions, monotonic timestamps and reason sanitization.\n\n## Step 1 acceptance criteria
 - This plan is committed on a feature branch and proposed in a PR.
 - Existing Phase 1–5 plan remains unchanged except for a pointer to Phase 9.
 - No application code or UI changes are made in Step 1.
