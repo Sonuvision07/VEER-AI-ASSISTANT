@@ -309,6 +309,15 @@ fun VeerApp() {
     val prefs = remember { context.getSharedPreferences("veer_settings", 0) }
     val localAiScope = rememberCoroutineScope()
     val gmailAuthorizationClient = remember(context) { Identity.getAuthorizationClient(context) }
+    val calendarAuthorizationClient = remember(context) { Identity.getAuthorizationClient(context) }
+    var calendarConnected by remember { mutableStateOf(prefs.getBoolean("calendar_connected", false)) }
+    var calendarEmail by remember { mutableStateOf(prefs.getString("calendar_email", "") ?: "") }
+    var calendarAccessToken by remember { mutableStateOf<String?>(null) }
+    var calendarStatus by remember { mutableStateOf(if (calendarConnected) "Connected — authorize again when using Calendar" else "Not connected") }
+    var calendarBusy by remember { mutableStateOf(false) }
+    var calendarEvents by remember { mutableStateOf<List<VeerCalendarClient.CalendarEvent>>(emptyList()) }
+    var selectedCalendarEventId by remember { mutableStateOf("") }
+    var calendarAgendaStatus by remember { mutableStateOf("Agenda not loaded") }
     var gmailConnected by remember { mutableStateOf(prefs.getBoolean("gmail_connected", false)) }
     var gmailEmail by remember { mutableStateOf(prefs.getString("gmail_email", "") ?: "") }
     var gmailAccessToken by remember { mutableStateOf<String?>(null) }
@@ -394,6 +403,42 @@ fun VeerApp() {
             gmailSendAuthorizationPending = false
             gmailStatus = "Google authorization cancelled"
             gmailBusy = false
+        }
+    }
+    fun acceptCalendarAccessToken(token: String) {
+        calendarAccessToken = token
+        calendarStatus = "Verifying Google account..."
+        localAiScope.launch {
+            try {
+                val email = withContext(Dispatchers.IO) { VeerGmailAuthorization.fetchEmail(token) }
+                require(VeerCalendarAuthorization.isValidVerifiedEmailShape(email)) { "Google account email could not be verified" }
+                calendarEmail = email
+                calendarConnected = true
+                calendarStatus = "Connected — read-only Calendar access"
+                prefs.edit().putBoolean("calendar_connected", true).putString("calendar_email", email).apply()
+            } catch (error: Exception) {
+                calendarAccessToken = null
+                calendarConnected = false
+                calendarStatus = "Calendar account verification failed: " + (error.message ?: "Try again")
+            } finally { calendarBusy = false }
+        }
+    }
+    val calendarAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            try {
+                val authorization = calendarAuthorizationClient.getAuthorizationResultFromIntent(result.data!!)
+                val token = authorization.accessToken
+                if (token.isNullOrBlank()) {
+                    calendarStatus = "Google did not return Calendar access"
+                    calendarBusy = false
+                } else acceptCalendarAccessToken(token)
+            } catch (error: Exception) {
+                calendarStatus = "Calendar authorization failed: " + (error.message ?: "Try again")
+                calendarBusy = false
+            }
+        } else {
+            calendarStatus = "Calendar authorization cancelled"
+            calendarBusy = false
         }
     }
     val localAiEngine = remember(context) { VeerOnDeviceAiEngine.create(context) }
@@ -2476,6 +2521,105 @@ fun VeerApp() {
                         cloudApiUrl = "https://veer-ai-assistant.vercel.app"; cloudApiUrlDraft = cloudApiUrl
                         cloudApiToken = ""; cloudApiTokenDraft = ""; cloudApiStatus = "Not configured"
                     }, enabled = !cloudApiChecking) { Text("REMOVE CLOUD CONNECTION") }
+                    Divider()
+                    Text("GOOGLE CALENDAR", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                    Text("Google ke official consent screen se sirf read-only Calendar access. VEER password ya OTP nahi maangta; access token disk par save nahi hota.", fontSize = 11.sp, color = Color.Gray)
+                    Text(if (calendarEmail.isNotBlank() && calendarConnected) "Calendar: $calendarEmail" else "Calendar: ${if (calendarConnected) "Connected" else "Not connected"}", fontSize = 12.sp, color = if (calendarConnected) Color(0xFF58D68D) else Color.Gray)
+                    Text(calendarStatus, fontSize = 11.sp, color = Color.Gray)
+                    Button(onClick = {
+                        calendarBusy = true
+                        calendarStatus = "Requesting Google Calendar read permission..."
+                        calendarAuthorizationClient.authorize(VeerCalendarAuthorization.readAuthorizationRequest())
+                            .addOnSuccessListener { authorization ->
+                                if (authorization.hasResolution()) {
+                                    val pending = authorization.pendingIntent
+                                    if (pending == null) {
+                                        calendarStatus = "Google Calendar consent screen could not be opened"
+                                        calendarBusy = false
+                                    } else calendarAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                } else {
+                                    val token = authorization.accessToken
+                                    if (token.isNullOrBlank()) {
+                                        calendarStatus = "Google did not return Calendar access"
+                                        calendarBusy = false
+                                    } else acceptCalendarAccessToken(token)
+                                }
+                            }
+                            .addOnFailureListener { error ->
+                                calendarStatus = "Calendar authorization failed: " + (error.message ?: "Try again")
+                                calendarBusy = false
+                            }
+                    }, enabled = !calendarBusy, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (calendarBusy) "CONNECTING..." else if (calendarConnected) "REFRESH CALENDAR ACCESS" else "CONNECT GOOGLE CALENDAR")
+                    }
+                    if (calendarConnected) {
+                        Button(onClick = {
+                            val token = calendarAccessToken
+                            if (token.isNullOrBlank()) {
+                                calendarAgendaStatus = "Session expired. Press REFRESH CALENDAR ACCESS first."
+                            } else {
+                                calendarBusy = true
+                                calendarAgendaStatus = "Loading next 7 days..."
+                                localAiScope.launch {
+                                    try {
+                                        val now = java.time.OffsetDateTime.now()
+                                        val page = withContext(Dispatchers.IO) {
+                                            VeerCalendarClient.listEvents(token, now.toString(), now.plusDays(7).toString(), 25)
+                                        }
+                                        calendarEvents = page.events
+                                        selectedCalendarEventId = ""
+                                        calendarAgendaStatus = if (page.events.isEmpty()) "No events in the next 7 days" else "${page.events.size} events loaded" + if (page.nextPageToken.isNotBlank()) " · More events available" else ""
+                                    } catch (error: Exception) {
+                                        calendarAgendaStatus = "Agenda load failed: " + (error.message ?: "Reconnect Calendar")
+                                    } finally { calendarBusy = false }
+                                }
+                            }
+                        }, enabled = !calendarBusy, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (calendarBusy) "LOADING AGENDA..." else "LOAD NEXT 7 DAYS")
+                        }
+                        Text(calendarAgendaStatus, fontSize = 11.sp, color = Color.Gray)
+                        calendarEvents.forEach { event ->
+                            Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF101B2B), RoundedCornerShape(10.dp)).padding(10.dp)) {
+                                TextButton(onClick = {
+                                    selectedCalendarEventId = if (selectedCalendarEventId == event.id) "" else event.id
+                                }, modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Text(event.summary.ifBlank { "(No title)" }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        Text(VeerCalendarPresentation.formatStart(event), fontSize = 11.sp, color = Color(0xFF80DEEA))
+                                    }
+                                }
+                                if (selectedCalendarEventId == event.id) {
+                                    if (event.location.isNotBlank()) Text("Location: ${event.location}", fontSize = 11.sp, color = Color.LightGray)
+                                    if (event.description.isNotBlank()) Text(event.description, fontSize = 11.sp, color = Color.LightGray)
+                                    Text("Status: ${event.status.ifBlank { "unknown" }}", fontSize = 10.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                        TextButton(onClick = {
+                            val email = calendarEmail
+                            if (!VeerCalendarAuthorization.isValidVerifiedEmailShape(email)) {
+                                calendarStatus = "Reconnect Calendar before disconnecting so VEER can verify the account."
+                            } else {
+                                calendarBusy = true
+                                calendarStatus = "Revoking Calendar access..."
+                                calendarAuthorizationClient.revokeAccess(VeerCalendarAuthorization.revokeRequest(email))
+                                    .addOnSuccessListener {
+                                        calendarAccessToken = null
+                                        calendarConnected = false
+                                        calendarEmail = ""
+                                        calendarEvents = emptyList()
+                                        selectedCalendarEventId = ""
+                                        prefs.edit().remove("calendar_connected").remove("calendar_email").apply()
+                                        calendarStatus = "Google Calendar access revoked"
+                                        calendarBusy = false
+                                    }
+                                    .addOnFailureListener { error ->
+                                        calendarStatus = "Calendar revoke failed: " + (error.message ?: "Try again")
+                                        calendarBusy = false
+                                    }
+                            }
+                        }, enabled = !calendarBusy) { Text("DISCONNECT & REVOKE CALENDAR ACCESS", color = Color(0xFFFF8A80)) }
+                    }
                     Divider()
                     Text("GMAIL ASSISTANT", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
                     Text("Google ke official consent screen se Gmail read-only permission connect hogi. VEER password nahi maangta aur access token disk par save nahi karta.", fontSize = 11.sp, color = Color.Gray)
