@@ -230,7 +230,10 @@ class VeerAndroidAgentRuntimeTest {
         val result = runtime.brain.run(turn)
 
         assertEquals("meta-muse-key", keySeen)
-        assertEquals(turn, turnSeen)
+        assertEquals(turn.userRequest, turnSeen?.userRequest)
+        assertEquals(turn.memory, turnSeen?.memory)
+        assertEquals(turn.recentConversation, turnSeen?.recentConversation)
+        assertNotNull(turnSeen?.cancellationToken)
         assertEquals(AiProvider.MUSE, result.provider)
         assertEquals("Muse Spark ready", result.message)
     }
