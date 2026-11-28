@@ -24,6 +24,14 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+## Step 8 acceptance criteria
+- Bind each pending approval to the issuing brain instance, exact immutable tool call and one-shot continuation.
+- Give each approval a unique opaque ID and a bounded expiry no later than the task deadline.
+- Reject expired, stale, consumed, cross-instance or mismatched approvals before tool dispatch.
+- Revalidate trusted tool support/risk and re-check explicit approval immediately before execution.
+- Expired approval cannot be revived; a fresh task/approval is required.
+- Unit tests cover expiry and invalid timeout configuration.
+
 ## Step 7 acceptance criteria
 - Represent attempted, verified and uncertain outcomes as distinct states.
 - Never treat dispatch or a tool's own success text as independent proof.
