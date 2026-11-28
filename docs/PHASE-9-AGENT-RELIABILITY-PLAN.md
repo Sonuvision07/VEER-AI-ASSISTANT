@@ -24,6 +24,13 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+## Step 7 acceptance criteria
+- Represent attempted, verified and uncertain outcomes as distinct states.
+- Never treat dispatch or a tool's own success text as independent proof.
+- Mark an outcome verified only when a trusted verifier supplies non-empty postcondition evidence.
+- Bound and sanitize evidence summaries; do not store raw payloads or secrets.
+- Unit tests cover attempted, verified, missing evidence and uncertain outcomes.
+
 ## Step 6 acceptance criteria
 - Retry only provider decision failures explicitly classified as transient.
 - Enforce a finite attempt budget and reject invalid attempt counts.
