@@ -71,6 +71,20 @@ Add an optional Google Calendar assistant to VEER while preserving the existing 
 
 ## Phase 7 status
 
+- **Step 1 — architecture and security plan:** complete; merged in PR #52.
+- **Step 2 — incremental Calendar OAuth scope policy:** complete; merged in PR #53. Real Google consent remains device-test pending.
+- **Step 3 — bounded read-only Calendar API client:** complete; merged in PR #54.
+- **Step 4 — agenda and event details UI:** complete; merged in PR #55. Real account/device flow remains pending.
+- **Step 5 — schedule summary and free-time finder:** complete; merged in PR #56. Physical-calendar accuracy remains device-test pending.
+- **Step 6 — event creation form and exact preview:** complete; merged in PR #57.
+- **Step 7 — explicit event creation approval:** complete; merged in PR #58.
+- **Step 8 — event update and cancellation approval:** complete; merged in PR #59.
+- **Step 9 — opt-in local reminders:** complete; merged in PR #60. Android/Web/Windows CI passed; physical notification and reboot checks remain pending.
+- **Step 10 — final regression/security audit:** audit checklist prepared on branch `phase7/calendar-final-audit`; final CI validation and review are in progress. See `docs/PHASE-7-FINAL-REGRESSION-SECURITY-AUDIT.md`.
+
+**Important release status:** The implementation and automated CI are not equivalent to real-world acceptance. Google OAuth consent, real Calendar reads/writes, notifications, reboot restoration, disconnect cleanup, and regression testing on a physical Android device must still be performed before calling the Calendar integration fully operational. Existing chat UI and launcher icon are to remain unchanged.
+
+
 - **Step 1 — architecture and security plan:** prepared on branch `phase7/calendar-assistant-plan`. This is planning/documentation only; no Calendar API access or user data access has been enabled.
 - Steps 2–10 are pending review and implementation.
 - Real Google consent and physical-device acceptance are mandatory before calling the integration operational.
