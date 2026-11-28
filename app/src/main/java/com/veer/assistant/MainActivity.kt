@@ -322,6 +322,14 @@ fun VeerApp() {
     var calendarRangeStart by remember { mutableStateOf("") }
     var calendarRangeEnd by remember { mutableStateOf("") }
     var calendarScheduleReport by remember { mutableStateOf("") }
+    var calendarDraftTitle by remember { mutableStateOf("") }
+    var calendarDraftDate by remember { mutableStateOf(java.time.LocalDate.now().toString()) }
+    var calendarDraftStart by remember { mutableStateOf("10:00") }
+    var calendarDraftEnd by remember { mutableStateOf("10:30") }
+    var calendarDraftLocation by remember { mutableStateOf("") }
+    var calendarDraftDescription by remember { mutableStateOf("") }
+    var calendarDraftPreview by remember { mutableStateOf("") }
+    var calendarDraftError by remember { mutableStateOf("") }
     var gmailConnected by remember { mutableStateOf(prefs.getBoolean("gmail_connected", false)) }
     var gmailEmail by remember { mutableStateOf(prefs.getString("gmail_email", "") ?: "") }
     var gmailAccessToken by remember { mutableStateOf<String?>(null) }
@@ -2638,6 +2646,38 @@ fun VeerApp() {
                         }
                         if (calendarScheduleReport.isNotBlank()) {
                             Text(calendarScheduleReport, fontSize = 11.sp, color = Color(0xFF80DEEA))
+                        }
+                        Divider()
+                        Text("PREPARE NEW EVENT", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF80DEEA))
+                        Text("Create form sirf preview banata hai. Is step mein Google Calendar par kuch save nahi hota.", fontSize = 11.sp, color = Color.Gray)
+                        OutlinedTextField(value = calendarDraftTitle, onValueChange = { calendarDraftTitle = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Event title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarDraftDate, onValueChange = { calendarDraftDate = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(value = calendarDraftStart, onValueChange = { calendarDraftStart = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Start (HH:MM)") }, singleLine = true, modifier = Modifier.weight(1f))
+                            OutlinedTextField(value = calendarDraftEnd, onValueChange = { calendarDraftEnd = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("End (HH:MM)") }, singleLine = true, modifier = Modifier.weight(1f))
+                        }
+                        OutlinedTextField(value = java.time.ZoneId.systemDefault().id, onValueChange = {}, readOnly = true, label = { Text("Timezone (device)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarDraftLocation, onValueChange = { calendarDraftLocation = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Location (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarDraftDescription, onValueChange = { calendarDraftDescription = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Description (optional)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                        Button(onClick = {
+                            try {
+                                val prepared = VeerCalendarEventDraft.prepare(
+                                    calendarDraftTitle, calendarDraftDate, calendarDraftStart, calendarDraftEnd,
+                                    java.time.ZoneId.systemDefault().id, calendarDraftLocation, calendarDraftDescription
+                                )
+                                calendarDraftPreview = prepared.preview()
+                                calendarDraftError = ""
+                            } catch (error: Exception) {
+                                calendarDraftPreview = ""
+                                calendarDraftError = error.message ?: "Please check event details"
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) { Text("REVIEW EVENT PREVIEW") }
+                        if (calendarDraftError.isNotBlank()) Text(calendarDraftError, fontSize = 11.sp, color = Color(0xFFFF8A80))
+                        if (calendarDraftPreview.isNotBlank()) {
+                            Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF101B2B), RoundedCornerShape(10.dp)).padding(12.dp)) {
+                                Text("PREVIEW ONLY — NOT SAVED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFD180))
+                                Text(calendarDraftPreview, fontSize = 12.sp, color = Color.White)
+                            }
                         }
                         calendarEvents.forEach { event ->
                             Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF101B2B), RoundedCornerShape(10.dp)).padding(10.dp)) {
