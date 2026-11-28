@@ -24,6 +24,14 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 9. **Automated regression/security tests** — state, cancellation, retries, context isolation, approval and verification cases; fix failures.
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
+
+## Transport cancellation integration update (2026-11-28)
+- `AgentTurn` now carries an in-memory cancellation token for the current decision only; request builders do not serialize it.
+- Gemini, OpenAI, Anthropic, Meta Muse, Groq/Llama and xAI/Grok HTTP transports register a one-shot callback that calls `HttpURLConnection.disconnect()` and close the registration in `finally`.
+- A deterministic Gemini transport test covers a token cancelled before request I/O and confirms the connection is disconnected.
+- This is cooperative best-effort interruption: a provider may already have received request bytes before cancellation. No claim is made that remote processing can be recalled.
+- CI and device verification remain pending for this integration branch.
+
 ## Step 9 acceptance criteria
 - Run deterministic unit tests for task state/history/context, retry policy, cancellation and approval lifecycle.
 - Verify mismatched, expired, cross-instance and replayed approvals cannot dispatch a tool.
