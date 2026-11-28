@@ -318,6 +318,7 @@ fun VeerApp() {
     var gmailInboxItems by remember { mutableStateOf<List<VeerGmailClient.Message>>(emptyList()) }
     var gmailInboxLoading by remember { mutableStateOf(false) }
     var gmailInboxStatus by remember { mutableStateOf("Inbox not loaded") }
+    var gmailSummary by remember { mutableStateOf<List<VeerGmailSummary.Item>>(emptyList()) }
     val gmailAuthorizationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
             try {
@@ -2493,6 +2494,7 @@ fun VeerApp() {
                                             gmailConnected = false
                                             gmailEmail = ""
                                             gmailInboxItems = emptyList()
+                                            gmailSummary = emptyList()
                                             gmailQuery = "in:inbox"
                                             gmailInboxStatus = "Inbox cleared after disconnect"
                                             prefs.edit().remove("gmail_connected").remove("gmail_email").apply()
@@ -2522,6 +2524,7 @@ fun VeerApp() {
                                 gmailInboxStatus = "Access token memory mein nahi hai. Pehle REFRESH GMAIL ACCESS dabayein."
                             } else {
                                 gmailInboxLoading = true
+                                gmailSummary = emptyList()
                                 gmailInboxStatus = "Loading Gmail messages..."
                                 localAiScope.launch {
                                     try {
@@ -2537,6 +2540,21 @@ fun VeerApp() {
                             }
                         }, enabled = !gmailInboxLoading && !gmailBusy, modifier = Modifier.fillMaxWidth()) { Text(if (gmailInboxLoading) "LOADING INBOX..." else "LOAD INBOX / SEARCH") }
                         Text(gmailInboxStatus, fontSize = 11.sp, color = Color.Gray)
+                        OutlinedButton(onClick = {
+                            gmailSummary = VeerGmailSummary.summarize(gmailInboxItems)
+                        }, enabled = gmailInboxItems.isNotEmpty() && !gmailInboxLoading, modifier = Modifier.fillMaxWidth()) {
+                            Text("SUMMARIZE & PRIORITIZE EMAILS")
+                        }
+                        gmailSummary.forEach { item ->
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF152236))) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text((if (item.priority == VeerGmailSummary.Priority.HIGH) "HIGH PRIORITY" else "NORMAL") + " · " + item.subject, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (item.priority == VeerGmailSummary.Priority.HIGH) Color(0xFFFFB74D) else Color.White)
+                                    Text(item.sender, fontSize = 10.sp, color = Color(0xFF8EDDE8))
+                                    Text(item.reason, fontSize = 10.sp, color = Color.LightGray)
+                                    if (item.preview.isNotBlank()) Text(item.preview, fontSize = 10.sp, color = Color.Gray, maxLines = 2)
+                                }
+                            }
+                        }
                         gmailInboxItems.forEach { email ->
                             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF101B2B))) {
                                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
