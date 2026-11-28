@@ -2258,7 +2258,7 @@ fun VeerApp() {
                                 else {
                                     cloudApiUrl = base; cloudApiUrlDraft = base; cloudApiToken = token; cloudApiTokenDraft = token
                                     cloudApiStatus = "Connected — auth + Neon write/read + executor run verified"
-                                    messages.add("VEER cloud connection, Neon task persistence aur health executor ka live test pass hua.")
+                                    messages.add("VEER" to "Cloud connection, Neon task persistence aur health executor ka live test pass hua.")
                                 }
                             } catch (error: Exception) { cloudApiStatus = "Cloud test failed: " + (error.message ?: "Check Vercel token and deployment") }
                             finally { cloudApiChecking = false }
