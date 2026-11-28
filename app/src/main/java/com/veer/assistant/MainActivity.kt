@@ -329,6 +329,10 @@ fun VeerApp() {
     var calendarDraftLocation by remember { mutableStateOf("") }
     var calendarDraftDescription by remember { mutableStateOf("") }
     var calendarDraftPreview by remember { mutableStateOf("") }
+    var calendarDraftApprovedPayload by remember { mutableStateOf("") }
+    var calendarWriteAccessToken by remember { mutableStateOf<String?>(null) }
+    var calendarWriteAuthorizationPending by remember { mutableStateOf(false) }
+    var calendarWriteStatus by remember { mutableStateOf("Event saving is not authorized") }
     var calendarDraftError by remember { mutableStateOf("") }
     var gmailConnected by remember { mutableStateOf(prefs.getBoolean("gmail_connected", false)) }
     var gmailEmail by remember { mutableStateOf(prefs.getString("gmail_email", "") ?: "") }
@@ -442,14 +446,22 @@ fun VeerApp() {
                 val token = authorization.accessToken
                 if (token.isNullOrBlank()) {
                     calendarStatus = "Google did not return Calendar access"
+                    calendarWriteAuthorizationPending = false
+                    calendarBusy = false
+                } else if (calendarWriteAuthorizationPending) {
+                    calendarWriteAccessToken = token
+                    calendarWriteAuthorizationPending = false
+                    calendarWriteStatus = "Write permission granted. Review and approve the exact event before saving."
                     calendarBusy = false
                 } else acceptCalendarAccessToken(token)
             } catch (error: Exception) {
                 calendarStatus = "Calendar authorization failed: " + (error.message ?: "Try again")
+                calendarWriteAuthorizationPending = false
                 calendarBusy = false
             }
         } else {
             calendarStatus = "Calendar authorization cancelled"
+            calendarWriteAuthorizationPending = false
             calendarBusy = false
         }
     }
@@ -2650,15 +2662,15 @@ fun VeerApp() {
                         Divider()
                         Text("PREPARE NEW EVENT", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF80DEEA))
                         Text("Create form sirf preview banata hai. Is step mein Google Calendar par kuch save nahi hota.", fontSize = 11.sp, color = Color.Gray)
-                        OutlinedTextField(value = calendarDraftTitle, onValueChange = { calendarDraftTitle = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Event title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = calendarDraftDate, onValueChange = { calendarDraftDate = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarDraftTitle, onValueChange = { calendarDraftTitle = it; calendarDraftPreview = ""; calendarDraftApprovedPayload = ""; calendarWriteAuthorizationPending = false; calendarWriteAccessToken = null; calendarDraftError = "" }, label = { Text("Event title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarDraftDate, onValueChange = { calendarDraftDate = it; calendarDraftPreview = ""; calendarDraftApprovedPayload = ""; calendarWriteAuthorizationPending = false; calendarWriteAccessToken = null; calendarDraftError = "" }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            OutlinedTextField(value = calendarDraftStart, onValueChange = { calendarDraftStart = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Start (HH:MM)") }, singleLine = true, modifier = Modifier.weight(1f))
-                            OutlinedTextField(value = calendarDraftEnd, onValueChange = { calendarDraftEnd = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("End (HH:MM)") }, singleLine = true, modifier = Modifier.weight(1f))
+                            OutlinedTextField(value = calendarDraftStart, onValueChange = { calendarDraftStart = it; calendarDraftPreview = ""; calendarDraftApprovedPayload = ""; calendarWriteAuthorizationPending = false; calendarWriteAccessToken = null; calendarDraftError = "" }, label = { Text("Start (HH:MM)") }, singleLine = true, modifier = Modifier.weight(1f))
+                            OutlinedTextField(value = calendarDraftEnd, onValueChange = { calendarDraftEnd = it; calendarDraftPreview = ""; calendarDraftApprovedPayload = ""; calendarWriteAuthorizationPending = false; calendarWriteAccessToken = null; calendarDraftError = "" }, label = { Text("End (HH:MM)") }, singleLine = true, modifier = Modifier.weight(1f))
                         }
                         OutlinedTextField(value = java.time.ZoneId.systemDefault().id, onValueChange = {}, readOnly = true, label = { Text("Timezone (device)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = calendarDraftLocation, onValueChange = { calendarDraftLocation = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Location (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = calendarDraftDescription, onValueChange = { calendarDraftDescription = it; calendarDraftPreview = ""; calendarDraftError = "" }, label = { Text("Description (optional)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                        OutlinedTextField(value = calendarDraftLocation, onValueChange = { calendarDraftLocation = it; calendarDraftPreview = ""; calendarDraftApprovedPayload = ""; calendarWriteAuthorizationPending = false; calendarWriteAccessToken = null; calendarDraftError = "" }, label = { Text("Location (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarDraftDescription, onValueChange = { calendarDraftDescription = it; calendarDraftPreview = ""; calendarDraftApprovedPayload = ""; calendarWriteAuthorizationPending = false; calendarWriteAccessToken = null; calendarDraftError = "" }, label = { Text("Description (optional)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                         Button(onClick = {
                             try {
                                 val prepared = VeerCalendarEventDraft.prepare(
@@ -2666,9 +2678,12 @@ fun VeerApp() {
                                     java.time.ZoneId.systemDefault().id, calendarDraftLocation, calendarDraftDescription
                                 )
                                 calendarDraftPreview = prepared.preview()
+                                calendarDraftApprovedPayload = VeerCalendarEventWriter.approvalSnapshot(prepared.requestBody)
+                                calendarWriteStatus = "Preview ready. No event has been saved."
                                 calendarDraftError = ""
                             } catch (error: Exception) {
                                 calendarDraftPreview = ""
+                                calendarDraftApprovedPayload = ""
                                 calendarDraftError = error.message ?: "Please check event details"
                             }
                         }, modifier = Modifier.fillMaxWidth()) { Text("REVIEW EVENT PREVIEW") }
@@ -2677,6 +2692,78 @@ fun VeerApp() {
                             Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF101B2B), RoundedCornerShape(10.dp)).padding(12.dp)) {
                                 Text("PREVIEW ONLY — NOT SAVED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFD180))
                                 Text(calendarDraftPreview, fontSize = 12.sp, color = Color.White)
+                            }
+                        }
+                        if (calendarDraftPreview.isNotBlank()) {
+                            Button(onClick = {
+                                if (calendarDraftApprovedPayload.isBlank()) {
+                                    calendarWriteStatus = "Review the event preview again before requesting permission."
+                                } else {
+                                    calendarWriteAuthorizationPending = true
+                                    calendarBusy = true
+                                    calendarWriteStatus = "Requesting Google Calendar event-write permission..."
+                                    calendarAuthorizationClient.authorize(VeerCalendarAuthorization.writeAuthorizationRequest())
+                                        .addOnSuccessListener { authorization ->
+                                            if (authorization.hasResolution()) {
+                                                val pending = authorization.pendingIntent
+                                                if (pending == null) {
+                                                    calendarWriteAuthorizationPending = false
+                                                    calendarBusy = false
+                                                    calendarWriteStatus = "Google write-consent screen could not be opened."
+                                                } else calendarAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                            } else {
+                                                val writeToken = authorization.accessToken
+                                                if (writeToken.isNullOrBlank()) {
+                                                    calendarWriteAuthorizationPending = false
+                                                    calendarBusy = false
+                                                    calendarWriteStatus = "Google did not return event-write access."
+                                                } else {
+                                                    calendarWriteAccessToken = writeToken
+                                                    calendarWriteAuthorizationPending = false
+                                                    calendarBusy = false
+                                                    calendarWriteStatus = "Write permission granted. Final approval is still required."
+                                                }
+                                            }
+                                        }
+                                        .addOnFailureListener { error ->
+                                            calendarWriteAuthorizationPending = false
+                                            calendarBusy = false
+                                            calendarWriteStatus = "Write permission not granted: " + (error.message ?: "Try again")
+                                        }
+                                }
+                            }, enabled = !calendarBusy && calendarDraftApprovedPayload.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                                Text(if (calendarBusy && calendarWriteAuthorizationPending) "REQUESTING WRITE ACCESS..." else "REQUEST EVENT-SAVE PERMISSION")
+                            }
+                            Text(calendarWriteStatus, fontSize = 11.sp, color = Color.Gray)
+                            Button(onClick = {
+                                val token = calendarWriteAccessToken
+                                val snapshot = calendarDraftApprovedPayload
+                                if (token.isNullOrBlank() || snapshot.isBlank()) {
+                                    calendarWriteStatus = "Request write permission and review the event first."
+                                } else {
+                                    calendarDraftApprovedPayload = ""
+                                    calendarBusy = true
+                                    calendarWriteStatus = "Creating the event after your explicit approval..."
+                                    localAiScope.launch {
+                                        try {
+                                            val created = withContext(Dispatchers.IO) {
+                                                VeerCalendarEventWriter.createEvent(token, org.json.JSONObject(snapshot), snapshot)
+                                            }
+                                            calendarDraftPreview = ""
+                                            calendarWriteStatus = "Event created successfully" + created.optString("htmlLink").takeIf { it.startsWith("https://calendar.google.com/") }?.let { ". Open it from Google Calendar." }.orEmpty()
+                                            calendarDraftTitle = ""
+                                            calendarDraftLocation = ""
+                                            calendarDraftDescription = ""
+                                            calendarEvents = emptyList()
+                                            calendarNextPageToken = ""
+                                            calendarAgendaStatus = "Event created. Reload the agenda to verify it."
+                                        } catch (error: Exception) {
+                                            calendarWriteStatus = "Event save failed or response was uncertain: " + (error.message ?: "Check Google Calendar before retrying")
+                                        } finally { calendarBusy = false }
+                                    }
+                                }
+                            }, enabled = !calendarBusy && calendarWriteAccessToken != null && calendarDraftApprovedPayload.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                                Text(if (calendarBusy && !calendarWriteAuthorizationPending) "SAVING..." else "I APPROVE — CREATE THIS EVENT")
                             }
                         }
                         calendarEvents.forEach { event ->
