@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.parse
@@ -166,6 +167,70 @@ class VeerPcAgentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             veer_pc_agent.create_server(port=0, app_dir=self.app_dir, token="x" * 20 + " " + "y" * 20)
 
+
+    def wait_for_task(self, task_id, expected="completed", timeout=3):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            task = self.server.veer_task_queue.get(task_id)
+            if task.state in ("completed", "failed", "cancelled", "expired"):
+                return task
+            time.sleep(0.02)
+        self.fail("Task worker did not finish within the test timeout")
+
+    def test_worker_executes_read_only_task_and_reports_result(self):
+        queue = self.server.veer_task_queue
+        task = queue.enqueue("list_workspace", {"path": "."}, "worker-list-task-key-0001")
+        worker = veer_pc_agent.TaskWorker(queue, self.server.veer_workspace, poll_seconds=0.01)
+        worker.start()
+        try:
+            completed = self.wait_for_task(task.task_id)
+        finally:
+            worker.stop()
+        self.assertEqual(completed.state, "completed")
+        self.assertEqual(completed.result["items"], [])
+
+    def test_worker_never_executes_side_effect_before_exact_approval(self):
+        queue = self.server.veer_task_queue
+        task = queue.enqueue("create_text_file", {"path": "worker.txt", "content": "approved"}, "worker-write-task-key-0001")
+        self.assertEqual(task.state, "pending_approval")
+        worker = veer_pc_agent.TaskWorker(queue, self.server.veer_workspace, poll_seconds=0.01)
+        worker.start()
+        try:
+            time.sleep(0.08)
+            self.assertFalse((self.server.veer_workspace / "worker.txt").exists())
+            queue.approve_task(task.task_id, task.payload_sha256)
+            completed = self.wait_for_task(task.task_id)
+        finally:
+            worker.stop()
+        self.assertEqual(completed.state, "completed")
+        self.assertEqual((self.server.veer_workspace / "worker.txt").read_text(encoding="utf-8"), "approved")
+
+    def test_worker_rejects_unsafe_paths_and_reports_failure(self):
+        queue = self.server.veer_task_queue
+        task = queue.enqueue("create_text_file", {"path": "../outside.txt", "content": "blocked"}, "worker-unsafe-task-key-001")
+        queue.approve_task(task.task_id, task.payload_sha256)
+        worker = veer_pc_agent.TaskWorker(queue, self.server.veer_workspace, poll_seconds=0.01)
+        worker.start()
+        try:
+            failed = self.wait_for_task(task.task_id, expected="failed")
+        finally:
+            worker.stop()
+        self.assertEqual(failed.state, "failed")
+        self.assertFalse((self.app_dir / "outside.txt").exists())
+
+    def test_worker_open_url_uses_browser_only_for_http_urls(self):
+        queue = self.server.veer_task_queue
+        task = queue.enqueue("open_url", {"url": "https://example.com"}, "worker-open-url-task-0001")
+        queue.approve_task(task.task_id, task.payload_sha256)
+        worker = veer_pc_agent.TaskWorker(queue, self.server.veer_workspace, poll_seconds=0.01)
+        with mock.patch("veer_pc_agent.webbrowser.open", return_value=True) as browser:
+            worker.start()
+            try:
+                completed = self.wait_for_task(task.task_id)
+            finally:
+                worker.stop()
+        self.assertEqual(completed.state, "completed")
+        browser.assert_called_once_with("https://example.com", new=2)
 
     def test_task_api_requires_auth_and_supports_status(self):
         payload = {"operation": "health", "payload": {}, "idempotency_key": "health-task-key-0001"}
