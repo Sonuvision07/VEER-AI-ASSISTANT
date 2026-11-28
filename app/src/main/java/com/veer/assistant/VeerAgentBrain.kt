@@ -103,7 +103,8 @@ class AgentApprovalContinuation internal constructor(
     internal val cancellationToken: AgentCancellationToken,
     internal val deadlineNanos: Long,
     internal val approvalExpiresAtNanos: Long,
-    val approvalId: String
+    val approvalId: String,
+    internal val taskSession: AgentTaskLifecycle.Session
 ) {
     internal var consumed: Boolean = false
 }
@@ -118,7 +119,9 @@ data class AgentRunResult(
     /** Opaque in-memory continuation; only resume this exact approved call. */
     val continuation: AgentApprovalContinuation? = null,
     /** Latest tool outcome; VERIFIED is emitted only by a trusted independent verifier. */
-    val lastToolOutcome: AgentToolOutcome? = null
+    val lastToolOutcome: AgentToolOutcome? = null,
+    val taskId: String? = null,
+    val taskStatus: AgentTaskStatus? = null
 )
 
 interface ModelGateway {
@@ -155,9 +158,14 @@ class VeerAgentBrain(
     private val taskTimeoutMillis: Long = 90_000,
     private val maxProviderAttempts: Int = 2,
     private val approvalTimeoutMillis: Long = 120_000,
-    private val nanoTime: () -> Long = System::nanoTime
+    private val nanoTime: () -> Long = System::nanoTime,
+    private val taskLifecycle: AgentTaskLifecycle = AgentTaskLifecycle()
 ) {
     @Volatile private var providerOrder: List<AiProvider> = providerOrder.toList()
+
+    fun taskHistory(): List<AgentTaskSnapshot> = taskLifecycle.snapshots()
+
+    fun clearTaskHistory() = taskLifecycle.clearHistory()
 
     fun setProviderOrder(order: List<AiProvider>) {
         require(order.isNotEmpty() && order.distinct().size == order.size) { "Provider order must be non-empty and unique." }
@@ -182,9 +190,11 @@ class VeerAgentBrain(
         val timeoutNanos = taskTimeoutMillis.coerceAtMost((Long.MAX_VALUE / 2) / 1_000_000L) * 1_000_000L
         val now = nanoTime()
         val deadline = now + timeoutNanos
+        val taskSession = taskLifecycle.begin()
         return runFromTurn(
             initialTurn, completedSteps = 0, initialProvider = null,
-            cancellationToken = cancellationToken, deadlineNanos = deadline, initialOutcome = null
+            cancellationToken = cancellationToken, deadlineNanos = deadline,
+            initialOutcome = null, taskSession = taskSession
         )
     }
 
@@ -194,42 +204,48 @@ class VeerAgentBrain(
         initialProvider: AiProvider?,
         cancellationToken: AgentCancellationToken,
         deadlineNanos: Long,
-        initialOutcome: AgentToolOutcome?
+        initialOutcome: AgentToolOutcome?,
+        taskSession: AgentTaskLifecycle.Session
     ): AgentRunResult {
+        fun finish(result: AgentRunResult, status: AgentTaskStatus): AgentRunResult {
+            val snapshot = taskLifecycle.transition(taskSession, status, result.message)
+            return result.copy(taskId = snapshot.taskId, taskStatus = snapshot.status)
+        }
+        taskLifecycle.transition(taskSession, AgentTaskStatus.RUNNING)
         var turn = initialTurn
         var lastOutcome = initialOutcome
         var lastProvider: AiProvider? = initialProvider
         var steps = completedSteps
 
         while (steps < maxToolSteps) {
-            if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
-            if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps)
+            if (cancellationToken.isCancelled()) return finish(cancelledAgentResult(lastProvider, steps), AgentTaskStatus.CANCELLED)
+            if (nanoTime() - deadlineNanos >= 0L) return finish(timedOutAgentResult(lastProvider, steps), AgentTaskStatus.FAILED)
             val decision = requestDecision(turn, cancellationToken, deadlineNanos)
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
             if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps)
-            if (decision == null) return AgentRunResult(
+            if (decision == null) return finish(AgentRunResult(
                 "VEER ka AI engine abhi available nahi hai. Provider connection check karein.",
                 lastProvider, steps
-            )
+            ), AgentTaskStatus.FAILED)
             lastProvider = decision.first
             val action = decision.second.toolCall
             if (action == null || decision.second.finished) {
-                return AgentRunResult(decision.second.message, lastProvider, steps, lastToolOutcome = lastOutcome)
+                return finish(AgentRunResult(decision.second.message, lastProvider, steps, lastToolOutcome = lastOutcome), AgentTaskStatus.COMPLETED)
             }
             if (action.name.isBlank() || action.name != action.name.trim() || action.name.any { it.isISOControl() } || action.name.length > maxToolNameChars) {
-                return AgentRunResult(
+                return finish(AgentRunResult(
                     "VEER ne action block kar diya kyunki tool name invalid ya allowed size se bada hai.",
                     lastProvider, steps
-                )
+                ), AgentTaskStatus.FAILED)
             }
             val invalidArgumentKey = action.arguments.keys.any { key ->
                 key.isBlank() || key != key.trim() || key.any { it.isISOControl() } || key.length > 128
             }
             if (invalidArgumentKey) {
-                return AgentRunResult(
+                return finish(AgentRunResult(
                     "VEER ne action block kar diya kyunki tool argument key invalid hai.",
                     lastProvider, steps
-                )
+                ), AgentTaskStatus.FAILED)
             }
             val argumentChars = try {
                 action.arguments.entries.fold(0L) { total, entry ->
@@ -239,10 +255,10 @@ class VeerAgentBrain(
                 Long.MAX_VALUE
             }
             if (argumentChars > maxToolArgumentChars.toLong()) {
-                return AgentRunResult(
+                return finish(AgentRunResult(
                     "VEER ne action block kar diya kyunki tool arguments allowed size se bade hain.",
                     lastProvider, steps
-                )
+                ), AgentTaskStatus.FAILED)
             }
             val toolSupported = try {
                 tools.supports(action.name)
@@ -250,18 +266,18 @@ class VeerAgentBrain(
                 false
             }
             if (!toolSupported) {
-                return AgentRunResult(
+                return finish(AgentRunResult(
                     "VEER ne unsupported tool action block kar diya kyunki tool availability verify nahi ho saki: ${action.name}.",
                     lastProvider, steps
-                )
+                ), AgentTaskStatus.FAILED)
             }
             // The trusted executor registry—not the model—determines an action's risk.
             val trustedRisk = try { tools.riskFor(action.name) } catch (_: Exception) { null }
             if (trustedRisk == null || trustedRisk != action.risk) {
-                return AgentRunResult(
+                return finish(AgentRunResult(
                     "VEER ne action block kar diya kyunki tool risk verify nahi ho saka ya risk mismatch tha.",
                     lastProvider, steps
-                )
+                ), AgentTaskStatus.FAILED)
             }
             if (trustedRisk != AgentRisk.READ_ONLY) {
                 // Approval checks must fail closed: an approval-system error is never consent.
