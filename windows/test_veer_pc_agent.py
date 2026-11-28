@@ -167,5 +167,52 @@ class VeerPcAgentTests(unittest.TestCase):
             veer_pc_agent.create_server(port=0, app_dir=self.app_dir, token="x" * 20 + " " + "y" * 20)
 
 
+    def test_task_api_requires_auth_and_supports_status(self):
+        payload = {"operation": "health", "payload": {}, "idempotency_key": "health-task-key-0001"}
+        status, body = self.request("/tasks", "POST", payload, authenticated=False)
+        self.assertEqual(status, 401)
+
+        status, body = self.request("/tasks", "POST", payload)
+        self.assertEqual(status, 202)
+        task_id = body["task"]["task_id"]
+        self.assertEqual(body["task"]["state"], "queued")
+
+        status, body = self.request("/tasks/" + task_id)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["task"]["operation"], "health")
+
+    def test_side_effect_task_requires_exact_payload_approval(self):
+        payload = {"operation": "create_text_file", "payload": {"path": "approved.txt", "content": "hello"}, "idempotency_key": "write-task-key-0001"}
+        status, body = self.request("/tasks", "POST", payload)
+        self.assertEqual(status, 202)
+        task = body["task"]
+        self.assertEqual(task["state"], "pending_approval")
+
+        status, body = self.request("/tasks/" + task["task_id"] + "/approve", "POST", {"payload_sha256": "0" * 64})
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"], "Approval does not match the exact task payload")
+
+        status, body = self.request("/tasks/" + task["task_id"] + "/approve", "POST", {"payload_sha256": task["payload_sha256"]})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["task"]["state"], "queued")
+
+    def test_task_api_cancel_idempotency_and_unsupported_operation(self):
+        payload = {"operation": "health", "payload": {}, "idempotency_key": "cancel-task-key-0001"}
+        status, first = self.request("/tasks", "POST", payload)
+        self.assertEqual(status, 202)
+        status, duplicate = self.request("/tasks", "POST", payload)
+        self.assertEqual(status, 202)
+        self.assertEqual(first["task"]["task_id"], duplicate["task"]["task_id"])
+
+        task_id = first["task"]["task_id"]
+        status, cancelled = self.request("/tasks/" + task_id + "/cancel", "POST", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(cancelled["task"]["state"], "cancelled")
+
+        status, rejected = self.request("/tasks", "POST", {"operation": "run_shell", "payload": {}, "idempotency_key": "unsupported-task-key-001"})
+        self.assertEqual(status, 400)
+        self.assertFalse(rejected["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()
