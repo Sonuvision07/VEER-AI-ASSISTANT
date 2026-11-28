@@ -39,7 +39,7 @@ Phase 5 scope: **Web Search + Research + Documents**. The Android app remains th
 | Step | Deliverable | Acceptance gate |
 |---|---|---|
 | 1 | This architecture and security plan | Scope and existing integration points documented |
-| 2 | Search-provider contract + server-side configuration/readiness checks | No secrets in APK; deterministic validation tests |
+| 2 | Search-provider contract + server-side configuration/readiness checks | **Implemented in PR #32:** Tavily server-only config contract, fail-closed provider selection, public readiness fields, unit tests |
 | 3 | Authenticated, bounded `/api/research/search` endpoint | Method/auth/input/timeout/response tests pass |
 | 4 | Source extraction and normalization | Unsafe URLs rejected; excerpts retain canonical source metadata |
 | 5 | Research synthesis endpoint with citations | Every citation maps to a returned source; insufficient evidence is explicit |
@@ -52,6 +52,12 @@ Phase 5 scope: **Web Search + Research + Documents**. The Android app remains th
 ## Provider strategy
 
 Use a provider-neutral server interface so the app is not locked to one search vendor. The first live provider will be selected based on available free-tier access and documented limits. If no provider credential is configured, the endpoint must report `searchConfigured: false`; it must not simulate results. AI synthesis will reuse the existing server-side model gateway where practical.
+
+## Phase 5 Step 2 status
+
+**Implemented:** provider-neutral configuration lookup with Tavily as the first adapter target; `VEER_SEARCH_PROVIDER` allowlist; server-only `TAVILY_API_KEY`; health response exposes only `searchConfigured` and `searchProvider`; tests cover missing/short credentials, provider normalization, unknown-provider rejection, and secret non-disclosure.
+
+**Not yet implemented:** search HTTP request, result validation, rate/timeout controls, and actual search results. Those belong to Step 3.
 
 ## Phase 5 Step 1 status
 
