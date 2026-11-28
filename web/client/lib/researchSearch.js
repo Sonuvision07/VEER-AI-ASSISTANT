@@ -30,6 +30,35 @@ export function validateSearchInput(body) {
   return { query, maxResults };
 }
 
+async function readBoundedResponse(response) {
+  const declaredLength = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+    throw new ResearchSearchError("Search provider response is too large", 502);
+  }
+  if (!response.body?.getReader) {
+    const raw = await readBoundedResponse(response);
+    return raw;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new ResearchSearchError("Search provider response is too large", 502);
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return Buffer.concat(chunks, total).toString("utf8");
+  } finally {
+    reader.releaseLock?.();
+  }
+}
+
 export function normalizeSearchResults(payload, retrievedAt = new Date().toISOString()) {
   if (!payload || typeof payload !== "object" || !Array.isArray(payload.results)) {
     throw new ResearchSearchError("Search provider returned an invalid response", 502);
