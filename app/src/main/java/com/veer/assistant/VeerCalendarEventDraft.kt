@@ -50,6 +50,11 @@ object VeerCalendarEventDraft {
         val endTime = runCatching { LocalTime.parse(endText) }.getOrElse { throw IllegalArgumentException("Enter end time as HH:MM") }
         val zone = runCatching { ZoneId.of(timeZoneId) }.getOrElse { throw IllegalArgumentException("Choose a valid timezone") }
         require(endTime > startTime) { "End time must be later than start time on the same date" }
+        val startLocal = date.atTime(startTime)
+        val endLocal = date.atTime(endTime)
+        require(zone.rules.getValidOffsets(startLocal).size == 1 && zone.rules.getValidOffsets(endLocal).size == 1) {
+            "This local time is ambiguous or does not exist because of a timezone clock change"
+        }
         val start = ZonedDateTime.of(date, startTime, zone)
         val end = ZonedDateTime.of(date, endTime, zone)
         require(start.toInstant() < end.toInstant()) { "Event end must be after event start" }
