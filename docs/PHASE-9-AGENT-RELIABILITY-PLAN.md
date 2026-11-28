@@ -25,6 +25,14 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
 
+## Independent outcome verification integration update (2026-11-28)
+- `AgentToolExecutor.verifyOutcome` is now part of the real brain dispatch pipeline and is called only after a tool dispatch returns.
+- `AgentRunResult.lastToolOutcome` exposes the latest sanitized outcome to the app caller; the next provider turn also receives an explicit bounded status marker.
+- A dispatch exception, missing verifier, or verifier exception is classified `UNCERTAIN`; the brain never converts dispatch text such as “success” into proof.
+- The Android runtime accepts a trusted verifier callback. Its production default is deliberately `UNCERTAIN` because an `Intent` being accepted by `startActivity` does not independently prove that the destination app reached the expected foreground state.
+- Only an injected trusted verifier with independent postcondition evidence may return `VERIFIED`. No OAuth scopes, side-effect permissions, or UI behavior were expanded.
+- Unit tests cover verifier evidence propagation, fail-closed defaults, verifier exceptions, and result visibility. Physical-device observation of app launches remains a device acceptance item.
+
 ## Transport cancellation integration update (2026-11-28)
 - `AgentTurn` now carries an in-memory cancellation token for the current decision only; request builders do not serialize it.
 - Gemini, OpenAI, Anthropic, Meta Muse, Groq/Llama and xAI/Grok HTTP transports register a one-shot callback that calls `HttpURLConnection.disconnect()` and close the registration in `finally`.
@@ -52,6 +60,8 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 - Represent attempted, verified and uncertain outcomes as distinct states.
 - Never treat dispatch or a tool's own success text as independent proof.
 - Mark an outcome verified only when a trusted verifier supplies non-empty postcondition evidence.
+- Wire verification into the actual executor/brain pipeline; dispatch success text, missing verifiers and verifier exceptions must remain uncertain.
+- Expose the latest sanitized outcome to the runtime caller and prevent the model from claiming completion when the outcome is uncertain.
 - Bound and sanitize evidence summaries; do not store raw payloads or secrets.
 - Unit tests cover attempted, verified, missing evidence and uncertain outcomes.
 
