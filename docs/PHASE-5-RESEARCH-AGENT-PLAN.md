@@ -40,7 +40,7 @@ Phase 5 scope: **Web Search + Research + Documents**. The Android app remains th
 |---|---|---|
 | 1 | This architecture and security plan | Scope and existing integration points documented |
 | 2 | Search-provider contract + server-side configuration/readiness checks | **Implemented in PR #32:** Tavily server-only config contract, fail-closed provider selection, public readiness fields, unit tests |
-| 3 | Authenticated, bounded `/api/research/search` endpoint | Method/auth/input/timeout/response tests pass |
+| 3 | Authenticated, bounded `/api/research/search` endpoint | **Implemented in PR #32:** bearer-authenticated Tavily search route, bounded query/results, timeout, response cap, URL filtering, and adapter/route tests; CI + live provider test pending |
 | 4 | Source extraction and normalization | Unsafe URLs rejected; excerpts retain canonical source metadata |
 | 5 | Research synthesis endpoint with citations | Every citation maps to a returned source; insufficient evidence is explicit |
 | 6 | Android research request/response transport | HTTPS-only, bounded payloads, cancellation and tests |
@@ -64,3 +64,9 @@ Use a provider-neutral server interface so the app is not locked to one search v
 **Completed:** repository integration points were inspected and this implementation/security plan was added.
 
 **Not yet implemented:** live web search, page extraction, research synthesis, Android controls, and document export. These must be delivered and tested in later steps. Phase 4 external validation (cloud token, Windows pairing, and physical-device tests) remains a separate pending track.
+
+## Phase 5 Step 3 status
+
+**Implemented on the PR branch:** `POST /api/research/search` requires the existing VEER cloud bearer credential and calls Tavily only from the server. Requests are restricted to a 1–500 character query and 1–5 results; the provider call has a 10-second timeout, redirects are disabled, provider response size is capped, malformed responses are rejected, and only valid HTTP(S) result URLs are returned. Provider keys are never included in responses. Unit tests cover input bounds, unsafe URL schemes/credentials, provider errors, oversized/malformed responses, missing configuration, route methods, and authentication.
+
+**Still pending:** CI confirmation, Vercel deployment, setting `TAVILY_API_KEY` (and ensuring the existing cloud bearer token is configured), and a live authenticated search from the Android app. Step 3 is not considered accepted until these checks pass.
