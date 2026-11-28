@@ -319,6 +319,7 @@ fun VeerApp() {
     var driveParentId by remember { mutableStateOf<String?>(null) }
     var drivePageToken by remember { mutableStateOf("") }
     var driveFiles by remember { mutableStateOf<List<VeerDriveClient.DriveFile>>(emptyList()) }
+    var driveSelectedFile by remember { mutableStateOf<VeerDriveClient.DriveFile?>(null) }
     var driveStatus by remember { mutableStateOf(if (driveConnected) "Connected — refresh access to search" else "Not connected") }
     var calendarConnected by remember { mutableStateOf(prefs.getBoolean("calendar_connected", false)) }
     var calendarEmail by remember { mutableStateOf(prefs.getString("calendar_email", "") ?: "") }
@@ -3111,14 +3112,42 @@ fun VeerApp() {
                             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                                 Text(file.name.ifBlank { "(Unnamed file)" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                                 Text(file.mimeType + if (file.sizeBytes != null) " · ${file.sizeBytes} bytes" else "", fontSize = 10.sp, color = Color.Gray)
+                                TextButton(onClick = { driveSelectedFile = file }, enabled = !driveBusy) { Text("FILE DETAILS") }
                                 if (file.mimeType == "application/vnd.google-apps.folder") {
                                     TextButton(onClick = {
+                                        driveSelectedFile = null
                                         driveParentId = file.id
                                         driveFiles = emptyList()
                                         drivePageToken = ""
                                         driveStatus = "Folder selected. Press SEARCH DRIVE."
                                     }, enabled = !driveBusy) { Text("OPEN FOLDER") }
                                 }
+                            }
+                            Divider()
+                        }
+                        driveSelectedFile?.let { selected ->
+                            Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                                Text("SELECTED FILE DETAILS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B8D4))
+                                Text(selected.name, fontSize = 12.sp, color = Color.White)
+                                Text("Type: ${selected.mimeType}", fontSize = 11.sp, color = Color.Gray)
+                                Text("Size: ${selected.sizeBytes?.let { "${it} bytes" } ?: "Not provided"}", fontSize = 11.sp, color = Color.Gray)
+                                Text("Modified: ${selected.modifiedTime.ifBlank { "Not provided" }}", fontSize = 11.sp, color = Color.Gray)
+                                Text("Owner: ${selected.ownerNames.joinToString().ifBlank { "Not provided" }}", fontSize = 11.sp, color = Color.Gray)
+                                if (selected.shortcutTargetId.isNotBlank()) {
+                                    Text("Shortcut target type: ${selected.shortcutTargetMimeType}", fontSize = 11.sp, color = Color.Gray)
+                                }
+                                if (selected.webViewLink.isNotBlank()) {
+                                    TextButton(onClick = {
+                                        try {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(selected.webViewLink)))
+                                        } catch (_: Exception) {
+                                            driveStatus = "Google Drive link could not be opened on this device."
+                                        }
+                                    }, enabled = !driveBusy) { Text("OPEN IN GOOGLE DRIVE") }
+                                } else {
+                                    Text("No trusted Google Drive web link is available.", fontSize = 10.sp, color = Color.Gray)
+                                }
+                                TextButton(onClick = { driveSelectedFile = null }) { Text("CLOSE DETAILS") }
                             }
                             Divider()
                         }
