@@ -54,7 +54,7 @@ class CloudServiceRuntimeTests(unittest.TestCase):
         self.temp.cleanup()
 
     def call(self, method, path, body=None, headers=None):
-        return self.service.handle(method, path, headers or self.headers, body)
+        return self.service.handle(method, path, self.headers if headers is None else headers, body)
 
     def test_authentication_and_scope_are_enforced(self):
         status, _ = self.call("GET", "/tasks/task_1234567890abcd", headers={})
@@ -83,7 +83,8 @@ class CloudServiceRuntimeTests(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertEqual("queued", approved["task"]["state"])
         status, cancelled = self.call("POST", "/tasks/" + task["task_id"] + "/cancel")
-        self.assertEqual(400, status)
+        self.assertEqual(200, status)
+        self.assertEqual("cancelled", cancelled["task"]["state"])
         self.assertEqual(200, self.call("POST", "/tasks", make_request("health", {}, "task_2234567890abcd", "idem-key-2234567890"))[0])
 
     def test_body_limits_and_route_validation(self):
