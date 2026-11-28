@@ -2492,6 +2492,9 @@ fun VeerApp() {
                                             gmailAccessToken = null
                                             gmailConnected = false
                                             gmailEmail = ""
+                                            gmailInboxItems = emptyList()
+                                            gmailQuery = "in:inbox"
+                                            gmailInboxStatus = "Inbox cleared after disconnect"
                                             prefs.edit().remove("gmail_connected").remove("gmail_email").apply()
                                             gmailStatus = "Google access revoked and VEER disconnected"
                                             gmailBusy = false
