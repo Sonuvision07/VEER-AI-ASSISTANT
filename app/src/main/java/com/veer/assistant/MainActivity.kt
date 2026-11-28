@@ -318,6 +318,10 @@ fun VeerApp() {
     var calendarEvents by remember { mutableStateOf<List<VeerCalendarClient.CalendarEvent>>(emptyList()) }
     var selectedCalendarEventId by remember { mutableStateOf("") }
     var calendarAgendaStatus by remember { mutableStateOf("Agenda not loaded") }
+    var calendarNextPageToken by remember { mutableStateOf("") }
+    var calendarRangeStart by remember { mutableStateOf("") }
+    var calendarRangeEnd by remember { mutableStateOf("") }
+    var calendarScheduleReport by remember { mutableStateOf("") }
     var gmailConnected by remember { mutableStateOf(prefs.getBoolean("gmail_connected", false)) }
     var gmailEmail by remember { mutableStateOf(prefs.getString("gmail_email", "") ?: "") }
     var gmailAccessToken by remember { mutableStateOf<String?>(null) }
@@ -2563,10 +2567,14 @@ fun VeerApp() {
                                 localAiScope.launch {
                                     try {
                                         val now = java.time.OffsetDateTime.now()
+                                        calendarRangeStart = now.toString()
+                                        calendarRangeEnd = now.plusDays(7).toString()
                                         val page = withContext(Dispatchers.IO) {
-                                            VeerCalendarClient.listEvents(token, now.toString(), now.plusDays(7).toString(), 25)
+                                            VeerCalendarClient.listEvents(token, calendarRangeStart, calendarRangeEnd, 25)
                                         }
                                         calendarEvents = page.events
+                                        calendarNextPageToken = page.nextPageToken
+                                        calendarScheduleReport = ""
                                         selectedCalendarEventId = ""
                                         calendarAgendaStatus = if (page.events.isEmpty()) "No events in the next 7 days" else "${page.events.size} events loaded" + if (page.nextPageToken.isNotBlank()) " · More events available" else ""
                                     } catch (error: Exception) {
@@ -2578,6 +2586,59 @@ fun VeerApp() {
                             Text(if (calendarBusy) "LOADING AGENDA..." else "LOAD NEXT 7 DAYS")
                         }
                         Text(calendarAgendaStatus, fontSize = 11.sp, color = Color.Gray)
+                        if (calendarNextPageToken.isNotBlank()) {
+                            Button(onClick = {
+                                val token = calendarAccessToken
+                                if (token.isNullOrBlank()) {
+                                    calendarAgendaStatus = "Session expired. Refresh Calendar access first."
+                                } else {
+                                    calendarBusy = true
+                                    calendarAgendaStatus = "Loading more events..."
+                                    localAiScope.launch {
+                                        try {
+                                            val page = withContext(Dispatchers.IO) {
+                                                VeerCalendarClient.listEvents(token, calendarRangeStart, calendarRangeEnd, 25, calendarNextPageToken)
+                                            }
+                                            val merged = (calendarEvents + page.events).distinctBy { it.id }
+                                            calendarEvents = merged
+                                            calendarNextPageToken = page.nextPageToken
+                                            calendarScheduleReport = ""
+                                            calendarAgendaStatus = "${merged.size} events loaded" + if (page.nextPageToken.isNotBlank()) " · More events available" else " · All pages loaded"
+                                        } catch (error: Exception) {
+                                            calendarAgendaStatus = "More events load failed: " + (error.message ?: "Try again")
+                                        } finally { calendarBusy = false }
+                                    }
+                                }
+                            }, enabled = !calendarBusy, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (calendarBusy) "LOADING..." else "LOAD MORE EVENTS")
+                            }
+                        }
+                        Button(onClick = {
+                            if (calendarNextPageToken.isNotBlank()) {
+                                calendarScheduleReport = "More Calendar events are available. Load every page before VEER checks free time, so no busy event is missed."
+                            } else {
+                                val result = VeerCalendarSchedule.analyze(
+                                    calendarEvents,
+                                    java.time.LocalDate.now(),
+                                    dayCount = 7,
+                                    zone = java.time.ZoneId.systemDefault(),
+                                    requestedMinutes = 60
+                                )
+                                calendarScheduleReport = if (!result.analysisComplete) {
+                                    "Some event times could not be interpreted. VEER cannot safely confirm free time."
+                                } else {
+                                    val slots = result.freeWindows.take(5).map { VeerCalendarSchedule.formatWindow(it) }
+                                    "Next 7 days: ${result.eventCount} calendar events checked.\n60-minute windows (9 AM–5 PM):\n" +
+                                        if (slots.isEmpty()) "No 60-minute free window found." else slots.joinToString("\n") +
+                                        if (result.freeWindows.size > 5) "\nMore windows available." else ""
+                                }
+                            }
+                        }, enabled = !calendarBusy && calendarEvents.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                            Text("SUMMARIZE SCHEDULE & FIND 60-MIN SLOTS")
+                        }
+                        if (calendarScheduleReport.isNotBlank()) {
+                            Text(calendarScheduleReport, fontSize = 11.sp, color = Color(0xFF80DEEA))
+                        }
                         calendarEvents.forEach { event ->
                             Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF101B2B), RoundedCornerShape(10.dp)).padding(10.dp)) {
                                 TextButton(onClick = {
@@ -2608,6 +2669,10 @@ fun VeerApp() {
                                         calendarConnected = false
                                         calendarEmail = ""
                                         calendarEvents = emptyList()
+                                        calendarNextPageToken = ""
+                                        calendarRangeStart = ""
+                                        calendarRangeEnd = ""
+                                        calendarScheduleReport = ""
                                         selectedCalendarEventId = ""
                                         prefs.edit().remove("calendar_connected").remove("calendar_email").apply()
                                         calendarStatus = "Google Calendar access revoked"
