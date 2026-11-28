@@ -1553,6 +1553,19 @@ fun VeerApp() {
         messages.add("BOSS" to messageWithAttachment)
         fallbackAttempted.clear()
 
+        // Handle simple greetings on-device: they must not wait for cloud AI or provider fallback.
+        if (imageForRequest == null && textForRequest.isNullOrBlank()) {
+            val greetingReply = VeerGreetingResponder.reply(clean)
+            if (greetingReply != null) {
+                loading = false
+                addReply(greetingReply)
+                attachedImageBase64 = null
+                attachedText = null
+                attachedFileName = null
+                return
+            }
+        }
+
         // Explicit opt-in research commands keep ordinary chat and the established UI unchanged.
         val researchMode = when {
             clean.startsWith("research:", ignoreCase = true) -> "research"
