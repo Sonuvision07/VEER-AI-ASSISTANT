@@ -17,4 +17,4 @@ jobs:
         run: npm install
       - name: Build client and server
         working-directory: web
-        run: npm run build && npm run test --workspace @veer/server
+        run: npm run build && npm run test --workspace @veer/server && npm run test --workspace @veer/client
