@@ -5,12 +5,12 @@ import org.junit.Test
 
 class AgentTaskContextTest {
     @Test fun boundsEntryCountAndTotalCharacters() {
-        val context = AgentTaskContext(maxEntries = 2, maxEntryChars = 5, maxTotalChars = 8)
+        val context = AgentTaskContext(maxEntries = 2, maxEntryChars = 5, maxTotalChars = 10)
         assertTrue(context.add("first"))
         assertTrue(context.add("second"))
         assertTrue(context.add("third"))
         assertEquals(listOf("secon", "third"), context.snapshot())
-        assertEquals(8, context.retainedCharacterCount())
+        assertEquals(10, context.retainedCharacterCount())
     }
 
     @Test fun sanitizesControlsAndRejectsBlankContent() {
