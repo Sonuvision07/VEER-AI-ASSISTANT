@@ -25,6 +25,13 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 10. **Final audit and build** — audit logs/privacy/UI scope, run available CI and produce APK artifact; physical-device acceptance remains separate.
 
 
+## Task lifecycle/history integration update (2026-11-28)
+- `AgentTaskLifecycle` now coordinates `AgentTaskState`, bounded `AgentTaskHistory` and a task-scoped `AgentTaskContext` for each real brain run.
+- The brain records queued/running/waiting-approval/completed/failed/cancelled transitions and carries the same task session through approval continuation/resume.
+- `AgentRunResult` exposes the stable task ID and latest task status; the Android runtime exposes bounded history snapshots and clear-history access without adding UI.
+- Only generic tool-outcome status labels enter the bounded task context; it is cleared when a task reaches a terminal state. Prompts, tool arguments, raw results and provider secrets are not stored.
+- Tests cover lifecycle timestamps, history clearing, approval pause/resume and terminal-state recording.
+
 ## Independent outcome verification integration update (2026-11-28)
 - `AgentToolExecutor.verifyOutcome` is now part of the real brain dispatch pipeline and is called only after a tool dispatch returns.
 - `AgentRunResult.lastToolOutcome` exposes the latest sanitized outcome to the app caller; the next provider turn also receives an explicit bounded status marker.
