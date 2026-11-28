@@ -62,6 +62,7 @@ export async function searchWeb(body, { env = process.env, fetchImpl = fetch, no
       503,
     );
   }
+  const retrievedAt = now().toISOString();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -104,8 +105,8 @@ export async function searchWeb(body, { env = process.env, fetchImpl = fetch, no
     return {
       query,
       provider: config.provider,
-      retrievedAt: now().toISOString(),
-      results: normalizeSearchResults(payload, now().toISOString()).slice(0, maxResults),
+      retrievedAt,
+      results: normalizeSearchResults(payload, retrievedAt).slice(0, maxResults),
     };
   } finally {
     clearTimeout(timeout);
