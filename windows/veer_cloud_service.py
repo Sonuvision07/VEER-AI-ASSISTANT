@@ -91,6 +91,8 @@ class CloudTaskService:
         try:
             data = self._decode_body(body)
             if method == "POST" and path == "/tasks":
+                if "tasks:write" not in principal.scopes:
+                    return self._response(403, {"error": "Credential lacks tasks:write scope"})
                 result = accept_cloud_task(data, principal, self.store, now=self.clock())
                 return self._response(202, {"task": dict(result)})
 
