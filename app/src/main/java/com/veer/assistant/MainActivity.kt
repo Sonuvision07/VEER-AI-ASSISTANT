@@ -322,6 +322,14 @@ fun VeerApp() {
     var gmailSecurityFindings by remember { mutableStateOf<List<VeerGmailSecurity.Finding>>(emptyList()) }
     var gmailComposeAuthorizationPending by remember { mutableStateOf(false) }
     var gmailComposeAuthorized by remember { mutableStateOf(false) }
+    var gmailSendAuthorizationPending by remember { mutableStateOf(false) }
+    var gmailSendAuthorized by remember { mutableStateOf(false) }
+    var gmailSendReviewOpen by remember { mutableStateOf(false) }
+    var gmailReviewTo by remember { mutableStateOf("") }
+    var gmailReviewSubject by remember { mutableStateOf("") }
+    var gmailReviewBody by remember { mutableStateOf("") }
+    var gmailSendBusy by remember { mutableStateOf(false) }
+    var gmailSendStatus by remember { mutableStateOf("No email sent") }
     var gmailDraftTo by remember { mutableStateOf("") }
     var gmailDraftSubject by remember { mutableStateOf("") }
     var gmailDraftBody by remember { mutableStateOf("") }
@@ -334,10 +342,13 @@ fun VeerApp() {
                 val accessToken = authorization.accessToken
                 if (accessToken.isNullOrBlank()) {
                     gmailStatus = "Google did not return Gmail access. Try connecting again."
+                    gmailComposeAuthorizationPending = false
+                    gmailSendAuthorizationPending = false
                     gmailBusy = false
                 } else {
                     gmailAccessToken = accessToken
                     if (gmailComposeAuthorizationPending) { gmailComposeAuthorized = true; gmailComposeAuthorizationPending = false }
+                    if (gmailSendAuthorizationPending) { gmailSendAuthorized = true; gmailSendAuthorizationPending = false; gmailSendStatus = "Send permission granted. Review the email before sending." }
                     gmailStatus = "Checking authorized Google account..."
                     localAiScope.launch {
                         try {
@@ -348,16 +359,21 @@ fun VeerApp() {
                             prefs.edit().putBoolean("gmail_connected", true).putString("gmail_email", email).apply()
                         } catch (error: Exception) {
                             gmailAccessToken = null
+                            gmailComposeAuthorizationPending = false
+                            gmailSendAuthorizationPending = false
                             gmailStatus = "Account verification failed: " + (error.message ?: "Try again")
                         } finally { gmailBusy = false }
                     }
                 }
             } catch (error: Exception) {
                 gmailStatus = "Google authorization failed: " + (error.message ?: "Try again")
+                gmailComposeAuthorizationPending = false
+                gmailSendAuthorizationPending = false
                 gmailBusy = false
             }
         } else {
             gmailComposeAuthorizationPending = false
+            gmailSendAuthorizationPending = false
             gmailStatus = "Google authorization cancelled"
             gmailBusy = false
         }
@@ -2504,6 +2520,10 @@ fun VeerApp() {
                                             gmailComposeAuthorized = false
                                             gmailComposeAuthorizationPending = false
                                             gmailDraftStatus = "Gmail disconnected"
+                                            gmailSendAuthorized = false
+                                            gmailSendAuthorizationPending = false
+                                            gmailSendReviewOpen = false
+                                            gmailSendStatus = "Gmail disconnected"
                                             gmailConnected = false
                                             gmailEmail = ""
                                             gmailInboxItems = emptyList()
@@ -2652,6 +2672,101 @@ fun VeerApp() {
                             Text(if (gmailDraftBusy) "SAVING DRAFT..." else if (!gmailComposeAuthorized) "AUTHORIZE DRAFT ACCESS" else "SAVE TO GMAIL DRAFTS")
                         }
                         Text(gmailDraftStatus, fontSize = 11.sp, color = Color.Gray)
+                        Divider()
+                        Text("SEND EMAIL — EXPLICIT APPROVAL", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFB74D))
+                        Text("Send permission alag se Google se maangi jayegi. Uske baad poora recipient, subject aur message preview hoga. Sirf final SEND button dabane par email jayega.", fontSize = 11.sp, color = Color.Gray)
+                        OutlinedButton(onClick = {
+                            if (!gmailSendAuthorized) {
+                                gmailSendAuthorizationPending = true
+                                gmailBusy = true
+                                gmailStatus = "Requesting separate Gmail send permission..."
+                                gmailAuthorizationClient.authorize(VeerGmailAuthorization.authorizationRequest(includeSend = true))
+                                    .addOnSuccessListener { authorization ->
+                                        if (authorization.hasResolution()) {
+                                            val pending = authorization.pendingIntent
+                                            if (pending == null) {
+                                                gmailSendStatus = "Google send permission screen could not be opened"
+                                                gmailSendAuthorizationPending = false
+                                                gmailBusy = false
+                                            } else {
+                                                gmailAuthorizationLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                                            }
+                                        } else {
+                                            val token = authorization.accessToken
+                                            if (token.isNullOrBlank()) {
+                                                gmailSendStatus = "Google did not return send permission"
+                                                gmailSendAuthorizationPending = false
+                                                gmailBusy = false
+                                            } else {
+                                                gmailAccessToken = token
+                                                gmailSendAuthorized = true
+                                                gmailSendAuthorizationPending = false
+                                                gmailSendStatus = "Send permission granted. Press REVIEW EMAIL again."
+                                                gmailBusy = false
+                                            }
+                                        }
+                                    }
+                                    .addOnFailureListener { error ->
+                                        gmailSendStatus = "Send permission failed: " + (error.message ?: "Try again")
+                                        gmailSendAuthorizationPending = false
+                                        gmailBusy = false
+                                    }
+                            } else {
+                                gmailReviewTo = gmailDraftTo.trim()
+                                gmailReviewSubject = gmailDraftSubject.trim()
+                                gmailReviewBody = gmailDraftBody
+                                gmailSendReviewOpen = true
+                            }
+                        }, enabled = !gmailSendBusy && !gmailBusy, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (!gmailSendAuthorized) "AUTHORIZE SEND ACCESS" else "REVIEW EMAIL BEFORE SENDING")
+                        }
+                        Text(gmailSendStatus, fontSize = 11.sp, color = Color.Gray)
+                        if (gmailSendReviewOpen) {
+                            AlertDialog(
+                                onDismissRequest = { if (!gmailSendBusy) gmailSendReviewOpen = false },
+                                title = { Text("Final email approval") },
+                                text = {
+                                    Column(
+                                        modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text("Recipient", fontWeight = FontWeight.Bold)
+                                        Text(gmailReviewTo)
+                                        Text("Subject", fontWeight = FontWeight.Bold)
+                                        Text(gmailReviewSubject.ifBlank { "(No subject)" })
+                                        Text("Complete message", fontWeight = FontWeight.Bold)
+                                        Text(gmailReviewBody)
+                                        Text("This exact email will be sent only if you press SEND EMAIL below.", color = Color(0xFFFFB74D), fontSize = 12.sp)
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val token = gmailAccessToken
+                                        if (token.isNullOrBlank()) {
+                                            gmailSendStatus = "Refresh Gmail access before sending."
+                                            gmailSendReviewOpen = false
+                                        } else {
+                                            gmailSendBusy = true
+                                            gmailSendReviewOpen = false
+                                            gmailSendStatus = "Sending the reviewed email..."
+                                            localAiScope.launch {
+                                                try {
+                                                    val sent = withContext(Dispatchers.IO) {
+                                                        VeerGmailSendClient.sendReviewedMessage(token, gmailReviewTo, gmailReviewSubject, gmailReviewBody)
+                                                    }
+                                                    gmailSendStatus = "Email sent successfully. Message ID: " + sent.messageId
+                                                } catch (error: Exception) {
+                                                    gmailSendStatus = "Email was not confirmed as sent: " + (error.message ?: "Check Gmail Sent folder before retrying")
+                                                } finally { gmailSendBusy = false }
+                                            }
+                                        }
+                                    }, enabled = !gmailSendBusy) { Text("SEND EMAIL") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { gmailSendReviewOpen = false }, enabled = !gmailSendBusy) { Text("CANCEL — DO NOT SEND") }
+                                }
+                            )
+                        }
                         gmailInboxItems.forEach { email ->
                             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF101B2B))) {
                                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
