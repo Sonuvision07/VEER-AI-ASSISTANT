@@ -671,6 +671,43 @@ class VeerAgentBrainTest {
         assertEquals(1, resumed.steps)
     }
 
+    @Test fun approvalContinuationExpiresBeforeTaskDeadline() {
+        var clock = 0L
+        val tools = FakeTools()
+        val requested = call("write", AgentRisk.DEVICE_CHANGE)
+        val approval = FakeApproval(false)
+        val brain = VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("Please approve", requested, finished = false) },
+            tools,
+            approval,
+            taskTimeoutMillis = 60_000,
+            approvalTimeoutMillis = 1,
+            nanoTime = { clock }
+        )
+
+        val pending = brain.run(turn())
+        assertTrue(pending.stoppedForApproval)
+        val approvalId = pending.continuation!!.approvalId
+        assertTrue(approvalId.isNotBlank())
+        clock = 2_000_000L
+        approval.result = true
+
+        val resumed = brain.resumeAfterApproval(pending.continuation!!, requested)
+
+        assertTrue(resumed.message.contains("approval expire", ignoreCase = true))
+        assertTrue(tools.executed.isEmpty())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveApprovalTimeout() {
+        VeerAgentBrain(
+            FakeGateway { _, _ -> AgentDecision("No action") },
+            FakeTools(),
+            FakeApproval(false),
+            approvalTimeoutMillis = 0
+        )
+    }
+
     @Test fun approvalContinuationCannotBeResumedByAnotherBrainInstance() {
         val issuingTools = FakeTools()
         val otherTools = FakeTools()
