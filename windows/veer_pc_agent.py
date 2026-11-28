@@ -172,12 +172,8 @@ def _handler_for(workspace: Path, token: str, task_queue: DurableTaskQueue):
                     "path": folder.relative_to(workspace).as_posix(),
                     "items": items,
                 })
-            except (ValueError, TaskRejected) as error:
+            except ValueError as error:
                 return self.send_json(400, {"ok": False, "error": str(error)})
-            except TaskNotFound:
-                return self.send_json(404, {"ok": False, "error": "Task not found"})
-            except TaskConflict as error:
-                return self.send_json(409, {"ok": False, "error": str(error)})
             except OSError:
                 return self.send_json(500, {"ok": False, "error": "Unable to read workspace folder"})
 
@@ -246,8 +242,12 @@ def _handler_for(workspace: Path, token: str, task_queue: DurableTaskQueue):
                 except FileExistsError:
                     return self.send_json(409, {"ok": False, "error": "Refusing to overwrite existing file"})
                 return self.send_json(201, {"ok": True, "created": target.relative_to(workspace).as_posix()})
-            except ValueError as error:
+            except (ValueError, TaskRejected) as error:
                 return self.send_json(400, {"ok": False, "error": str(error)})
+            except TaskNotFound:
+                return self.send_json(404, {"ok": False, "error": "Task not found"})
+            except TaskConflict as error:
+                return self.send_json(409, {"ok": False, "error": str(error)})
             except OSError:
                 return self.send_json(500, {"ok": False, "error": "The requested local operation failed"})
             except Exception:
