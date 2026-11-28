@@ -11,6 +11,7 @@ import json
 import secrets
 import sqlite3
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -102,11 +103,15 @@ class DurableTaskQueue:
             """)
             db.execute("CREATE INDEX IF NOT EXISTS idx_tasks_state_created ON tasks(state, created_at)")
 
+    @contextmanager
     def _connect(self):
         db = sqlite3.connect(self.database, timeout=10, isolation_level="IMMEDIATE")
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA busy_timeout=10000")
-        return db
+        try:
+            yield db
+        finally:
+            db.close()
 
     @staticmethod
     def _row(row: sqlite3.Row | None) -> Task | None:
