@@ -9,14 +9,14 @@ from veer_cloud_store import SQLiteCloudTaskStore
 from veer_cloud_service import CloudTaskRunner, CloudTaskService
 
 
-def make_request(operation="create_text_file", payload=None):
+def make_request(operation="create_text_file", payload=None, task_id="task_1234567890abcd", key="idem-key-1234567890"):
     payload = payload if payload is not None else {"path": "notes/a.txt", "content": "hello"}
     encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
     return {
-        "task_id": "task_1234567890abcd",
+        "task_id": task_id,
         "operation": operation,
         "payload": payload,
-        "idempotency_key": "idem-key-1234567890",
+        "idempotency_key": key,
         "payload_sha256": hashlib.sha256(encoded).hexdigest(),
     }
 
@@ -84,7 +84,7 @@ class CloudServiceRuntimeTests(unittest.TestCase):
         self.assertEqual("queued", approved["task"]["state"])
         status, cancelled = self.call("POST", "/tasks/" + task["task_id"] + "/cancel")
         self.assertEqual(400, status)
-        self.assertEqual(200, self.call("POST", "/tasks", make_request("health", {}))[0])
+        self.assertEqual(200, self.call("POST", "/tasks", make_request("health", {}, "task_2234567890abcd", "idem-key-2234567890"))[0])
 
     def test_body_limits_and_route_validation(self):
         status, _ = self.call("POST", "/tasks", b"x" * 21000)
