@@ -2607,6 +2607,10 @@ fun VeerApp() {
                                 calendarAgendaStatus = "Session expired. Press REFRESH CALENDAR ACCESS first."
                             } else {
                                 calendarBusy = true
+                                calendarEvents = emptyList()
+                                calendarNextPageToken = ""
+                                calendarScheduleReport = ""
+                                selectedCalendarEventId = ""
                                 calendarAgendaStatus = "Loading next 7 days..."
                                 localAiScope.launch {
                                     try {
