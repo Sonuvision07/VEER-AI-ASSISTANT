@@ -34,6 +34,7 @@ internal class VeerMuseHttpTransport(
         }
         val body = request.toString()
         val connection = connectionFactory(URL(ENDPOINT))
+        val cancellationRegistration = turn.cancellationToken?.onCancel { connection.disconnect() }
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 10_000
@@ -56,6 +57,7 @@ internal class VeerMuseHttpTransport(
         } catch (failure: IOException) {
             throw AgentProviderException("Meta Muse network request failed.", retryable = true)
         } finally {
+            cancellationRegistration?.close()
             connection.disconnect()
         }
     }
