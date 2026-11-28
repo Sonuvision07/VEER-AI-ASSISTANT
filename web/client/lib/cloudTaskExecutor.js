@@ -55,6 +55,11 @@ export async function runCloudTask(sql, owner, taskId) {
     owner TEXT NOT NULL, path TEXT NOT NULL, content TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(owner,path)
   )`;
+  await sql`
+    UPDATE veer_cloud_tasks SET state='expired',updated_at=NOW(),error='Task expired'
+    WHERE task_id=${taskId} AND owner=${owner}
+      AND state IN ('pending_approval','queued') AND expires_at<=NOW()
+  `;
   const claimed = await sql`
     UPDATE veer_cloud_tasks SET state='running',updated_at=NOW()
     WHERE task_id=${taskId} AND owner=${owner} AND state='queued'

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { executeCloudOperation, validateWorkspacePath, validateHttpsUrl } from "./cloudTaskExecutor.js";
+import { executeCloudOperation, runCloudTask, validateWorkspacePath, validateHttpsUrl } from "./cloudTaskExecutor.js";
 import { CloudTaskError } from "./cloudTaskStore.js";
 
 test("workspace paths allow safe relative paths", () => {
@@ -41,4 +41,23 @@ test("file content is bounded", async () => {
     { operation: "create_text_file", payload: { path: "a.txt", content: "x".repeat(8193) } },
     { async createFile() { throw new Error("must not write"); } },
   ), CloudTaskError);
+});
+
+test("run marks expired queued tasks expired before attempting to claim them", async () => {
+  const statements = [];
+  const sql = async (strings) => {
+    const statement = strings.join(" ");
+    statements.push(statement);
+    if (statement.includes("SELECT state FROM veer_cloud_tasks")) return [{ state: "expired" }];
+    return [];
+  };
+  await assert.rejects(
+    () => runCloudTask(sql, "primary", "task_12345678901234"),
+    (error) => error instanceof CloudTaskError && error.status === 409
+      && error.message.includes("has expired"),
+  );
+  const expireIndex = statements.findIndex((statement) => statement.includes("SET state='expired'"));
+  const claimIndex = statements.findIndex((statement) => statement.includes("SET state='running'"));
+  assert.ok(expireIndex >= 0, "expiry transition should be persisted");
+  assert.ok(claimIndex > expireIndex, "expiry must be checked before claiming");
 });
