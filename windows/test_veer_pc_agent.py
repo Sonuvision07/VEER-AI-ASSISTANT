@@ -5,15 +5,14 @@ import json
 import tempfile
 import threading
 import time
-import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+import unittest
 from pathlib import Path
 from unittest import mock
 
 import veer_pc_agent
-
 
 TEST_TOKEN = "veer-unit-test-token-0123456789abcdef0123456789"
 
@@ -53,32 +52,28 @@ class VeerPcAgentTests(unittest.TestCase):
         status, body = self.request("/health", authenticated=False)
         self.assertEqual(status, 401)
         self.assertFalse(body["ok"])
-
         status, body = self.request("/health")
         self.assertEqual(status, 200)
         self.assertEqual(body["agent"], "VEER-PC-Agent")
         self.assertEqual(body["version"], "0.2")
 
-    def test_write_creates_inside_workspace_and_never_overwrites(self):
-        status, body = self.request("/write-text", "POST", {"path": "notes/first.txt", "content": "Namaste"})
-        self.assertEqual(status, 201)
-        self.assertEqual(body["created"], "notes/first.txt")
-        target = self.server.veer_workspace / "notes" / "first.txt"
-        self.assertEqual(target.read_text(encoding="utf-8"), "Namaste")
+    def test_legacy_direct_action_endpoints_are_disabled(self):
+        with mock.patch("veer_pc_agent.webbrowser.open") as browser:
+            status, body = self.request("/write-text", "POST", {"path": "notes/blocked.txt", "content": "must not write"})
+            self.assertEqual(status, 404)
+            self.assertFalse(body["ok"])
+            self.assertFalse((self.server.veer_workspace / "notes" / "blocked.txt").exists())
+            status, body = self.request("/open-url", "POST", {"url": "https://example.com"})
+            self.assertEqual(status, 404)
+            self.assertFalse(body["ok"])
+            browser.assert_not_called()
 
-        status, body = self.request("/write-text", "POST", {"path": "notes/first.txt", "content": "Changed"})
-        self.assertEqual(status, 409)
-        self.assertEqual(target.read_text(encoding="utf-8"), "Namaste")
-
-    def test_path_traversal_is_rejected_for_listing_and_writing(self):
+    def test_path_traversal_is_rejected_for_listing(self):
         status, _ = self.request("/files?path=" + urllib.parse.quote("../outside"))
-        self.assertEqual(status, 400)
-
-        status, _ = self.request("/write-text", "POST", {"path": "../outside.txt", "content": "blocked"})
         self.assertEqual(status, 400)
         self.assertFalse((self.app_dir / "outside.txt").exists())
 
-    def test_workspace_symlink_escape_is_rejected(self):
+    def test_workspace_symlink_escape_is_rejected_for_listing(self):
         outside = self.app_dir / "outside-folder"
         outside.mkdir()
         link = self.server.veer_workspace / "outside-link"
@@ -88,52 +83,25 @@ class VeerPcAgentTests(unittest.TestCase):
             self.skipTest("Directory symlinks are unavailable on this Windows runner")
         status, _ = self.request("/files?path=outside-link")
         self.assertEqual(status, 400)
-        status, _ = self.request("/write-text", "POST", {"path": "outside-link/escape.txt", "content": "blocked"})
-        self.assertEqual(status, 400)
         self.assertFalse((outside / "escape.txt").exists())
 
-    def test_workspace_root_symlink_is_rejected(self):
-        linked_app = self.app_dir / "linked-app"
-        linked_app.mkdir()
-        outside = self.app_dir / "outside-workspace"
-        outside.mkdir()
-        try:
-            (linked_app / "workspace").symlink_to(outside, target_is_directory=True)
-        except (OSError, NotImplementedError):
-            self.skipTest("Directory symlinks are unavailable on this Windows runner")
-        with self.assertRaises(ValueError):
-            veer_pc_agent.create_server(port=0, app_dir=linked_app, token=TEST_TOKEN)
-
     def test_body_must_be_json_object(self):
-        status, body = self.request("/write-text", "POST", ["not", "an", "object"])
+        status, body = self.request("/tasks", "POST", ["not", "an", "object"])
         self.assertEqual(status, 400)
         self.assertFalse(body["ok"])
 
-    def test_absolute_paths_are_rejected(self):
+    def test_legacy_direct_file_and_browser_routes_are_not_exposed(self):
         status, _ = self.request("/write-text", "POST", {"path": str(self.app_dir / "outside.txt"), "content": "blocked"})
-        self.assertEqual(status, 400)
+        self.assertEqual(status, 404)
+        with mock.patch("veer_pc_agent.webbrowser.open") as browser:
+            status, _ = self.request("/open-url", "POST", {"url": "file:///C:/Windows/win.ini"})
+            self.assertEqual(status, 404)
+            browser.assert_not_called()
+        self.assertFalse((self.app_dir / "outside.txt").exists())
 
-    def test_open_url_rejects_non_http_schemes_and_credentials(self):
-        status, _ = self.request("/open-url", "POST", {"url": "file:///C:/Windows/win.ini"})
-        self.assertEqual(status, 400)
-        status, _ = self.request("/open-url", "POST", {"url": "https://user:pass@example.com"})
-        self.assertEqual(status, 400)
-
-    def test_open_url_reports_browser_acceptance(self):
-        with mock.patch("veer_pc_agent.webbrowser.open", return_value=True) as browser:
-            status, body = self.request("/open-url", "POST", {"url": "https://example.com"})
-        self.assertEqual(status, 200)
-        self.assertTrue(body["ok"])
-        browser.assert_called_once_with("https://example.com", new=2)
-
-        with mock.patch("veer_pc_agent.webbrowser.open", return_value=False):
-            status, body = self.request("/open-url", "POST", {"url": "https://example.com"})
-        self.assertEqual(status, 503)
-        self.assertFalse(body["ok"])
-
-    def test_large_body_is_rejected(self):
+    def test_large_body_to_legacy_action_route_is_not_processed(self):
         status, body = self.request("/write-text", "POST", {"path": "large.txt", "content": "x" * (veer_pc_agent.MAX_BODY + 100)})
-        self.assertEqual(status, 400)
+        self.assertEqual(status, 404)
         self.assertFalse(body["ok"])
         self.assertFalse((self.server.veer_workspace / "large.txt").exists())
 
@@ -166,7 +134,6 @@ class VeerPcAgentTests(unittest.TestCase):
     def test_server_rejects_explicit_token_with_whitespace(self):
         with self.assertRaises(ValueError):
             veer_pc_agent.create_server(port=0, app_dir=self.app_dir, token="x" * 20 + " " + "y" * 20)
-
 
     def wait_for_task(self, task_id, expected="completed", timeout=3):
         deadline = time.monotonic() + timeout
@@ -218,14 +185,16 @@ class VeerPcAgentTests(unittest.TestCase):
         self.assertEqual(failed.state, "failed")
         self.assertFalse((self.app_dir / "outside.txt").exists())
 
-    def test_worker_open_url_uses_browser_only_for_http_urls(self):
+    def test_worker_open_url_uses_browser_only_for_approved_task(self):
         queue = self.server.veer_task_queue
         task = queue.enqueue("open_url", {"url": "https://example.com"}, "worker-open-url-task-0001")
-        queue.approve_task(task.task_id, task.payload_sha256)
         worker = veer_pc_agent.TaskWorker(queue, self.server.veer_workspace, poll_seconds=0.01)
         with mock.patch("veer_pc_agent.webbrowser.open", return_value=True) as browser:
             worker.start()
             try:
+                time.sleep(0.08)
+                browser.assert_not_called()
+                queue.approve_task(task.task_id, task.payload_sha256)
                 completed = self.wait_for_task(task.task_id)
             finally:
                 worker.stop()
@@ -236,12 +205,10 @@ class VeerPcAgentTests(unittest.TestCase):
         payload = {"operation": "health", "payload": {}, "idempotency_key": "health-task-key-0001"}
         status, body = self.request("/tasks", "POST", payload, authenticated=False)
         self.assertEqual(status, 401)
-
         status, body = self.request("/tasks", "POST", payload)
         self.assertEqual(status, 202)
         task_id = body["task"]["task_id"]
         self.assertEqual(body["task"]["state"], "queued")
-
         status, body = self.request("/tasks/" + task_id)
         self.assertEqual(status, 200)
         self.assertEqual(body["task"]["operation"], "health")
@@ -252,11 +219,9 @@ class VeerPcAgentTests(unittest.TestCase):
         self.assertEqual(status, 202)
         task = body["task"]
         self.assertEqual(task["state"], "pending_approval")
-
         status, body = self.request("/tasks/" + task["task_id"] + "/approve", "POST", {"payload_sha256": "0" * 64})
         self.assertEqual(status, 400)
         self.assertEqual(body["error"], "Approval does not match the exact task payload")
-
         status, body = self.request("/tasks/" + task["task_id"] + "/approve", "POST", {"payload_sha256": task["payload_sha256"]})
         self.assertEqual(status, 200)
         self.assertEqual(body["task"]["state"], "queued")
@@ -268,12 +233,10 @@ class VeerPcAgentTests(unittest.TestCase):
         status, duplicate = self.request("/tasks", "POST", payload)
         self.assertEqual(status, 202)
         self.assertEqual(first["task"]["task_id"], duplicate["task"]["task_id"])
-
         task_id = first["task"]["task_id"]
         status, cancelled = self.request("/tasks/" + task_id + "/cancel", "POST", {})
         self.assertEqual(status, 200)
         self.assertEqual(cancelled["task"]["state"], "cancelled")
-
         status, rejected = self.request("/tasks", "POST", {"operation": "run_shell", "payload": {}, "idempotency_key": "unsupported-task-key-001"})
         self.assertEqual(status, 400)
         self.assertFalse(rejected["ok"])
