@@ -1271,6 +1271,7 @@ fun VeerApp() {
                 addReply("Boss, Web Search ke liye Settings mein VEER Cloud URL aur API token configure karein.")
                 showSettings = true
             } else {
+                latestResearchReport = ""
                 loading = true
                 status = if (researchMode == "research") "SEARCHING AND RESEARCHING..." else "SEARCHING THE WEB..."
                 val baseUrl = cloudApiUrl
