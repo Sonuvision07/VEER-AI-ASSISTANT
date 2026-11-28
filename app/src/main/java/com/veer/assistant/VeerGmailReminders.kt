@@ -87,6 +87,14 @@ object VeerGmailReminderScheduler {
         pending.cancel()
         VeerGmailReminderStore.remove(context, id)
     }
+    fun cancelAll(context: Context) {
+        VeerGmailReminderStore.list(context).forEach { reminder ->
+            val pending = alarmIntent(context, reminder)
+            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
+            pending.cancel()
+        }
+        VeerGmailReminderStore.save(context, emptyList())
+    }
     fun restore(context: Context) {
         val now = System.currentTimeMillis()
         val active = VeerGmailReminderStore.list(context).filter { it.triggerAtMillis > now }
