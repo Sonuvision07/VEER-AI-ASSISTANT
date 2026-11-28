@@ -1205,6 +1205,7 @@ class VeerAgentBrainTest {
         val tools = FakeTools()
         val requested = call("write", AgentRisk.DEVICE_CHANGE)
         var decisions = 0
+        val approval = FakeApproval(false)
         val brain = VeerAgentBrain(
             FakeGateway { _, _ ->
                 decisions += 1
@@ -1212,12 +1213,12 @@ class VeerAgentBrainTest {
                 else AgentDecision("Done", finished = true)
             },
             tools,
-            FakeApproval(false)
+            approval
         )
 
         val pending = brain.run(turn())
         val continuation = pending.continuation!!
-        (brain.javaClass.getDeclaredField("approval").apply { isAccessible = true }.get(brain) as FakeApproval).result = true
+        approval.result = true
         val first = brain.resumeAfterApproval(continuation, requested)
         val countAfterFirst = tools.executed.size
         val second = brain.resumeAfterApproval(continuation, requested)
