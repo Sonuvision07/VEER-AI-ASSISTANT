@@ -426,7 +426,8 @@ class VeerAgentBrain(
                         turn.copy(
                             providerContext = null,
                             previousToolCallId = null,
-                            providerContextProvider = null
+                            providerContextProvider = null,
+                            cancellationToken = cancellationToken
                         )
                     } else turn.copy(cancellationToken = cancellationToken)
                     val decision = gateway.decide(provider, providerTurn)
