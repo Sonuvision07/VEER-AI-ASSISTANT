@@ -36,7 +36,7 @@ object VeerDrivePreview {
             .removePrefix("\uFEFF")
 
         require(!decoded.contains('\u0000')) { "File contains binary data and cannot be shown as text" }
-        require(decoded.none { it.isISOControl() && it !in '\n' && it !in '\r' && it !in '\t' }) {
+        require(decoded.none { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' }) {
             "File contains unsupported control characters"
         }
 
