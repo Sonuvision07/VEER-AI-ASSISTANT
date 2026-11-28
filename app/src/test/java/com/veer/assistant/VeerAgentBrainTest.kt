@@ -96,6 +96,55 @@ class VeerAgentBrainTest {
         assertEquals(null, fallbackTurn?.providerContextProvider)
     }
 
+    @Test fun exposesVerifiedOutcomeOnlyAfterIndependentVerifierConfirmsIt() {
+        var modelSawOutcome: String? = null
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = name == "read"
+            override fun riskFor(name: String) = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall) = "dispatch accepted"
+            override fun verifyOutcome(call: AgentToolCall, dispatchResult: String) =
+                AgentToolOutcome.verified("Read-only postcondition matched.")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next ->
+                if (next.previousToolResult == null) AgentDecision("Reading", call("read", AgentRisk.READ_ONLY), finished = false)
+                else {
+                    modelSawOutcome = next.previousToolResult
+                    AgentDecision("Finished")
+                }
+            },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentOutcomeStatus.VERIFIED, result.lastToolOutcome?.status)
+        assertEquals("Read-only postcondition matched.", result.lastToolOutcome?.evidenceSummary)
+        assertTrue(modelSawOutcome!!.contains("independently verified"))
+    }
+
+    @Test fun verifierFailureProducesUncertainOutcomeAndNeverFalseSuccess() {
+        val tools = object : AgentToolExecutor {
+            override fun supports(name: String) = true
+            override fun riskFor(name: String) = AgentRisk.READ_ONLY
+            override fun execute(call: AgentToolCall) = "success"
+            override fun verifyOutcome(call: AgentToolCall, dispatchResult: String): AgentToolOutcome =
+                error("private verifier failure")
+        }
+        val brain = VeerAgentBrain(
+            FakeGateway { _, next -> if (next.previousToolResult == null) AgentDecision("Read", call("read", AgentRisk.READ_ONLY), finished = false) else AgentDecision(next.previousToolResult) },
+            tools,
+            FakeApproval(false)
+        )
+
+        val result = brain.run(turn())
+
+        assertEquals(AgentOutcomeStatus.UNCERTAIN, result.lastToolOutcome?.status)
+        assertTrue(result.message.contains("uncertain", ignoreCase = true))
+        assertFalse(result.message.contains("private verifier failure"))
+    }
+
     @Test fun readOnlyToolRunsWithoutApproval() {
         val tools = FakeTools()
         val approval = FakeApproval(false)
