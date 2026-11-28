@@ -142,21 +142,21 @@ export default async function handler(req, res) {
       const { value, done } = await reader.read();
       if (done) break;
       pending += decoder.decode(value, { stream: true });
-      const events = pending.split("\\n\\n");
+      const events = pending.split("\n\n");
       pending = events.pop() || "";
       for (const event of events) {
-        for (const line of event.split("\\n")) {
+        for (const line of event.split("\n")) {
           if (!line.startsWith("data:")) continue;
           try {
             const packet = JSON.parse(line.slice(5).trim());
             const text = packet.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
-            if (text && !res.destroyed) res.write("data: " + JSON.stringify({ text }) + "\\n\\n");
+            if (text && !res.destroyed) res.write("data: " + JSON.stringify({ text }) + "\n\n");
           } catch { /* Ignore malformed upstream SSE frames. */ }
         }
       }
     }
     if (!disconnected && !res.destroyed) {
-      res.write("data: [DONE]\\n\\n");
+      res.write("data: [DONE]\n\n");
       res.end();
     }
     reader.releaseLock();
