@@ -116,7 +116,9 @@ data class AgentRunResult(
     /** Exact validated call awaiting a human decision; never execute from message text. */
     val pendingApproval: AgentToolCall? = null,
     /** Opaque in-memory continuation; only resume this exact approved call. */
-    val continuation: AgentApprovalContinuation? = null
+    val continuation: AgentApprovalContinuation? = null,
+    /** Latest tool outcome; VERIFIED is emitted only by a trusted independent verifier. */
+    val lastToolOutcome: AgentToolOutcome? = null
 )
 
 interface ModelGateway {
@@ -129,6 +131,9 @@ interface AgentToolExecutor {
     /** Trusted registry classification; never trust the model-supplied risk alone. */
     fun riskFor(name: String): AgentRisk? = null
     fun execute(call: AgentToolCall): String
+    /** Must verify the postcondition independently; never infer success from dispatch text. */
+    fun verifyOutcome(call: AgentToolCall, dispatchResult: String): AgentToolOutcome =
+        AgentToolOutcome.uncertain("No independent postcondition verifier is configured.")
 }
 
 interface AgentApprovalGate {
@@ -179,7 +184,7 @@ class VeerAgentBrain(
         val deadline = now + timeoutNanos
         return runFromTurn(
             initialTurn, completedSteps = 0, initialProvider = null,
-            cancellationToken = cancellationToken, deadlineNanos = deadline
+            cancellationToken = cancellationToken, deadlineNanos = deadline, initialOutcome = null
         )
     }
 
@@ -188,9 +193,11 @@ class VeerAgentBrain(
         completedSteps: Int,
         initialProvider: AiProvider?,
         cancellationToken: AgentCancellationToken,
-        deadlineNanos: Long
+        deadlineNanos: Long,
+        initialOutcome: AgentToolOutcome?
     ): AgentRunResult {
         var turn = initialTurn
+        var lastOutcome = initialOutcome
         var lastProvider: AiProvider? = initialProvider
         var steps = completedSteps
 
@@ -207,7 +214,7 @@ class VeerAgentBrain(
             lastProvider = decision.first
             val action = decision.second.toolCall
             if (action == null || decision.second.finished) {
-                return AgentRunResult(decision.second.message, lastProvider, steps)
+                return AgentRunResult(decision.second.message, lastProvider, steps, lastToolOutcome = lastOutcome)
             }
             if (action.name.isBlank() || action.name != action.name.trim() || action.name.any { it.isISOControl() } || action.name.length > maxToolNameChars) {
                 return AgentRunResult(
@@ -284,19 +291,30 @@ class VeerAgentBrain(
             }
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps)
             if (nanoTime() >= deadlineNanos) return timedOutAgentResult(lastProvider, steps)
+            var dispatchFailed = false
             val rawResult = try {
                 tools.execute(action)
             } catch (_: Exception) {
+                dispatchFailed = true
                 // Tool exceptions may contain credentials or private arguments; never pass them to the model.
                 "Tool execution failed. VEER ne action ko safely stop kar diya."
+            }
+            lastOutcome = if (dispatchFailed) AgentToolOutcome.uncertain("Tool dispatch failed; remote effect may be unknown.") else try {
+                tools.verifyOutcome(action, rawResult)
+            } catch (_: Exception) {
+                AgentToolOutcome.uncertain("Independent verification failed; effect is unconfirmed.")
             }
             if (cancellationToken.isCancelled()) return cancelledAgentResult(lastProvider, steps + 1)
             if (nanoTime() - deadlineNanos >= 0L) return timedOutAgentResult(lastProvider, steps + 1)
             // Bound tool output before adding it to the next model request.
-            val result = if (rawResult.length > maxToolResultChars) {
-                rawResult.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
-            } else {
-                rawResult
+            val outcomeNote = when (lastOutcome?.status) {
+                AgentOutcomeStatus.VERIFIED -> "[VEER outcome: independently verified]"
+                AgentOutcomeStatus.ATTEMPTED -> "[VEER outcome: attempted, not verified]"
+                AgentOutcomeStatus.UNCERTAIN -> "[VEER outcome: uncertain; do not claim completion]"
+                null -> "[VEER outcome: unavailable]"
+            }
+            val result = (rawResult + "\n" + outcomeNote).let { value ->
+                if (value.length > maxToolResultChars) value.take(maxToolResultChars) + "\n[Tool result truncated by VEER]" else value
             }
             steps += 1
             turn = turn.copy(
@@ -308,7 +326,7 @@ class VeerAgentBrain(
         }
         return AgentRunResult(
             "VEER ne safety limit ke liye task ko ${maxToolSteps} tool steps ke baad roka. Aage badhne ke liye task ko review karein.",
-            lastProvider, steps
+            lastProvider, steps, lastToolOutcome = lastOutcome
         )
     }
 
@@ -387,16 +405,28 @@ class VeerAgentBrain(
         if (nanoTime() - continuation.deadlineNanos >= 0L) return timedOutAgentResult(continuation.provider, continuation.completedSteps)
         continuation.consumed = true
 
+        var dispatchFailed = false
         val raw = try {
             tools.execute(action)
         } catch (_: Exception) {
+            dispatchFailed = true
             "Tool execution failed. VEER ne action ko safely stop kar diya."
+        }
+        val outcome = if (dispatchFailed) AgentToolOutcome.uncertain("Tool dispatch failed; remote effect may be unknown.") else try {
+            tools.verifyOutcome(action, raw)
+        } catch (_: Exception) {
+            AgentToolOutcome.uncertain("Independent verification failed; effect is unconfirmed.")
         }
         if (cancellationToken.isCancelled()) return cancelledAgentResult(continuation.provider, continuation.completedSteps + 1)
         if (nanoTime() >= continuation.deadlineNanos) return timedOutAgentResult(continuation.provider, continuation.completedSteps + 1)
-        val bounded = if (raw.length > maxToolResultChars) {
-            raw.take(maxToolResultChars) + "\n[Tool result truncated by VEER]"
-        } else raw
+        val outcomeNote = when (outcome.status) {
+            AgentOutcomeStatus.VERIFIED -> "[VEER outcome: independently verified]"
+            AgentOutcomeStatus.ATTEMPTED -> "[VEER outcome: attempted, not verified]"
+            AgentOutcomeStatus.UNCERTAIN -> "[VEER outcome: uncertain; do not claim completion]"
+        }
+        val bounded = (raw + "\n" + outcomeNote).let { value ->
+            if (value.length > maxToolResultChars) value.take(maxToolResultChars) + "\n[Tool result truncated by VEER]" else value
+        }
         // Feed the real execution result back to the model and continue the same
         // bounded task. The approval continuation remains one-shot.
         return runFromTurn(
@@ -404,7 +434,8 @@ class VeerAgentBrain(
             completedSteps = continuation.completedSteps + 1,
             initialProvider = continuation.provider,
             cancellationToken = cancellationToken,
-            deadlineNanos = continuation.deadlineNanos
+            deadlineNanos = continuation.deadlineNanos,
+            initialOutcome = outcome
         )
     }
 
