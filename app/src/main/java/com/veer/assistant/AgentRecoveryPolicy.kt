@@ -5,8 +5,8 @@ package com.veer.assistant
  *
  * Only explicitly classified transient provider-decision failures may be
  * retried, and only within the configured attempt budget. Tool execution is
- * never automatically replayed: callers must obtain fresh evidence and, for
- * side effects, a fresh exact-action approval before any new attempt.
+ * never automatically replayed: a later attempt requires fresh orchestration
+ * and fresh exact-action approval for any side effect.
  */
 object AgentRecoveryPolicy {
     fun shouldRetryProvider(
@@ -19,16 +19,6 @@ object AgentRecoveryPolicy {
         return failure.retryable && completedAttempts < maxAttempts
     }
 
-    /** A tool call may have succeeded remotely even if its response was lost. */
-    fun shouldAutomaticallyRetryTool(
-        risk: AgentRisk,
-        idempotent: Boolean,
-        outcomeVerifiedNotApplied: Boolean,
-        approvalFresh: Boolean
-    ): Boolean {
-        // Even a read-only/idempotent tool is not replayed by this policy:
-        // orchestration must explicitly re-evaluate the task instead.
-        // These parameters make the safety conditions explicit for callers.
-        return false
-    }
+    /** A remote tool may have succeeded even when its response was lost. */
+    fun shouldAutomaticallyRetryTool(): Boolean = false
 }
