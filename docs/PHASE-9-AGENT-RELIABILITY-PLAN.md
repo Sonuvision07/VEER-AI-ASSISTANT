@@ -7,7 +7,7 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 - Keep the existing bounded task loop, timeout, allowlist and explicit approvals; do not broaden permissions as part of reliability work.
 - Treat task context, provider output, files and webpages as untrusted data.
 - Never replay approvals or provider continuation state across providers or tasks.
-- Side effects require exact-action approval; verification must not itself create new side effects.
+- Side effects require exact-action approval; verification must not itself create side effects.
 - Avoid logging secrets, OAuth tokens, sensitive content or unnecessary user data.
 - Prefer deterministic state transitions and bounded memory; task memory must be scoped, clearable and not silently persistent.
 - No claim of physical-device acceptance until tests are run on a device.
@@ -29,9 +29,16 @@ Improve reliability, transparency, recovery and safe cancellation of VEER's mult
 - Replace an existing task record by task ID without creating duplicate entries.
 - Expose safe snapshot/list lookup and an explicit clear operation.
 - Reject malformed identifiers/timestamps and never retain request text, tool arguments or provider secrets.
+- Sanitize and bound status reasons before storing them.
 - Unit tests cover bounds, replacement, ordering, validation and clearing.
 
-## Step 2 acceptance criteria\n- Add a standalone lifecycle model with stable task IDs and timestamps.\n- Validate lifecycle transitions; terminal states cannot be reopened.\n- Keep lifecycle metadata minimal and bounded; no request/tool/provider payloads in this model.\n- Unit tests cover lifecycle, invalid transitions, monotonic timestamps and reason sanitization.\n\n## Step 1 acceptance criteria
+## Step 2 acceptance criteria
+- Add a standalone lifecycle model with stable task IDs and timestamps.
+- Validate lifecycle transitions; terminal states cannot be reopened.
+- Keep lifecycle metadata minimal and bounded; no request/tool/provider payloads in this model.
+- Unit tests cover lifecycle, invalid transitions, monotonic timestamps and reason sanitization.
+
+## Step 1 acceptance criteria
 - This plan is committed on a feature branch and proposed in a PR.
 - Existing Phase 1–5 plan remains unchanged except for a pointer to Phase 9.
 - No application code or UI changes are made in Step 1.
