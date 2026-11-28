@@ -10,8 +10,8 @@ This audit consolidates the Phase 9 work from the task lifecycle/state model thr
 
 ## Implemented in the integration candidate
 
-- Explicit queued/running/waiting-approval/completed/failed/cancelled task lifecycle with monotonic timestamps and terminal-state protection.
-- Bounded, in-memory task history and task context with validation, expiry, sanitization, and clear operations.
+- Explicit queued/running/waiting-approval/completed/failed/cancelled task lifecycle integrated into the agent brain, including the same task session across approval pause/resume.
+- Bounded, in-memory task history exposed through the Android runtime and clearable; task context stores only generic outcome-status labels and is cleared on terminal states.
 - Cooperative cancellation in the agent brain and provider HTTP transports (Gemini, OpenAI, Anthropic, Meta Muse, Groq/Llama, xAI/Grok); active HTTP connections are disconnected best-effort.
 - Conservative provider retry policy; side-effecting tool actions are never automatically replayed.
 - Distinct attempted/verified/uncertain outcome model integrated into the actual executor/brain dispatch and approval-resume paths.
